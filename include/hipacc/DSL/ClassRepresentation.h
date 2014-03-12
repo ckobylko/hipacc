@@ -46,6 +46,11 @@
 #include "hipacc/Config/CompilerOptions.h"
 #include "hipacc/Device/TargetDescription.h"
 
+#ifdef _MSC_VER
+#include <locale>
+#endif
+
+
 namespace clang {
 namespace hipacc {
 // forward declaration

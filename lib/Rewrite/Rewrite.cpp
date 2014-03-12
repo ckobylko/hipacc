@@ -33,6 +33,20 @@
 
 #include "hipacc/Rewrite/Rewrite.h"
 
+
+// Re-route POSIX functions for Visual Studio
+#ifdef _MSC_VER
+
+#include <io.h>
+
+#define fsync(fd) _commit(fd)
+#define open(filename, oflag, pmode) _open(filename, oflag, pmode)
+#define popen(command, mode) _popen(command, mode)
+#define pclose(file) _pclose(file)
+
+#endif
+
+
 using namespace clang;
 using namespace hipacc;
 using namespace ASTNode;
