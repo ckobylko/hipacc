@@ -97,6 +97,18 @@ IF(MSVC)
     # Remove invalid compiler flags
     STRING(REPLACE " -w14062" "" LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
 
+    # Add required include directories
+    IF(NOT LLVM_SOURCE_DIR)
+        MESSAGE(FATAL_ERROR "LLVM_SOURCE_DIR has to be an absolute path!")
+    ENDIF()
+    IF(NOT LLVM_BUILD_DIR)
+        MESSAGE(FATAL_ERROR "LLVM_BUILD_DIR has to be an absolute path!")
+    ENDIF()
+    SET(CLANG_INCLUDE_DIR "tools/clang/include")
+    SET(LLVM_CXXFLAGS "/I${LLVM_BUILD_DIR}/${CLANG_INCLUDE_DIR} ${LLVM_CXXFLAGS}")
+    SET(LLVM_CXXFLAGS "/I${LLVM_SOURCE_DIR}/${CLANG_INCLUDE_DIR} ${LLVM_CXXFLAGS}")
+
+
     IF(build STREQUAL "RELEASE")
         SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
     ELSE()
