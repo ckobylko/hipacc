@@ -54,7 +54,7 @@ FIND_PACKAGE(OpenCL)
 FIND_PACKAGE(RenderScript)
 
 IF(NOT CUDA_FOUND AND NOT OPENCL_FOUND AND NOT RENDERSCRIPT_FOUND)
-    MESSAGE(FATAL_ERROR "Neither CUDA, OpenCL nor RenderScript found. At least one of them is required to use HIPACC properly.")
+    MESSAGE(WARNING "Neither CUDA, OpenCL nor RenderScript found. At least one of them is required to use HIPACC properly.")
 ENDIF(NOT CUDA_FOUND AND NOT OPENCL_FOUND AND NOT RENDERSCRIPT_FOUND)
 
 IF(CUDA_FOUND)
