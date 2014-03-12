@@ -74,16 +74,20 @@ MESSAGE(STATUS "USE_JIT_ESTIMATE=${USE_JIT_ESTIMATE}")
 MESSAGE(STATUS "===")
 
 
-# platform specific fixes
-IF(APPLE)
+# platform specific fixes linker flags
+IF(MSVC)
+    SET(CUDA_LINK "")
+    SET(CUDA_COMP "")
+    SET(TIME_LINK "")
+ELSEIF(APPLE)
     SET(CUDA_LINK "-Xlinker -framework,CUDA")
     SET(CUDA_COMP "-ccbin ${CLANG_EXECUTABLE} -Xcompiler -arch -Xcompiler x86_64 -Xcompiler -stdlib=libstdc++")
     SET(TIME_LINK "")
-ELSE(APPLE)
+ELSE()
     SET(CUDA_LINK "-lcuda -lcudart")
     SET(CUDA_COMP "")
     SET(TIME_LINK "-lrt -lm -lstdc++")
-ENDIF(APPLE)
+ENDIF()
 
 
 # debug and release builds
