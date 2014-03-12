@@ -1,8 +1,13 @@
-SET(KernelStatistics_SOURCES KernelStatistics.cpp)
-SET(Polly_SOURCES Polly.cpp)
+SET(CURRENT_HEADER_DIR "${HIPACC_RELATIVE_INCLUDE_DIR}/Analysis")
 
-ADD_LIBRARY(KernelStatistics ${KernelStatistics_SOURCES})
+SET(KernelStatistics_SOURCES KernelStatistics.cpp)
+SET(KernelStatistics_HEADERS "${CURRENT_HEADER_DIR}/KernelStatistics.h")
+
+SET(Polly_SOURCES Polly.cpp)
+SET(Polly_HEADERS "${CURRENT_HEADER_DIR}/Polly.h")
+
+ADD_LIBRARY(KernelStatistics ${KernelStatistics_SOURCES} ${KernelStatistics_HEADERS})
 IF(USE_POLLY)
-    ADD_LIBRARY(Polly ${Polly_SOURCES})
+    ADD_LIBRARY(Polly ${Polly_SOURCES} ${Polly_HEADERS})
 ENDIF(USE_POLLY)
 

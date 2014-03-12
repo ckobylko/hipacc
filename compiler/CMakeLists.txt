@@ -47,7 +47,9 @@ ENDIF(USE_POLLY)
 LINK_DIRECTORIES(${LLVM_LIBRARY_DIR})
 
 SET(hipacc_SOURCES hipacc.cpp)
-ADD_EXECUTABLE(hipacc ${hipacc_SOURCES})
+SET(hipacc_HEADERS hipacc.h "../include/hipacc/Config/CompilerOptions.h"
+	                        "${HIPACC_BINARY_DIR}/include/hipacc/Config/config.h")
+ADD_EXECUTABLE(hipacc ${hipacc_SOURCES} ${hipacc_HEADERS})
 
 
 TARGET_LINK_LIBRARIES(hipacc ${HIPACC_USED_LIBS} ${CLANG_USED_LIBS} ${LLVM_MODULE_LIBS} ${LLVM_LFLAGS} ${TIME_LINK})
