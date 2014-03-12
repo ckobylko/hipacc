@@ -86,11 +86,25 @@ ENDIF(APPLE)
 
 # debug and release builds
 STRING(TOUPPER "${CMAKE_BUILD_TYPE}" build)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-IF(build STREQUAL "RELEASE")
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+
+# Set compiler-specific flags
+IF(MSVC)
+    # Disable generation of runtime type information
+    STRING(REPLACE "/GR " "/GR- " LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
+
+    IF(build STREQUAL "RELEASE")
+        SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    ELSE()
+        SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    ENDIF()
 ELSE()
-    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wunused")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
+    IF(build STREQUAL "RELEASE")
+        SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    ELSE()
+        SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wunused")
+    ENDIF()
 ENDIF()
 
 
