@@ -94,6 +94,9 @@ IF(MSVC)
     # Disable generation of runtime type information
     STRING(REPLACE "/GR " "/GR- " LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
 
+    # Remove invalid compiler flags
+    STRING(REPLACE " -w14062" "" LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
+
     IF(build STREQUAL "RELEASE")
         SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
     ELSE()
