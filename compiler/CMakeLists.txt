@@ -22,6 +22,7 @@ SET(CLANG_USED_LIBS
 
 SET(HIPACC_USED_LIBS
     Rewrite
+    Backend
     CreateHostStrings
     ClassRepresentation
     ASTTranslate
