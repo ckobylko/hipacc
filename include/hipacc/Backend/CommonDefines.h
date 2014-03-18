@@ -24,18 +24,18 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- ICodeGenerator.h - Base interface for all code generators. ------------------===//
+//===--- CommonDefines.h - Common definitions for the Backend library. ---------------===//
 //
-// This file implements the base interface for all code generators.
+// This file contains common definitions and classes for the Backend library.
 //
 //===---------------------------------------------------------------------------------===//
 
-#ifndef _BACKEND_ICODEGENERATOR_H_
-#define _BACKEND_ICODEGENERATOR_H_
+#ifndef _BACKEND_COMMON_DEFINES_H_
+#define _BACKEND_COMMON_DEFINES_H_
 
-#include <memory>
 #include <string>
-#include "CommonDefines.h"
+#include <utility>
+#include <vector>
 
 namespace clang
 {
@@ -43,30 +43,22 @@ namespace hipacc
 {
 namespace Backend
 {
-	class ICodeGenerator
+	class CommonDefines
 	{
 	public:
-		virtual ~ICodeGenerator()	{}
 
+		typedef std::vector< std::string >				ArgumentVectorType;
 
-		virtual std::string GetDescription() const = 0;
-		virtual std::string GetEmissionKey() const = 0;
-		virtual std::string	GetName() const = 0;
+		typedef std::pair< std::string, std::string >	SwitchDisplayInfoType;
+		typedef std::vector< SwitchDisplayInfoType >	SwitchDisplayInfoVectorType;
 
-		virtual CommonDefines::SwitchDisplayInfoVectorType GetCompilerSwitches() const = 0;
-
-		virtual void Configure(CommonDefines::ArgumentVectorType & rvecArguments) = 0;
 	};
-
-
-	typedef std::shared_ptr< ICodeGenerator >	ICodeGeneratorPtr;
-
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
 
 
-#endif  // _BACKEND_ICODEGENERATOR_H_
+#endif  // _BACKEND_COMMON_DEFINES_H_
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 

@@ -37,12 +37,12 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-BackendConfigurationManager::KnownSwitches::SwitchInfoPair BackendConfigurationManager::KnownSwitches::GetSwitchInfo(BackendConfigurationManager::CompilerSwitchTypeEnum eType)
+CommonDefines::SwitchDisplayInfoType BackendConfigurationManager::KnownSwitches::GetSwitchInfo(BackendConfigurationManager::CompilerSwitchTypeEnum eType)
 {
 	switch (eType)
 	{
-	case CompilerSwitchTypeEnum::Help:		return SwitchInfoPair(HelpSwitch(), HelpSwitchDescription());
-	case CompilerSwitchTypeEnum::Version:	return SwitchInfoPair(VersionSwitch(), VersionSwitchDescription());
+	case CompilerSwitchTypeEnum::Help:		return CommonDefines::SwitchDisplayInfoType(HelpSwitch(),	 HelpSwitchDescription());
+	case CompilerSwitchTypeEnum::Version:	return CommonDefines::SwitchDisplayInfoType(VersionSwitch(), VersionSwitchDescription());
 	default:	throw BackendException("Unknown switch type");
 	}
 }
@@ -63,7 +63,7 @@ BackendConfigurationManager::BackendConfigurationManager() : _spSelectedCodeGene
 
 void BackendConfigurationManager::_InitSwitch(CompilerSwitchTypeEnum eType)
 {
-	KnownSwitches::SwitchInfoPair Info = KnownSwitches::GetSwitchInfo(eType);
+	CommonDefines::SwitchDisplayInfoType Info = KnownSwitches::GetSwitchInfo(eType);
 
 	if (_mapKnownSwitches.find(Info.first) != _mapKnownSwitches.end())
 	{
@@ -105,11 +105,11 @@ void BackendConfigurationManager::_PrintUsage()
 
 
 	// Format and print known common switches
-	vector< pair<string, string> > vecSwitches;
+	CommonDefines::SwitchDisplayInfoVectorType vecSwitches;
 
 	for (auto itSwitch = _mapKnownSwitches.begin(); itSwitch != _mapKnownSwitches.end(); itSwitch++)
 	{
-		pair<string, string>	CurrentSwitch;
+		CommonDefines::SwitchDisplayInfoType	CurrentSwitch;
 
 		CurrentSwitch.first		= itSwitch->first;
 		CurrentSwitch.second	= itSwitch->second.GetDescription();
@@ -121,7 +121,7 @@ void BackendConfigurationManager::_PrintUsage()
 
 }
 
-void BackendConfigurationManager::_PrintSwitches(vector< pair< string, string > > & rvecSwitches)
+void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches)
 {
 	const size_t cszPrintWidth			= 50;
 	const size_t cszMinDescriptionWidth = 20;
@@ -216,7 +216,7 @@ void BackendConfigurationManager::_PrintSwitches(vector< pair< string, string > 
 }
 
 
-size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, std::vector< std::string > & rvecArguments, size_t szCurIndex)
+size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType & rvecArguments, size_t szCurIndex)
 {
 	CompilerSwitchTypeEnum eSwitchType = _mapKnownSwitches[strSwitch].GetSwitchType();
 
@@ -256,11 +256,11 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, std::ve
 }
 
 
-void BackendConfigurationManager::Configure(vector< string > & rvecArguments)
+void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & rvecArguments)
 {
 	try
 	{
-		vector< string > vecUnknownArguments;
+		CommonDefines::ArgumentVectorType vecUnknownArguments;
 
 		for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
 		{

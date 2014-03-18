@@ -40,6 +40,7 @@
 #include <vector>
 #include <type_traits>
 #include "BackendExceptions.h"
+#include "CommonDefines.h"
 #include "ICodeGenerator.h"
 
 namespace clang
@@ -62,7 +63,7 @@ namespace Backend
 		private:
 
 			CompilerSwitchTypeEnum	_eSwitchType;
-			std::string			_strDescription;
+			std::string				_strDescription;
 
 		public:
 
@@ -104,16 +105,14 @@ namespace Backend
 		{
 		public:
 
-			typedef std::pair< std::string, std::string >	SwitchInfoPair;
-
-			static SwitchInfoPair GetSwitchInfo(CompilerSwitchTypeEnum eType);
+			static CommonDefines::SwitchDisplayInfoType GetSwitchInfo(CompilerSwitchTypeEnum eType);
 
 		public:
 
 			inline static std::string EmissionSwitchBase()			{ return "-emit-"; }
 
-			inline static std::string HelpSwitch()				{ return "--help"; }
-			inline static std::string HelpSwitchDescription()	{ return "Display available options"; }
+			inline static std::string HelpSwitch()					{ return "--help"; }
+			inline static std::string HelpSwitchDescription()		{ return "Display available options"; }
 
 			inline static std::string VersionSwitch()				{ return "--version"; }
 			inline static std::string VersionSwitchDescription()	{ return "Display version information"; }
@@ -154,11 +153,11 @@ namespace Backend
 
 		std::string _TranslateDuplicateSwitch( std::string strSwitch );
 
-		size_t _HandleSwitch(std::string strSwitch, std::vector< std::string > & rvecArguments, size_t szCurIndex);
+		size_t _HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType & rvecArguments, size_t szCurIndex);
 
 		std::string _GetPadString(size_t szPadSize);
 		void _PrintUsage();
-		void _PrintSwitches(std::vector< std::pair< std::string, std::string > > & rvecSwitches);
+		void _PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches);
 
 	public:
 
@@ -168,7 +167,7 @@ namespace Backend
 		BackendConfigurationManager& operator=(const BackendConfigurationManager&) = delete;
 
 
-		void Configure(std::vector< std::string > & rvecArguments);
+		void Configure(CommonDefines::ArgumentVectorType & rvecArguments);
 
 	};
 
