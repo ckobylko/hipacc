@@ -48,7 +48,7 @@ BackendConfigurationManager::KnownSwitches::SwitchInfoPair BackendConfigurationM
 }
 
 
-BackendConfigurationManager::BackendConfigurationManager()
+BackendConfigurationManager::BackendConfigurationManager() : _spSelectedCodeGenerator(nullptr)
 {
 	// Init all known common switches
 	_InitSwitch(CompilerSwitchTypeEnum::Help);
@@ -220,8 +220,23 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, std::ve
 {
 	CompilerSwitchTypeEnum eSwitchType = _mapKnownSwitches[strSwitch].GetSwitchType();
 
+	size_t szLastParsedSwitch = szCurIndex;
+
 	switch (eSwitchType)
 	{
+	case CompilerSwitchTypeEnum::Emit:
+	{
+		if (_spSelectedCodeGenerator)
+		{
+			throw RuntimeErrorException("Only one code generator can be selected for the compiler invocation!");
+		}
+		else
+		{
+			_spSelectedCodeGenerator = _mapCodeGenerators[strSwitch];
+		}
+
+		break;
+	}
 	case CompilerSwitchTypeEnum::Help:
 	{
 		_PrintUsage();
@@ -236,6 +251,8 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, std::ve
 	}
 	default: throw UnhandledSwitchException(strSwitch);
 	}
+
+	return szLastParsedSwitch;
 }
 
 
@@ -261,6 +278,16 @@ void BackendConfigurationManager::Configure(vector< string > & rvecArguments)
 			}
 		}
 
+
+		// Configure the selected code generator
+		if (_spSelectedCodeGenerator)
+		{
+			_spSelectedCodeGenerator->Configure(vecUnknownArguments);
+		}
+		else
+		{
+			throw RuntimeErrorException("No code generator has been selected! Did you forget the \"-emit-<X>\" switch?");
+		}
 	}
 	catch (AbortException &e)
 	{

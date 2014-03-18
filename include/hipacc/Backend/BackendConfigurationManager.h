@@ -36,8 +36,11 @@
 #include <map>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
+#include <type_traits>
 #include "BackendExceptions.h"
+#include "ICodeGenerator.h"
 
 namespace clang
 {
@@ -51,7 +54,7 @@ namespace Backend
 
 		enum class CompilerSwitchTypeEnum
 		{
-			Help, Version
+			Emit, Help, Version
 		};
 
 		class CompilerSwitchInfo final
@@ -92,6 +95,7 @@ namespace Backend
 
 		typedef std::map< std::string, CompilerSwitchInfo >		CompilerSwitchMapType;
 		typedef std::map< std::string, std::string >			DuplicateSwitchMapType;
+		typedef std::map< std::string, ICodeGeneratorPtr>		CodeGeneratorsMapType;
 
 
 	private:
@@ -106,6 +110,8 @@ namespace Backend
 
 		public:
 
+			inline static std::string EmissionSwitchBase()			{ return "-emit-"; }
+
 			inline static std::string HelpSwitch()				{ return "--help"; }
 			inline static std::string HelpSwitchDescription()	{ return "Display available options"; }
 
@@ -118,6 +124,31 @@ namespace Backend
 
 		CompilerSwitchMapType	_mapKnownSwitches;
 		DuplicateSwitchMapType	_mapDuplicateSwitches;
+		CodeGeneratorsMapType	_mapCodeGenerators;
+
+		ICodeGeneratorPtr		_spSelectedCodeGenerator;
+
+
+		template <class GeneratorType>
+		void _InitCodeGenerator()
+		{
+			static_assert(std::is_base_of< ICodeGenerator, GeneratorType >::value, "Code generators must be derived from \"ICodeGenerator\"");
+
+			ICodeGeneratorPtr spCodeGenerator( new GeneratorType() );
+
+			std::string strEmissionKey = KnownSwitches::EmissionSwitchBase() + spCodeGenerator->GetEmissionKey();
+
+			if (_mapCodeGenerators.find(strEmissionKey) != _mapCodeGenerators.end())
+			{
+				throw DuplicateSwitchEntryException(strEmissionKey);
+			}
+			else
+			{
+				_mapCodeGenerators[strEmissionKey]	= spCodeGenerator;
+				_mapKnownSwitches[strEmissionKey]	= CompilerSwitchInfo(CompilerSwitchTypeEnum::Emit, spCodeGenerator->GetDescription());
+			}
+		}
+
 
 		void _InitSwitch(CompilerSwitchTypeEnum eType);
 
