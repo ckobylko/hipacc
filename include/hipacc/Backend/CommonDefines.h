@@ -63,15 +63,17 @@ namespace Backend
 
 			SwitchTypeEnum		_eSwitchType;
 			std::string			_strDescription;
+			std::string			_strAdditionalOptions;
 
 		public:
 
 			inline CompilerSwitchInfoT()		{}
 
-			inline CompilerSwitchInfoT(SwitchTypeEnum eType, std::string strDescription)
+			inline CompilerSwitchInfoT(SwitchTypeEnum eType, std::string strDescription, std::string strAdditionalOptions = "")
 			{
-				_eSwitchType	= eType;
-				_strDescription	= strDescription;
+				_eSwitchType			= eType;
+				_strDescription			= strDescription;
+				_strAdditionalOptions	= strAdditionalOptions;
 			}
 
 			inline CompilerSwitchInfoT(CompilerSwitchInfoT &crRVal)
@@ -81,18 +83,32 @@ namespace Backend
 
 			inline CompilerSwitchInfoT& operator=(CompilerSwitchInfoT &crRVal)
 			{
-				_eSwitchType	= crRVal._eSwitchType;
-				_strDescription	= crRVal._strDescription;
+				_eSwitchType			= crRVal._eSwitchType;
+				_strDescription			= crRVal._strDescription;
+				_strAdditionalOptions	= crRVal._strAdditionalOptions;
 
 				return *this;
 			}
 
 
-			inline SwitchDisplayInfoType CreateDisplayInfo(std::string strSwitch) const		{ return SwitchDisplayInfoType(strSwitch, GetDescription()); }
+			inline SwitchDisplayInfoType CreateDisplayInfo(std::string strSwitch) const
+			{
+				SwitchDisplayInfoType SwitchInfo(strSwitch, GetDescription());
+
+				if (!_strAdditionalOptions.empty())
+				{
+					SwitchInfo.first += std::string(" ") + _strAdditionalOptions;
+				}
+
+				return SwitchInfo;
+			}
 
 
-			inline std::string	GetDescription() const							{ return _strDescription; }
-			inline void			SetDescription(std::string strNewDescription)	{ _strDescription = strNewDescription; }
+			inline std::string	GetAdditionalOptions() const						{ return _strAdditionalOptions; }
+			inline void			SetAdditionalOptions(std::string strNewOptions)		{ _strAdditionalOptions = strNewOptions; }
+
+			inline std::string	GetDescription() const								{ return _strDescription; }
+			inline void			SetDescription(std::string strNewDescription)		{ _strDescription = strNewDescription; }
 
 			inline SwitchTypeEnum	GetSwitchType()	 const							{ return _eSwitchType; }
 			inline void				SetSwitchType(SwitchTypeEnum eNewSwitchType)	{ _eSwitchType = eNewSwitchType; }
