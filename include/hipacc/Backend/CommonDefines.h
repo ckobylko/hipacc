@@ -36,6 +36,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 namespace clang
 {
@@ -43,7 +44,7 @@ namespace hipacc
 {
 namespace Backend
 {
-	class CommonDefines
+	class CommonDefines final
 	{
 	public:
 
@@ -51,6 +52,51 @@ namespace Backend
 
 		typedef std::pair< std::string, std::string >	SwitchDisplayInfoType;
 		typedef std::vector< SwitchDisplayInfoType >	SwitchDisplayInfoVectorType;
+
+
+		template < typename SwitchTypeEnum >
+		class CompilerSwitchInfoT final
+		{
+		private:
+
+			static_assert( std::is_enum<SwitchTypeEnum>::value, "The \"switch type\"-type must be an enum or strongly-typed enum!" );
+
+			SwitchTypeEnum		_eSwitchType;
+			std::string			_strDescription;
+
+		public:
+
+			inline CompilerSwitchInfoT()		{}
+
+			inline CompilerSwitchInfoT(SwitchTypeEnum eType, std::string strDescription)
+			{
+				_eSwitchType	= eType;
+				_strDescription	= strDescription;
+			}
+
+			inline CompilerSwitchInfoT(CompilerSwitchInfoT &crRVal)
+			{
+				*this = crRVal;
+			}
+
+			inline CompilerSwitchInfoT& operator=(CompilerSwitchInfoT &crRVal)
+			{
+				_eSwitchType	= crRVal._eSwitchType;
+				_strDescription	= crRVal._strDescription;
+
+				return *this;
+			}
+
+
+			inline SwitchDisplayInfoType CreateDisplayInfo(std::string strSwitch) const		{ return SwitchDisplayInfoType(strSwitch, GetDescription()); }
+
+
+			inline std::string	GetDescription() const							{ return _strDescription; }
+			inline void			SetDescription(std::string strNewDescription)	{ _strDescription = strNewDescription; }
+
+			inline SwitchTypeEnum	GetSwitchType()	 const							{ return _eSwitchType; }
+			inline void				SetSwitchType(SwitchTypeEnum eNewSwitchType)	{ _eSwitchType = eNewSwitchType; }
+		};
 
 	};
 } // end namespace Backend

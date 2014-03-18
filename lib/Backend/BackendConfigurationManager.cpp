@@ -70,7 +70,7 @@ void BackendConfigurationManager::_InitSwitch(CompilerSwitchTypeEnum eType)
 		throw DuplicateSwitchEntryException(Info.first);
 	}
 
-	_mapKnownSwitches[Info.first] = CompilerSwitchInfo(eType, Info.second);
+	_mapKnownSwitches[Info.first] = CompilerSwitchInfoType(eType, Info.second);
 }
 
 
@@ -109,16 +109,21 @@ void BackendConfigurationManager::_PrintUsage()
 
 	for (auto itSwitch = _mapKnownSwitches.begin(); itSwitch != _mapKnownSwitches.end(); itSwitch++)
 	{
-		CommonDefines::SwitchDisplayInfoType	CurrentSwitch;
-
-		CurrentSwitch.first		= itSwitch->first;
-		CurrentSwitch.second	= itSwitch->second.GetDescription();
-
-		vecSwitches.push_back(CurrentSwitch);
+		vecSwitches.push_back(itSwitch->second.CreateDisplayInfo(itSwitch->first));
 	}
 
 	_PrintSwitches(vecSwitches);
 
+
+	// Print the specific switches for all known code generators
+	for each (auto itCodeGenerator in _mapCodeGenerators)
+	{
+		ICodeGeneratorPtr spCodeGenerator = itCodeGenerator.second;
+
+		llvm::errs() << "\n\nSpecific options for code generator \"" << spCodeGenerator->GetName() << "\":\n\n";
+
+		_PrintSwitches(spCodeGenerator->GetCompilerSwitches());
+	}
 }
 
 void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches)

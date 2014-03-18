@@ -58,45 +58,13 @@ namespace Backend
 			Emit, Help, Version
 		};
 
-		class CompilerSwitchInfo final
-		{
-		private:
 
-			CompilerSwitchTypeEnum	_eSwitchType;
-			std::string				_strDescription;
-
-		public:
-
-			inline CompilerSwitchInfo()		{}
-
-			inline CompilerSwitchInfo(CompilerSwitchTypeEnum eType, std::string strDescription)
-			{
-				_eSwitchType	= eType;
-				_strDescription	= strDescription;
-			}
-
-			inline CompilerSwitchInfo(CompilerSwitchInfo &crRVal)
-			{
-				*this = crRVal;
-			}
-
-			inline CompilerSwitchInfo& operator=(CompilerSwitchInfo &crRVal)
-			{
-				_eSwitchType	= crRVal._eSwitchType;
-				_strDescription = crRVal._strDescription;
-
-				return *this;
-			}
+		typedef CommonDefines::CompilerSwitchInfoT< CompilerSwitchTypeEnum >	CompilerSwitchInfoType;
 
 
-			inline CompilerSwitchTypeEnum	GetSwitchType()	 const		{ return _eSwitchType; }
-			inline std::string				GetDescription() const		{ return _strDescription; }
-		};
-
-
-		typedef std::map< std::string, CompilerSwitchInfo >		CompilerSwitchMapType;
-		typedef std::map< std::string, std::string >			DuplicateSwitchMapType;
-		typedef std::map< std::string, ICodeGeneratorPtr>		CodeGeneratorsMapType;
+		typedef std::map< std::string, CompilerSwitchInfoType >		CompilerSwitchMapType;
+		typedef std::map< std::string, std::string >				DuplicateSwitchMapType;
+		typedef std::map< std::string, ICodeGeneratorPtr >			CodeGeneratorsMapType;
 
 
 	private:
