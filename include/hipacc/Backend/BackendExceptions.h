@@ -85,7 +85,7 @@ namespace Backend
 	};
 
 
-	class DuplicateSwitchEntryException : public InternalErrorException
+	class DuplicateSwitchEntryException final : public InternalErrorException
 	{
 	private:
 
@@ -94,9 +94,14 @@ namespace Backend
 	public:
 
 		inline DuplicateSwitchEntryException(std::string strSwitch) : BaseType(std::string("The switch \"") + strSwitch + std::string("\" has already been defined!")) {}
+
+		inline DuplicateSwitchEntryException(std::string strSwitch, std::string strGeneratorName) : BaseType(std::string("The switch \"") + strSwitch +
+																											 std::string("\" has already been defined in code generator \"") +
+																											 strGeneratorName + std::string("\"!"))
+		{}
 	};
 
-	class UnhandledSwitchException : public InternalErrorException
+	class UnhandledSwitchException final : public InternalErrorException
 	{
 	private:
 
@@ -107,7 +112,7 @@ namespace Backend
 		inline UnhandledSwitchException(std::string strSwitch) : BaseType(std::string("Handler for switch \"") + strSwitch + std::string("\" is missing!")) {}
 	};
 
-	class AbortException : public RuntimeErrorException
+	class AbortException final : public RuntimeErrorException
 	{
 	private:
 
@@ -120,6 +125,21 @@ namespace Backend
 		inline AbortException(int iExitCode) : BaseType("Abort!"), _iExitCode(iExitCode)	{}
 
 		inline int GetExitCode()	{ return _iExitCode; }
+	};
+
+
+	class UnknownSwitchException final : public RuntimeErrorException
+	{
+	private:
+
+		typedef RuntimeErrorException	BaseType;
+
+	public:
+
+		inline UnknownSwitchException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The switch \"") + strSwitch +
+																									   std::string("\" is not supported in code generator \"") +
+																									   strGeneratorName + std::string("\"") )
+		{}
 	};
 } // end namespace Backend
 } // end namespace hipacc
