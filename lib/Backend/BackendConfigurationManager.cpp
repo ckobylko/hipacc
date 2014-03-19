@@ -34,6 +34,9 @@
 #include "hipacc/Config/config.h"
 #include "llvm/Support/raw_ostream.h"
 
+// Supported code generators
+#include "hipacc/Backend/Renderscript.h"
+
 using namespace clang::hipacc::Backend;
 using namespace std;
 
@@ -58,6 +61,10 @@ BackendConfigurationManager::BackendConfigurationManager() : _spSelectedCodeGene
 	// Set links for duplicate switches
 	_mapDuplicateSwitches["-help"]		= KnownSwitches::HelpSwitch();
 	_mapDuplicateSwitches["-version"]	= KnownSwitches::VersionSwitch();
+
+
+	// Init known code generators
+	_InitCodeGenerator<Renderscript::CodeGenerator>();
 }
 	
 
