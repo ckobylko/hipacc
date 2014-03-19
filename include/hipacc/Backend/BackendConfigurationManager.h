@@ -112,7 +112,7 @@ namespace Backend
 			else
 			{
 				_mapCodeGenerators[strEmissionKey]	= spCodeGenerator;
-				_mapKnownSwitches[strEmissionKey]	= CompilerSwitchInfo(CompilerSwitchTypeEnum::Emit, spCodeGenerator->GetDescription());
+				_mapKnownSwitches[strEmissionKey]	= CompilerSwitchInfoType(CompilerSwitchTypeEnum::Emit, spCodeGenerator->GetDescription());
 			}
 		}
 

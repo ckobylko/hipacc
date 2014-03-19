@@ -50,9 +50,14 @@ namespace Backend
 	template < typename SwitchTypeEnum >
 	class CodeGeneratorBaseImplT : public ICodeGenerator
 	{
-	private:
+	protected:
 
 		typedef CommonDefines::CompilerSwitchInfoT< SwitchTypeEnum >	CompilerSwitchInfoType;
+		typedef std::pair< std::string, CompilerSwitchInfoType >		CompilerSwitchEntryType;
+
+
+	private:
+
 		typedef std::map< std::string, CompilerSwitchInfoType >			CompilerSwitchMapType;
 
 
@@ -65,16 +70,13 @@ namespace Backend
 
 	protected:
 
-		typedef std::pair< std::string, CompilerSwitchInfoType >		CompilerSwitchEntryType;
-
-
 		void _InitSwitch(SwitchTypeEnum eSwitch)
 		{
 			CompilerSwitchEntryType SwitchEntry = _GetSwitchEntry(eSwitch);
 
 			std::string strSwitch = SwitchEntry.first;
 
-			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches)
+			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
 			{
 				throw DuplicateSwitchEntryException(strSwitch, GetName());
 			}
