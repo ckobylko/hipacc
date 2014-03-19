@@ -33,6 +33,7 @@
 #ifndef _BACKEND_CODE_GENERATOR_BASE_IMPL_T_H_
 #define _BACKEND_CODE_GENERATOR_BASE_IMPL_T_H_
 
+#include "hipacc/Config/CompilerOptions.h"
 #include "BackendExceptions.h"
 #include "CommonDefines.h"
 #include "ICodeGenerator.h"
@@ -60,6 +61,7 @@ namespace Backend
 
 		typedef std::map< std::string, CompilerSwitchInfoType >			CompilerSwitchMapType;
 
+		::clang::hipacc::CompilerOptions	*_pCompilerOptions;
 
 		const std::string _strDescription;
 		const std::string _strEmissionKey;
@@ -69,6 +71,9 @@ namespace Backend
 
 
 	protected:
+
+		inline ::clang::hipacc::CompilerOptions& GetCompilerOptions()		{ return *_pCompilerOptions; }
+
 
 		void _InitSwitch(SwitchTypeEnum eSwitch)
 		{
@@ -93,10 +98,16 @@ namespace Backend
 
 	public:
 
-		CodeGeneratorBaseImplT(std::string strName, std::string strEmissionKey, std::string strDescription) : _strDescription(strDescription),
-																											  _strEmissionKey(strEmissionKey),
-																											  _strName(strName)
+		CodeGeneratorBaseImplT(	::clang::hipacc::CompilerOptions *pCompilerOptions, std::string strName,
+								std::string strEmissionKey, std::string strDescription ) :	_pCompilerOptions(pCompilerOptions),
+																							_strDescription(strDescription),
+																							_strEmissionKey(strEmissionKey),
+																							_strName(strName)
 		{
+			if (_pCompilerOptions == nullptr)
+			{
+				throw BackendException("Compiler options have not been set");
+			}
 		}
 
 		virtual ~CodeGeneratorBaseImplT()

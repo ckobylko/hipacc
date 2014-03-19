@@ -38,6 +38,7 @@
 #include "hipacc/Backend/Renderscript.h"
 
 using namespace clang::hipacc::Backend;
+using namespace clang::hipacc;
 using namespace std;
 
 CommonDefines::SwitchDisplayInfoType BackendConfigurationManager::KnownSwitches::GetSwitchInfo(BackendConfigurationManager::CompilerSwitchTypeEnum eType)
@@ -51,8 +52,14 @@ CommonDefines::SwitchDisplayInfoType BackendConfigurationManager::KnownSwitches:
 }
 
 
-BackendConfigurationManager::BackendConfigurationManager() : _spSelectedCodeGenerator(nullptr)
+BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr)
 {
+	if (_pCompilerOptions == nullptr)
+	{
+		throw BackendException("Compiler options have not been set");
+	}
+
+
 	// Init all known common switches
 	_InitSwitch(CompilerSwitchTypeEnum::Help);
 	_InitSwitch(CompilerSwitchTypeEnum::Version);

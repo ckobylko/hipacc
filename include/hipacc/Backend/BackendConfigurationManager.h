@@ -39,6 +39,7 @@
 #include <utility>
 #include <vector>
 #include <type_traits>
+#include "hipacc/Config/CompilerOptions.h"
 #include "BackendExceptions.h"
 #include "CommonDefines.h"
 #include "ICodeGenerator.h"
@@ -89,6 +90,8 @@ namespace Backend
 
 	private:
 
+		::clang::hipacc::CompilerOptions	*_pCompilerOptions;
+
 		CompilerSwitchMapType	_mapKnownSwitches;
 		DuplicateSwitchMapType	_mapDuplicateSwitches;
 		CodeGeneratorsMapType	_mapCodeGenerators;
@@ -101,7 +104,7 @@ namespace Backend
 		{
 			static_assert(std::is_base_of< ICodeGenerator, GeneratorType >::value, "Code generators must be derived from \"ICodeGenerator\"");
 
-			ICodeGeneratorPtr spCodeGenerator( new GeneratorType() );
+			ICodeGeneratorPtr spCodeGenerator( new GeneratorType(_pCompilerOptions) );
 
 			std::string strEmissionKey = KnownSwitches::EmissionSwitchBase() + spCodeGenerator->GetEmissionKey();
 
@@ -129,7 +132,7 @@ namespace Backend
 
 	public:
 
-		BackendConfigurationManager();
+		BackendConfigurationManager(::clang::hipacc::CompilerOptions *pCompilerOptions);
 
 		BackendConfigurationManager(const BackendConfigurationManager&) = delete;
 		BackendConfigurationManager& operator=(const BackendConfigurationManager&) = delete;

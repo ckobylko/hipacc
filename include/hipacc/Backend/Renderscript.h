@@ -72,7 +72,7 @@ namespace Backend
 
 		public:
 
-			inline CodeGenerator() : BaseType("Renderscript", "renderscript", "Emit Filterscript code for Android")
+			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Renderscript", "renderscript", "Emit Filterscript code for Android")
 			{
 				_InitSwitch(CompilerSwitchTypeEnum::EmitPadding);
 				_InitSwitch(CompilerSwitchTypeEnum::PixelsPerThread);
