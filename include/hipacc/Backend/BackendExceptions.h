@@ -141,6 +141,20 @@ namespace Backend
 																									   strGeneratorName + std::string("\"") )
 		{}
 	};
+
+	class InvalidOptionException final : public RuntimeErrorException
+	{
+	private:
+
+		typedef RuntimeErrorException	BaseType;
+
+	public:
+
+		inline InvalidOptionException(std::string strSwitch, std::string strOption) : BaseType( std::string("The option \"") + strOption +
+																								std::string("\" is invalid for the switch \"") +
+																								strSwitch + std::string("\""))
+		{}
+	};
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
