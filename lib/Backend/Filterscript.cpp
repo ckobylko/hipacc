@@ -24,18 +24,18 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- Renderscript.cpp - Implements the Renderscript code generator. --------------===//
+//===--- Filterscript.cpp - Implements the Filterscript code generator. --------------===//
 //
-// This file implements the Renderscript code generator.
+// This file implements the Filterscript code generator.
 //
 //===---------------------------------------------------------------------------------===//
 
-#include "hipacc/Backend/Renderscript.h"
+#include "hipacc/Backend/Filterscript.h"
 
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
+Filterscript::CodeGenerator::CompilerSwitchEntryType Filterscript::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
 {
 	CompilerSwitchEntryType SwitchEntry;
 
@@ -43,16 +43,6 @@ Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator
 
 	switch (eSwitch)
 	{
-	case CompilerSwitchTypeEnum::EmitPadding:
-		SwitchEntry.first = AcceleratorDeviceSwitches::EmitPaddingSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::EmitPaddingSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::EmitPaddingSwitchDescription());
-		break;
-	case CompilerSwitchTypeEnum::PixelsPerThread:
-		SwitchEntry.first = AcceleratorDeviceSwitches::PixelsPerThreadSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::PixelsPerThreadSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::PixelsPerThreadSwitchDescription());
-		break;
 	case CompilerSwitchTypeEnum::RsPackage:
 		SwitchEntry.first = AndroidSwitches::RsPackageSwitch();
 		SwitchEntry.second.SetAdditionalOptions(AndroidSwitches::RsPackageSwitchAdditionalOptions());
@@ -64,41 +54,13 @@ Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator
 	return SwitchEntry;
 }
 
-size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
+size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
 	size_t	szReturnIndex		= szCurrentIndex;
 
 	switch (eSwitch)
 	{
-	case CompilerSwitchTypeEnum::EmitPadding:
-		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
-			GetCompilerOptions().setPadding(_ParseIntegerOption(strOption, strCurrentSwitch));
-
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::PixelsPerThread:
-		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
-			GetCompilerOptions().setPixelsPerThread( _ParseIntegerOption(strOption, strCurrentSwitch) );
-
-			++szReturnIndex;
-		}
-		break;
 	case CompilerSwitchTypeEnum::RsPackage:
 		{
 			if (rvecArguments.size() <= szCurrentIndex + 1)

@@ -24,14 +24,14 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- Renderscript.h - Implements the Renderscript code generator. ----------------===//
+//===--- Filterscript.h - Implements the Filterscript code generator. ----------------===//
 //
-// This file implements the Renderscript code generator.
+// This file implements the Filterscript code generator.
 //
 //===---------------------------------------------------------------------------------===//
 
-#ifndef _BACKEND_RENDER_SCRIPT_H_
-#define _BACKEND_RENDER_SCRIPT_H_
+#ifndef _BACKEND_FILTER_SCRIPT_H_
+#define _BACKEND_FILTER_SCRIPT_H_
 
 #include "AndroidBase.h"
 #include "AcceleratorDeviceBase.h"
@@ -43,14 +43,12 @@ namespace hipacc
 {
 namespace Backend
 {
-	class Renderscript final : public AndroidBase, public AcceleratorDeviceBase
+	class Filterscript final : public AndroidBase
 	{
 	private:
 
 		enum class CompilerSwitchTypeEnum
 		{
-			EmitPadding,
-			PixelsPerThread,
 			RsPackage
 		};
 
@@ -72,10 +70,8 @@ namespace Backend
 
 		public:
 
-			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Renderscript", "renderscript", "Emit Renderscript code for Android")
+			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Filterscript", "filterscript", "Emit Filterscript code for Android")
 			{
-				_InitSwitch(CompilerSwitchTypeEnum::EmitPadding);
-				_InitSwitch(CompilerSwitchTypeEnum::PixelsPerThread);
 				_InitSwitch(CompilerSwitchTypeEnum::RsPackage);
 			}
 		};
@@ -86,7 +82,7 @@ namespace Backend
 } // end namespace clang
 
 
-#endif  // _BACKEND_RENDER_SCRIPT_H_
+#endif  // _BACKEND_FILTER_SCRIPT_H_
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 

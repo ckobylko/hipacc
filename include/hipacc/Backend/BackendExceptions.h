@@ -110,6 +110,11 @@ namespace Backend
 	public:
 
 		inline UnhandledSwitchException(std::string strSwitch) : BaseType(std::string("Handler for switch \"") + strSwitch + std::string("\" is missing!")) {}
+
+		inline UnhandledSwitchException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("Handler for switch \"") + strSwitch +
+																										 std::string("\" is missing in code generator \"") + 
+																										 strGeneratorName + std::string("\"!") )
+		{}
 	};
 
 	class AbortException final : public RuntimeErrorException
@@ -138,7 +143,7 @@ namespace Backend
 
 		inline UnknownSwitchException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The switch \"") + strSwitch +
 																									   std::string("\" is not supported in code generator \"") +
-																									   strGeneratorName + std::string("\"") )
+																									   strGeneratorName + std::string("\"!") )
 		{}
 	};
 
