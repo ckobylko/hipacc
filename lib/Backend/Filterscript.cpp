@@ -63,15 +63,8 @@ size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch
 	{
 	case CompilerSwitchTypeEnum::RsPackage:
 		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
 			GetCompilerOptions().setRSPackageName(_CheckRsPackageOption(strOption));
-
 			++szReturnIndex;
 		}
 		break;

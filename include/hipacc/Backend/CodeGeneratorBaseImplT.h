@@ -92,6 +92,27 @@ namespace Backend
 			}
 		}
 
+
+		std::string _FetchSwitchOption(CommonDefines::ArgumentVectorType &rvecArguments, size_t szSwitchIndex, size_t szOptionOffset = static_cast<size_t>(1))
+		{
+			if (rvecArguments.size() <= szSwitchIndex + szOptionOffset)
+			{
+				throw MissingOptionException(rvecArguments[szSwitchIndex], GetName());
+			}
+
+			return rvecArguments[szSwitchIndex + szOptionOffset];
+		}
+		
+		::clang::hipacc::CompilerOption _ParseOnOffOption(std::string strOption, std::string strSwitch)
+		{
+			if		(strOption == "off")	return USER_OFF;
+			else if	(strOption == "on")		return USER_ON;
+			else
+			{
+				throw InvalidOptionException(strSwitch, strOption);
+			}
+		}
+
 		int _ParseIntegerOption(std::string strOption, std::string strSwitch)
 		{
 			std::istringstream buffer(strOption.c_str());

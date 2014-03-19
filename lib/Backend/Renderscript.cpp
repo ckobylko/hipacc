@@ -73,43 +73,22 @@ size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch
 	{
 	case CompilerSwitchTypeEnum::EmitPadding:
 		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
 			GetCompilerOptions().setPadding(_ParseIntegerOption(strOption, strCurrentSwitch));
-
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::PixelsPerThread:
 		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
 			GetCompilerOptions().setPixelsPerThread( _ParseIntegerOption(strOption, strCurrentSwitch) );
-
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::RsPackage:
 		{
-			if (rvecArguments.size() <= szCurrentIndex + 1)
-			{
-				throw MissingOptionException(strCurrentSwitch);
-			}
-
-			string strOption = rvecArguments[szCurrentIndex + 1];
-
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
 			GetCompilerOptions().setRSPackageName(_CheckRsPackageOption(strOption));
-
 			++szReturnIndex;
 		}
 		break;

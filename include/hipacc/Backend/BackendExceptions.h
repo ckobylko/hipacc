@@ -157,7 +157,7 @@ namespace Backend
 
 		inline InvalidOptionException(std::string strSwitch, std::string strOption) : BaseType( std::string("The option \"") + strOption +
 																								std::string("\" is invalid for the switch \"") +
-																								strSwitch + std::string("\""))
+																								strSwitch + std::string("\"!") )
 		{}
 	};
 
@@ -169,7 +169,12 @@ namespace Backend
 
 	public:
 
-		inline MissingOptionException(std::string strSwitch) : BaseType(std::string("The required option for switch \"") + strSwitch + std::string("\" is missing"))
+		inline MissingOptionException(std::string strSwitch) : BaseType(std::string("The required option for switch \"") + strSwitch + std::string("\" is missing!"))
+		{}
+
+		inline MissingOptionException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The required option for switch \"") + strSwitch +
+																									   std::string("\" is missing for code generator \"") +
+																									   strGeneratorName + std::string("\"!") )
 		{}
 	};
 } // end namespace Backend

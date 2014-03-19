@@ -67,7 +67,7 @@ namespace Backend
 
 		public:
 
-			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "CPU-x86", "cpu", " Emit C++ code for x86-CPUs")
+			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "CPU-x86", "cpu", "Emit C++ code for x86-CPUs")
 			{
 			}
 		};
