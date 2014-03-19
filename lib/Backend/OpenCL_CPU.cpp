@@ -1,0 +1,99 @@
+//
+// Copyright (c) 2012, University of Erlangen-Nuremberg
+// Copyright (c) 2012, Siemens AG
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this
+//    list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+// ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
+//===--- OpenCL_CPU.cpp - Implements the OpenCL code generator for CPUs. -------------===//
+//
+// This file implements the OpenCL code generator for CPUs.
+//
+//===---------------------------------------------------------------------------------===//
+
+#include "hipacc/Backend/OpenCL_CPU.h"
+
+using namespace clang::hipacc::Backend;
+using namespace clang::hipacc;
+using namespace std;
+
+OpenCL_CPU::CodeGenerator::CompilerSwitchEntryType OpenCL_CPU::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
+{
+	CompilerSwitchEntryType SwitchEntry;
+
+	SwitchEntry.second.SetSwitchType(eSwitch);
+
+	switch (eSwitch)
+	{
+	case CompilerSwitchTypeEnum::ExploreConfig:
+		SwitchEntry.first = AcceleratorDeviceSwitches::ExploreConfigSwitch();
+		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::ExploreConfigSwitchDescription());
+		break;
+	case CompilerSwitchTypeEnum::UseLocal:
+		SwitchEntry.first = AcceleratorDeviceSwitches::UseLocalSwitch();
+		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::UseLocalSwitchAdditionalOptions());
+		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::UseLocalSwitchDescription());
+		break;
+	case CompilerSwitchTypeEnum::Vectorize:
+		SwitchEntry.first = AcceleratorDeviceSwitches::VectorizeSwitch();
+		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::VectorizeSwitchAdditionalOptions());
+		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::VectorizeSwitchDescription());
+		break;
+	default:	throw InternalErrorException("Unknown switch type");
+	}
+
+	return SwitchEntry;
+}
+
+size_t OpenCL_CPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
+{
+	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
+	size_t	szReturnIndex		= szCurrentIndex;
+
+	switch (eSwitch)
+	{
+	case CompilerSwitchTypeEnum::ExploreConfig:
+		GetCompilerOptions().setExploreConfig(USER_ON);
+		break;
+	case CompilerSwitchTypeEnum::UseLocal:
+		{
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
+			GetCompilerOptions().setLocalMemory(_ParseOnOffOption(strOption, strCurrentSwitch));
+			++szReturnIndex;
+		}
+		break;
+	case CompilerSwitchTypeEnum::Vectorize:
+		{
+			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
+			GetCompilerOptions().setVectorizeKernels(_ParseOnOffOption(strOption, strCurrentSwitch));
+			++szReturnIndex;
+		}
+		break;
+	default:	throw UnhandledSwitchException(strCurrentSwitch, GetName());
+	}
+
+	return szReturnIndex;
+}
+
+
+// vim: set ts=2 sw=2 sts=2 et ai:
+
