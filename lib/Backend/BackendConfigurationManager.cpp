@@ -35,6 +35,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 // Supported code generators
+#include "hipacc/Backend/CPU_x86.h"
 #include "hipacc/Backend/Filterscript.h"
 #include "hipacc/Backend/Renderscript.h"
 
@@ -72,6 +73,7 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 
 
 	// Init known code generators
+	_InitCodeGenerator<CPU_x86::CodeGenerator>();
 	_InitCodeGenerator<Renderscript::CodeGenerator>();
 	_InitCodeGenerator<Filterscript::CodeGenerator>();
 }

@@ -24,64 +24,44 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- Filterscript.h - Implements the Filterscript code generator. ----------------===//
+//===--- CPU_x86.cpp - Implements the C++ code generator for x86-based CPUs. ---------===//
 //
-// This file implements the Filterscript code generator.
+// This file implements the C++ code generator for CPUs which are based on the x86-microarchitecture.
 //
 //===---------------------------------------------------------------------------------===//
 
-#ifndef _BACKEND_FILTER_SCRIPT_H_
-#define _BACKEND_FILTER_SCRIPT_H_
+#include "hipacc/Backend/CPU_x86.h"
 
-#include "AndroidBase.h"
-#include "CodeGeneratorBaseImplT.h"
+using namespace clang::hipacc::Backend;
+using namespace std;
 
-namespace clang
+CPU_x86::CodeGenerator::CompilerSwitchEntryType CPU_x86::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
 {
-namespace hipacc
-{
-namespace Backend
-{
-	class Filterscript final : public AndroidBase
+	CompilerSwitchEntryType SwitchEntry;
+
+	SwitchEntry.second.SetSwitchType(eSwitch);
+
+	switch (eSwitch)
 	{
-	private:
+	default:	throw InternalErrorException("Unknown switch type");
+	}
 
-		enum class CompilerSwitchTypeEnum
-		{
-			RsPackage
-		};
+	return SwitchEntry;
+}
 
+size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
+{
+	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
+	size_t	szReturnIndex		= szCurrentIndex;
 
-	public:
+	switch (eSwitch)
+	{
+	default:	throw UnhandledSwitchException(strCurrentSwitch, GetName());
+	}
 
-		class CodeGenerator final : public CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >
-		{
-		private:
+	return szReturnIndex;
+}
 
-			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
-			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
-			typedef BaseType::CompilerSwitchEntryType					CompilerSwitchEntryType;
-
-		protected:
-
-			virtual CompilerSwitchEntryType _GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const override;
-			virtual size_t					_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
-
-		public:
-
-			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Filterscript", "filterscript", "Emit Filterscript code for Android")
-			{
-				_InitSwitch(CompilerSwitchTypeEnum::RsPackage);
-			}
-		};
-
-	};
-} // end namespace Backend
-} // end namespace hipacc
-} // end namespace clang
-
-
-#endif  // _BACKEND_FILTER_SCRIPT_H_
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 

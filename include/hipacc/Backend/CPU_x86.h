@@ -24,16 +24,15 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- Filterscript.h - Implements the Filterscript code generator. ----------------===//
+//===--- CPU_x86.h - Implements the C++ code generator for x86-based CPUs. -----------===//
 //
-// This file implements the Filterscript code generator.
+// This file implements the C++ code generator for CPUs which are based on the x86-microarchitecture.
 //
 //===---------------------------------------------------------------------------------===//
 
-#ifndef _BACKEND_FILTER_SCRIPT_H_
-#define _BACKEND_FILTER_SCRIPT_H_
+#ifndef _BACKEND_CPU_X86_H_
+#define _BACKEND_CPU_X86_H_
 
-#include "AndroidBase.h"
 #include "CodeGeneratorBaseImplT.h"
 
 namespace clang
@@ -42,13 +41,12 @@ namespace hipacc
 {
 namespace Backend
 {
-	class Filterscript final : public AndroidBase
+	class CPU_x86 final
 	{
 	private:
 
 		enum class CompilerSwitchTypeEnum
 		{
-			RsPackage
 		};
 
 
@@ -69,19 +67,17 @@ namespace Backend
 
 		public:
 
-			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Filterscript", "filterscript", "Emit Filterscript code for Android")
+			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "CPU-x86", "cpu", " Emit C++ code for x86-CPUs")
 			{
-				_InitSwitch(CompilerSwitchTypeEnum::RsPackage);
 			}
 		};
-
 	};
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
 
 
-#endif  // _BACKEND_FILTER_SCRIPT_H_
+#endif  // _BACKEND_CPU_X86_H_
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 
