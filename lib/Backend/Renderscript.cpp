@@ -58,7 +58,7 @@ Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator
 		SwitchEntry.second.SetAdditionalOptions(AndroidSwitches::RsPackageSwitchAdditionalOptions());
 		SwitchEntry.second.SetDescription(AndroidSwitches::RsPackageSwitchDescription());
 		break;
-	default:	throw BackendException("Unknown switch type");
+	default:	throw InternalErrorException("Unknown switch type");
 	}
 
 	return SwitchEntry;
@@ -66,9 +66,57 @@ Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator
 
 size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
-	// TODO: Implement
+	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
+	size_t	szReturnIndex		= szCurrentIndex;
 
-	return szCurrentIndex;
+	switch (eSwitch)
+	{
+	case CompilerSwitchTypeEnum::EmitPadding:
+		{
+			if (rvecArguments.size() <= szCurrentIndex + 1)
+			{
+				throw MissingOptionException(strCurrentSwitch);
+			}
+
+			string strOption = rvecArguments[szCurrentIndex + 1];
+
+			GetCompilerOptions().setPadding(_ParseIntegerOption(strOption, strCurrentSwitch));
+
+			++szReturnIndex;
+		}
+		break;
+	case CompilerSwitchTypeEnum::PixelsPerThread:
+		{
+			if (rvecArguments.size() <= szCurrentIndex + 1)
+			{
+				throw MissingOptionException(strCurrentSwitch);
+			}
+
+			string strOption = rvecArguments[szCurrentIndex + 1];
+
+			GetCompilerOptions().setPixelsPerThread( _ParseIntegerOption(strOption, strCurrentSwitch) );
+
+			++szReturnIndex;
+		}
+		break;
+	case CompilerSwitchTypeEnum::RsPackage:
+		{
+			if (rvecArguments.size() <= szCurrentIndex + 1)
+			{
+				throw MissingOptionException(strCurrentSwitch);
+			}
+
+			string strOption = rvecArguments[szCurrentIndex + 1];
+
+			GetCompilerOptions().setRSPackageName(_CheckRsPackageOption(strOption));
+
+			++szReturnIndex;
+		}
+		break;
+	default:	throw InternalErrorException("Unknown switch type");
+	}
+
+	return szReturnIndex;
 }
 
 

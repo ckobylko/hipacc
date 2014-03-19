@@ -38,6 +38,7 @@
 #include "CommonDefines.h"
 #include "ICodeGenerator.h"
 #include <map>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -89,6 +90,21 @@ namespace Backend
 			{
 				_mapKnownSwitches[strSwitch] = SwitchEntry.second;
 			}
+		}
+
+		int _ParseIntegerOption(std::string strOption, std::string strSwitch)
+		{
+			std::istringstream buffer(strOption.c_str());
+			
+			int iRetVal;
+			buffer >> iRetVal;
+
+			if (buffer.fail())
+			{
+				throw InvalidOptionException(strSwitch, strOption);
+			}
+
+			return iRetVal;
 		}
 
 

@@ -56,7 +56,7 @@ namespace Backend
 		};
 
 
-		inline void _CheckRsPackageOption(std::string strRsPackageOption)
+		inline static std::string _CheckRsPackageOption(std::string strRsPackageOption)
 		{
 			std::string strPackageEnding(".rs");
 
@@ -71,6 +71,8 @@ namespace Backend
 			{
 				throw InvalidOptionException(AndroidSwitches::RsPackageSwitch(), strRsPackageOption);
 			}
+
+			return strRsPackageOption;
 		}
 	};
 } // end namespace Backend

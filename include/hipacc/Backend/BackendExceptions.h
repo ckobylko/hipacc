@@ -155,6 +155,18 @@ namespace Backend
 																								strSwitch + std::string("\""))
 		{}
 	};
+
+	class MissingOptionException final : public RuntimeErrorException
+	{
+	private:
+
+		typedef RuntimeErrorException	BaseType;
+
+	public:
+
+		inline MissingOptionException(std::string strSwitch) : BaseType(std::string("The required option for switch \"") + strSwitch + std::string("\" is missing"))
+		{}
+	};
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
