@@ -133,7 +133,10 @@ namespace Backend
 		}
 
 
-		virtual size_t _HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
+
+		virtual size_t	_HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
+
+		virtual void	_CheckConfiguration()	{}
 
 
 	public:
@@ -179,6 +182,7 @@ namespace Backend
 
 		virtual void Configure(CommonDefines::ArgumentVectorType & rvecArguments) final override
 		{
+			// Parse all command line switches and options by the derived code generator
 			for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
 			{
 				std::string strSwitch = rvecArguments[i];
@@ -192,6 +196,10 @@ namespace Backend
 
 				i = _HandleSwitch(itSwitchEntry->second.GetSwitchType(), rvecArguments, i);
 			}
+
+
+			// Finally, check the configuration
+			_CheckConfiguration();
 		}
 		//@}
 	};

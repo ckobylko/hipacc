@@ -159,7 +159,7 @@ namespace Backend
 		};
 
 
-		inline ::clang::hipacc::TargetDevice _ParseTargetOption( std::string strTargetOption )
+		inline static ::clang::hipacc::TargetDevice _ParseTargetOption( std::string strTargetOption )
 		{
 			if		(strTargetOption == "Tesla-10")			return ::clang::hipacc::TESLA_10;
 			else if (strTargetOption == "Tesla-11")			return ::clang::hipacc::TESLA_11;
@@ -176,6 +176,19 @@ namespace Backend
 			else
 			{
 				throw InvalidOptionException(AcceleratorDeviceSwitches::Target::Key(), strTargetOption);
+			}
+		}
+
+		inline static ::clang::hipacc::TextureType _ParseTextureOption( std::string strTextureOption )
+		{
+			if		(strTextureOption == "off")			return ::clang::hipacc::NoTexture;
+			else if	(strTextureOption == "Linear1D")	return ::clang::hipacc::Linear1D;
+			else if	(strTextureOption == "Linear2D")	return ::clang::hipacc::Linear2D;
+			else if	(strTextureOption == "Array2D")		return ::clang::hipacc::Array2D;
+			else if	(strTextureOption == "Ldg")			return ::clang::hipacc::Ldg;
+			else
+			{
+				throw InvalidOptionException(AcceleratorDeviceSwitches::UseTextures::Key(), strTextureOption);
 			}
 		}
 	};

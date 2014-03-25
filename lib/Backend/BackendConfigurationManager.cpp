@@ -36,6 +36,7 @@
 
 // Supported code generators
 #include "hipacc/Backend/CPU_x86.h"
+#include "hipacc/Backend/CUDA.h"
 #include "hipacc/Backend/Filterscript.h"
 #include "hipacc/Backend/OpenCL_CPU.h"
 #include "hipacc/Backend/Renderscript.h"
@@ -59,6 +60,7 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 
 	// Init known code generators
 	_InitCodeGenerator<CPU_x86::CodeGenerator>();
+	_InitCodeGenerator<CUDA::CodeGenerator>();
 	_InitCodeGenerator<OpenCL_CPU::CodeGenerator>();
 	_InitCodeGenerator<Renderscript::CodeGenerator>();
 	_InitCodeGenerator<Filterscript::CodeGenerator>();
