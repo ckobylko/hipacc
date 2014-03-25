@@ -62,20 +62,18 @@ namespace Backend
 
 			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
 			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
-			typedef BaseType::CompilerSwitchEntryType					CompilerSwitchEntryType;
 
 		protected:
 
-			virtual CompilerSwitchEntryType _GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const override;
-			virtual size_t					_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
+			virtual size_t _HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
 
 		public:
 
 			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "OpenCL for CPU", "opencl-cpu", "Emit OpenCL code for CPU devices")
 			{
-				_InitSwitch(CompilerSwitchTypeEnum::ExploreConfig);
-				_InitSwitch(CompilerSwitchTypeEnum::UseLocal);
-				_InitSwitch(CompilerSwitchTypeEnum::Vectorize);
+				_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig >( CompilerSwitchTypeEnum::ExploreConfig );
+				_InitSwitch< AcceleratorDeviceSwitches::UseLocal	  >( CompilerSwitchTypeEnum::UseLocal );
+				_InitSwitch< AcceleratorDeviceSwitches::Vectorize	  >( CompilerSwitchTypeEnum::Vectorize );
 			}
 		};
 	};

@@ -58,12 +58,10 @@ namespace Backend
 
 			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
 			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
-			typedef BaseType::CompilerSwitchEntryType					CompilerSwitchEntryType;
 
 		protected:
 
-			virtual CompilerSwitchEntryType _GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const override;
-			virtual size_t					_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
+			virtual size_t _HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
 
 		public:
 

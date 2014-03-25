@@ -35,35 +35,6 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-Renderscript::CodeGenerator::CompilerSwitchEntryType Renderscript::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
-{
-	CompilerSwitchEntryType SwitchEntry;
-
-	SwitchEntry.second.SetSwitchType(eSwitch);
-
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::EmitPadding:
-		SwitchEntry.first = AcceleratorDeviceSwitches::EmitPaddingSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::EmitPaddingSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::EmitPaddingSwitchDescription());
-		break;
-	case CompilerSwitchTypeEnum::PixelsPerThread:
-		SwitchEntry.first = AcceleratorDeviceSwitches::PixelsPerThreadSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::PixelsPerThreadSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::PixelsPerThreadSwitchDescription());
-		break;
-	case CompilerSwitchTypeEnum::RsPackage:
-		SwitchEntry.first = AndroidSwitches::RsPackageSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AndroidSwitches::RsPackageSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AndroidSwitches::RsPackageSwitchDescription());
-		break;
-	default:	throw InternalErrorException("Unknown switch type");
-	}
-
-	return SwitchEntry;
-}
-
 size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

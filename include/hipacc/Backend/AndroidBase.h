@@ -50,9 +50,12 @@ namespace Backend
 		{
 		public:
 
-			static std::string RsPackageSwitch()					{ return "-rs-package"; }
-			static std::string RsPackageSwitchAdditionalOptions()	{ return "<string>"; }
-			static std::string RsPackageSwitchDescription()			{ return " Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
+			struct RsPackage final
+			{
+				inline static std::string Key()					{ return "-rs-package"; }
+				inline static std::string AdditionalOptions()	{ return "<string>"; }
+				inline static std::string Description()			{ return " Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
+			};
 		};
 
 
@@ -62,14 +65,14 @@ namespace Backend
 
 			if (strRsPackageOption.length() < strPackageEnding.length())
 			{
-				throw InvalidOptionException(AndroidSwitches::RsPackageSwitch(), strRsPackageOption);
+				throw InvalidOptionException(AndroidSwitches::RsPackage::Key(), strRsPackageOption);
 			}
 			
 			std::string strOptionEnding = strRsPackageOption.substr(strRsPackageOption.length() - strPackageEnding.length());
 
 			if (strOptionEnding != strPackageEnding)
 			{
-				throw InvalidOptionException(AndroidSwitches::RsPackageSwitch(), strRsPackageOption);
+				throw InvalidOptionException(AndroidSwitches::RsPackage::Key(), strRsPackageOption);
 			}
 
 			return strRsPackageOption;

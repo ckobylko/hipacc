@@ -35,25 +35,6 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-Filterscript::CodeGenerator::CompilerSwitchEntryType Filterscript::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
-{
-	CompilerSwitchEntryType SwitchEntry;
-
-	SwitchEntry.second.SetSwitchType(eSwitch);
-
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::RsPackage:
-		SwitchEntry.first = AndroidSwitches::RsPackageSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AndroidSwitches::RsPackageSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AndroidSwitches::RsPackageSwitchDescription());
-		break;
-	default:	throw InternalErrorException("Unknown switch type");
-	}
-
-	return SwitchEntry;
-}
-
 size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

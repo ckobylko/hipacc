@@ -64,7 +64,7 @@ namespace Backend
 
 
 		typedef std::map< std::string, CompilerSwitchInfoType >		CompilerSwitchMapType;
-		typedef std::map< std::string, std::string >				DuplicateSwitchMapType;
+		typedef std::map< std::string, std::string >				SwitchAliasMapType;
 		typedef std::map< std::string, ICodeGeneratorPtr >			CodeGeneratorsMapType;
 
 
@@ -74,17 +74,44 @@ namespace Backend
 		{
 		public:
 
-			static CommonDefines::SwitchDisplayInfoType GetSwitchInfo(CompilerSwitchTypeEnum eType);
+			typedef std::vector< std::string >		AliasesVectorType;
 
 		public:
 
 			inline static std::string EmissionSwitchBase()			{ return "-emit-"; }
 
-			inline static std::string HelpSwitch()					{ return "--help"; }
-			inline static std::string HelpSwitchDescription()		{ return "Display available options"; }
 
-			inline static std::string VersionSwitch()				{ return "--version"; }
-			inline static std::string VersionSwitchDescription()	{ return "Display version information"; }
+			struct Help final
+			{
+				inline static std::string Key()					{ return "--help"; }
+				inline static std::string AdditionalOptions()	{ return ""; }
+				inline static std::string Description()			{ return "Display available options"; }
+
+				inline static AliasesVectorType GetAliases()
+				{
+					AliasesVectorType vecDuplicates;
+
+					vecDuplicates.push_back("-help");
+
+					return vecDuplicates;
+				}
+			};
+
+			struct Version final
+			{
+				inline static std::string Key()					{ return "--version"; }
+				inline static std::string AdditionalOptions()	{ return ""; }
+				inline static std::string Description()			{ return "Display version information"; }
+
+				inline static AliasesVectorType GetAliases()
+				{
+					AliasesVectorType vecDuplicates;
+
+					vecDuplicates.push_back("-version");
+
+					return vecDuplicates;
+				}
+			};
 		};
 
 
@@ -93,7 +120,7 @@ namespace Backend
 		::clang::hipacc::CompilerOptions	*_pCompilerOptions;
 
 		CompilerSwitchMapType	_mapKnownSwitches;
-		DuplicateSwitchMapType	_mapDuplicateSwitches;
+		SwitchAliasMapType		_mapSwitchAliases;
 		CodeGeneratorsMapType	_mapCodeGenerators;
 
 		ICodeGeneratorPtr		_spSelectedCodeGenerator;
@@ -120,9 +147,41 @@ namespace Backend
 		}
 
 
-		void _InitSwitch(CompilerSwitchTypeEnum eType);
+		template <class SwitchClass>
+		void _InitSwitch(CompilerSwitchTypeEnum eSwitch)
+		{
+			// Extract switch key
+			std::string strSwitch = SwitchClass::Key();
 
-		std::string _TranslateDuplicateSwitch( std::string strSwitch );
+			// Check for duplicate switch entry
+			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
+			{
+				throw DuplicateSwitchEntryException(strSwitch);
+			}
+			else
+			{
+				// Enter switch into the "known switches" map
+				CompilerSwitchInfoType SwitchInfo;
+
+				SwitchInfo.SetAdditionalOptions(SwitchClass::AdditionalOptions());
+				SwitchInfo.SetDescription(SwitchClass::Description());
+				SwitchInfo.SetSwitchType(eSwitch);
+
+				_mapKnownSwitches[strSwitch] = SwitchInfo;
+
+
+				// Set all switches Aliases
+				KnownSwitches::AliasesVectorType vecAliases = SwitchClass::GetAliases();
+
+				for each (std::string strAlias in vecAliases)
+				{
+					_mapSwitchAliases[strAlias] = strSwitch;
+				}
+			}
+		}
+
+
+		std::string _TranslateSwitchAlias( std::string strSwitch );
 
 		size_t _HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType & rvecArguments, size_t szCurIndex);
 
@@ -139,7 +198,6 @@ namespace Backend
 
 
 		void Configure(CommonDefines::ArgumentVectorType & rvecArguments);
-
 	};
 
 } // end namespace Backend

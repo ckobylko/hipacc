@@ -44,17 +44,6 @@ using namespace clang::hipacc::Backend;
 using namespace clang::hipacc;
 using namespace std;
 
-CommonDefines::SwitchDisplayInfoType BackendConfigurationManager::KnownSwitches::GetSwitchInfo(BackendConfigurationManager::CompilerSwitchTypeEnum eType)
-{
-	switch (eType)
-	{
-	case CompilerSwitchTypeEnum::Help:		return CommonDefines::SwitchDisplayInfoType(HelpSwitch(),	 HelpSwitchDescription());
-	case CompilerSwitchTypeEnum::Version:	return CommonDefines::SwitchDisplayInfoType(VersionSwitch(), VersionSwitchDescription());
-	default:	throw BackendException("Unknown switch type");
-	}
-}
-
-
 BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr)
 {
 	if (_pCompilerOptions == nullptr)
@@ -64,13 +53,8 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 
 
 	// Init all known common switches
-	_InitSwitch(CompilerSwitchTypeEnum::Help);
-	_InitSwitch(CompilerSwitchTypeEnum::Version);
-
-
-	// Set links for duplicate switches
-	_mapDuplicateSwitches["-help"]		= KnownSwitches::HelpSwitch();
-	_mapDuplicateSwitches["-version"]	= KnownSwitches::VersionSwitch();
+	_InitSwitch< KnownSwitches::Help	>( CompilerSwitchTypeEnum::Help );
+	_InitSwitch< KnownSwitches::Version	>( CompilerSwitchTypeEnum::Version );
 
 
 	// Init known code generators
@@ -81,24 +65,11 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 }
 	
 
-void BackendConfigurationManager::_InitSwitch(CompilerSwitchTypeEnum eType)
+string BackendConfigurationManager::_TranslateSwitchAlias(string strSwitch)
 {
-	CommonDefines::SwitchDisplayInfoType Info = KnownSwitches::GetSwitchInfo(eType);
+	auto itTranslatedSwitch = _mapSwitchAliases.find(strSwitch);
 
-	if (_mapKnownSwitches.find(Info.first) != _mapKnownSwitches.end())
-	{
-		throw DuplicateSwitchEntryException(Info.first);
-	}
-
-	_mapKnownSwitches[Info.first] = CompilerSwitchInfoType(eType, Info.second);
-}
-
-
-string BackendConfigurationManager::_TranslateDuplicateSwitch(string strSwitch)
-{
-	auto itTranslatedSwitch = _mapDuplicateSwitches.find(strSwitch);
-
-	if (itTranslatedSwitch != _mapDuplicateSwitches.end())
+	if (itTranslatedSwitch != _mapSwitchAliases.end())
 	{
 		return itTranslatedSwitch->second;
 	}
@@ -289,7 +260,7 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
 
 		for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
 		{
-			string strArgument = _TranslateDuplicateSwitch(rvecArguments[i]);
+			string strArgument = _TranslateSwitchAlias(rvecArguments[i]);
 
 			auto itSwitch = _mapKnownSwitches.find(strArgument);
 

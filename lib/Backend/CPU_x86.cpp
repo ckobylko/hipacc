@@ -35,20 +35,6 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-CPU_x86::CodeGenerator::CompilerSwitchEntryType CPU_x86::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
-{
-	CompilerSwitchEntryType SwitchEntry;
-
-	SwitchEntry.second.SetSwitchType(eSwitch);
-
-	switch (eSwitch)
-	{
-	default:	throw InternalErrorException("Unknown switch type");
-	}
-
-	return SwitchEntry;
-}
-
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

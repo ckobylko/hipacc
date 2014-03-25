@@ -63,20 +63,18 @@ namespace Backend
 
 			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
 			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
-			typedef BaseType::CompilerSwitchEntryType					CompilerSwitchEntryType;
 
 		protected:
 
-			virtual CompilerSwitchEntryType _GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const override;
-			virtual size_t					_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
+			virtual size_t _HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
 
 		public:
 
 			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "Renderscript", "renderscript", "Emit Renderscript code for Android")
 			{
-				_InitSwitch(CompilerSwitchTypeEnum::EmitPadding);
-				_InitSwitch(CompilerSwitchTypeEnum::PixelsPerThread);
-				_InitSwitch(CompilerSwitchTypeEnum::RsPackage);
+				_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>( CompilerSwitchTypeEnum::EmitPadding );
+				_InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread	>( CompilerSwitchTypeEnum::PixelsPerThread );
+				_InitSwitch< AndroidSwitches::RsPackage					>( CompilerSwitchTypeEnum::RsPackage );
 			}
 		};
 

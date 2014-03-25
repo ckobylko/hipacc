@@ -36,34 +36,6 @@ using namespace clang::hipacc::Backend;
 using namespace clang::hipacc;
 using namespace std;
 
-OpenCL_CPU::CodeGenerator::CompilerSwitchEntryType OpenCL_CPU::CodeGenerator::_GetSwitchEntry(CompilerSwitchTypeEnum eSwitch) const
-{
-	CompilerSwitchEntryType SwitchEntry;
-
-	SwitchEntry.second.SetSwitchType(eSwitch);
-
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::ExploreConfig:
-		SwitchEntry.first = AcceleratorDeviceSwitches::ExploreConfigSwitch();
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::ExploreConfigSwitchDescription());
-		break;
-	case CompilerSwitchTypeEnum::UseLocal:
-		SwitchEntry.first = AcceleratorDeviceSwitches::UseLocalSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::UseLocalSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::UseLocalSwitchDescription());
-		break;
-	case CompilerSwitchTypeEnum::Vectorize:
-		SwitchEntry.first = AcceleratorDeviceSwitches::VectorizeSwitch();
-		SwitchEntry.second.SetAdditionalOptions(AcceleratorDeviceSwitches::VectorizeSwitchAdditionalOptions());
-		SwitchEntry.second.SetDescription(AcceleratorDeviceSwitches::VectorizeSwitchDescription());
-		break;
-	default:	throw InternalErrorException("Unknown switch type");
-	}
-
-	return SwitchEntry;
-}
-
 size_t OpenCL_CPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

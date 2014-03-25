@@ -55,7 +55,6 @@ namespace Backend
 	protected:
 
 		typedef CommonDefines::CompilerSwitchInfoT< SwitchTypeEnum >	CompilerSwitchInfoType;
-		typedef std::pair< std::string, CompilerSwitchInfoType >		CompilerSwitchEntryType;
 
 
 	private:
@@ -76,11 +75,10 @@ namespace Backend
 		inline ::clang::hipacc::CompilerOptions& GetCompilerOptions()		{ return *_pCompilerOptions; }
 
 
+		template <class SwitchClass>
 		void _InitSwitch(SwitchTypeEnum eSwitch)
 		{
-			CompilerSwitchEntryType SwitchEntry = _GetSwitchEntry(eSwitch);
-
-			std::string strSwitch = SwitchEntry.first;
+			std::string strSwitch = SwitchClass::Key();
 
 			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
 			{
@@ -88,7 +86,13 @@ namespace Backend
 			}
 			else
 			{
-				_mapKnownSwitches[strSwitch] = SwitchEntry.second;
+				CompilerSwitchInfoType SwitchInfo;
+
+				SwitchInfo.SetAdditionalOptions(SwitchClass::AdditionalOptions());
+				SwitchInfo.SetDescription(SwitchClass::Description());
+				SwitchInfo.SetSwitchType(eSwitch);
+
+				_mapKnownSwitches[strSwitch] = SwitchInfo;
 			}
 		}
 
@@ -129,8 +133,7 @@ namespace Backend
 		}
 
 
-		virtual CompilerSwitchEntryType _GetSwitchEntry(SwitchTypeEnum eSwitch) const = 0;
-		virtual size_t					_HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
+		virtual size_t _HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
 
 
 	public:

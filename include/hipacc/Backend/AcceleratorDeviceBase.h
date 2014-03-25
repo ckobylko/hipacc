@@ -51,82 +51,111 @@ namespace Backend
 		{
 		public:
 
-			static std::string EmitPaddingSwitch()						{ return "-emit-padding"; }
-			static std::string EmitPaddingSwitchAdditionalOptions()		{ return "<n>"; }
-			static std::string EmitPaddingSwitchDescription()			{ return "Emit CUDA/OpenCL/Renderscript image padding, using alignment of <n> bytes for GPU devices"; }
-
-			static std::string ExploreConfigSwitch()					{ return "-explore-config"; }
-			static std::string ExploreConfigSwitchDescription()			{ return "Emit code that explores all possible kernel configuration and print its performance"; }
-
-			static std::string PixelsPerThreadSwitch()					{ return "-pixels-per-thread"; }
-			static std::string PixelsPerThreadSwitchAdditionalOptions()	{ return "<n>"; }
-			static std::string PixelsPerThreadSwitchDescription()		{ return "Specify how many pixels should be calculated per thread"; }
-
-			static std::string TargetSwitch()							{ return "-target"; }
-			static std::string TargetSwitchAdditionalOptions()			{ return "<n>"; }
-			static std::string TargetSwitchDescription()
+			struct EmitPadding final
 			{
-				std::string strDescription("");
+				inline static std::string Key()					{ return "-emit-padding"; }
+				inline static std::string AdditionalOptions()	{ return "<n>"; }
+				inline static std::string Description()			{ return "Emit CUDA/OpenCL/Renderscript image padding, using alignment of <n> bytes for GPU devices"; }
+			};
 
-				strDescription += "Generate code for GPUs with code name <n>.\n";
-				strDescription += "Code names for CUDA/OpenCL on NVIDIA devices are:\n";
-				strDescription += "  'Tesla-10', 'Tesla-11', 'Tesla-12', and 'Tesla-13' for Tesla architecture.\n";
-				strDescription += "  'Fermi-20' and 'Fermi-21' for Fermi architecture.\n";
-				strDescription += "  'Kepler-30' and 'Kepler-35' for Kepler architecture.\n";
-				strDescription += "Code names for for OpenCL on AMD devices are:\n";
-				strDescription += "  'Evergreen'      for Evergreen architecture (Radeon HD5xxx).\n";
-				strDescription += "  'NorthernIsland' for Northern Island architecture (Radeon HD6xxx).\n";
-				strDescription += "Code names for for OpenCL on ARM devices are:\n";
-				strDescription += "  'Midgard' for Mali-T6xx' for Mali.\n";
-				strDescription += "Code names for for OpenCL on Intel Xeon Phi devices are:\n";
-				strDescription += "  'KnightsCorner' for Knights Corner Many Integrated Cores architecture.";
-
-				return strDescription;
-			}
-
-			static std::string TimeKernelsSwitch()						{ return "-time-kernels"; }
-			static std::string TimeKernelsSwitchDescription()			{ return "Emit code that executes each kernel multiple times to get accurate timings"; }
-
-			static std::string UseConfigSwitch()						{ return "-use-config"; }
-			static std::string UseConfigSwitchAdditionalOptions()		{ return "<nxm>"; }
-			static std::string UseConfigSwitchDescription()				{ return "Emit code that uses a configuration of nxm threads, e.g. 128x1"; }
-
-			static std::string UseLocalSwitch()							{ return "-use-local"; }
-			static std::string UseLocalSwitchAdditionalOptions()		{ return "<o>"; }
-			static std::string UseLocalSwitchDescription()
+			struct ExploreConfig final
 			{
-				std::string strDescription("");
+				inline static std::string Key()					{ return "-explore-config"; }
+				inline static std::string AdditionalOptions()	{ return ""; }
+				inline static std::string Description()			{ return "Emit code that explores all possible kernel configuration and print its performance"; }
+			};
 
-				strDescription += "Enable/disable usage of shared/local memory in CUDA/OpenCL to stage image pixels to scratchpad\n";
-				strDescription += "Valid values: 'on' and 'off'";
-
-				return strDescription;
-			}
-
-			static std::string UseTexturesSwitch()						{ return "-use-textures"; }
-			static std::string UseTexturesSwitchAdditionalOptions()		{ return "<o>"; }
-			static std::string UseTexturesSwitchDescription()
+			struct PixelsPerThread final
 			{
-				std::string strDescription("");
+				inline static std::string Key()					{ return "-pixels-per-thread"; }
+				inline static std::string AdditionalOptions()	{ return "<n>"; }
+				inline static std::string Description()			{ return "Specify how many pixels should be calculated per thread"; }
+			};
 
-				strDescription += "Enable/disable usage of textures (cached) in CUDA/OpenCL to read/write image pixels - for GPU devices only\n";
-				strDescription += "Valid values for CUDA on NVIDIA devices: 'off', 'Linear1D', 'Linear2D', 'Array2D', and 'Ldg'\n";
-				strDescription += "Valid values for OpenCL: 'off' and 'Array2D'";
-
-				return strDescription;
-			}
-
-			static std::string VectorizeSwitch()						{ return "-vectorize"; }
-			static std::string VectorizeSwitchAdditionalOptions()		{ return "<o>"; }
-			static std::string VectorizeSwitchDescription()
+			struct Target final
 			{
-				std::string strDescription("");
+				inline static std::string Key()					{ return "-target"; }
+				inline static std::string AdditionalOptions()	{ return "<n>"; }
+				inline static std::string Description()
+				{
+					std::string strDescription("");
 
-				strDescription += "Enable/disable vectorization of generated CUDA/OpenCL code\n";
-				strDescription += "Valid values: 'on' and 'off'";
+					strDescription += "Generate code for GPUs with code name <n>.\n";
+					strDescription += "Code names for CUDA/OpenCL on NVIDIA devices are:\n";
+					strDescription += "  'Tesla-10', 'Tesla-11', 'Tesla-12', and 'Tesla-13' for Tesla architecture.\n";
+					strDescription += "  'Fermi-20' and 'Fermi-21' for Fermi architecture.\n";
+					strDescription += "  'Kepler-30' and 'Kepler-35' for Kepler architecture.\n";
+					strDescription += "Code names for for OpenCL on AMD devices are:\n";
+					strDescription += "  'Evergreen'      for Evergreen architecture (Radeon HD5xxx).\n";
+					strDescription += "  'NorthernIsland' for Northern Island architecture (Radeon HD6xxx).\n";
+					strDescription += "Code names for for OpenCL on ARM devices are:\n";
+					strDescription += "  'Midgard' for Mali-T6xx' for Mali.\n";
+					strDescription += "Code names for for OpenCL on Intel Xeon Phi devices are:\n";
+					strDescription += "  'KnightsCorner' for Knights Corner Many Integrated Cores architecture.";
 
-				return strDescription;
-			}
+					return strDescription;
+				}
+			};
+
+			struct TimeKernels final
+			{
+				inline static std::string Key()					{ return "-time-kernels"; }
+				inline static std::string AdditionalOptions()	{ return ""; }
+				inline static std::string Description()			{ return "Emit code that executes each kernel multiple times to get accurate timings"; }
+			};
+
+			struct UseConfig final
+			{
+				inline static std::string Key()					{ return "-use-config"; }
+				inline static std::string AdditionalOptions()	{ return "<nxm>"; }
+				inline static std::string Description()			{ return "Emit code that uses a configuration of nxm threads, e.g. 128x1"; }
+			};
+
+			struct UseLocal final
+			{
+				inline static std::string Key()					{ return "-use-local"; }
+				inline static std::string AdditionalOptions()	{ return "<o>"; }
+				inline static std::string Description()
+				{
+					std::string strDescription("");
+
+					strDescription += "Enable/disable usage of shared/local memory in CUDA/OpenCL to stage image pixels to scratchpad\n";
+					strDescription += "Valid values: 'on' and 'off'";
+
+					return strDescription;
+				}
+			};
+
+			struct UseTextures final
+			{
+				inline static std::string Key()					{ return "-use-textures"; }
+				inline static std::string AdditionalOptions()	{ return "<o>"; }
+				inline static std::string Description()
+				{
+					std::string strDescription("");
+
+					strDescription += "Enable/disable usage of textures (cached) in CUDA/OpenCL to read/write image pixels - for GPU devices only\n";
+					strDescription += "Valid values for CUDA on NVIDIA devices: 'off', 'Linear1D', 'Linear2D', 'Array2D', and 'Ldg'\n";
+					strDescription += "Valid values for OpenCL: 'off' and 'Array2D'";
+
+					return strDescription;
+				}
+			};
+
+			struct Vectorize final
+			{
+				inline static std::string Key()					{ return "-vectorize"; }
+				inline static std::string AdditionalOptions()	{ return "<o>"; }
+				inline static std::string Description()
+				{
+					std::string strDescription("");
+
+					strDescription += "Enable/disable vectorization of generated CUDA/OpenCL code\n";
+					strDescription += "Valid values: 'on' and 'off'";
+
+					return strDescription;
+				}
+			};
 		};
 
 
@@ -146,7 +175,7 @@ namespace Backend
 			else if (strTargetOption == "KnightsCorner")	return ::clang::hipacc::KNIGHTSCORNER;
 			else
 			{
-				throw InvalidOptionException(AcceleratorDeviceSwitches::TargetSwitch(), strTargetOption);
+				throw InvalidOptionException(AcceleratorDeviceSwitches::Target::Key(), strTargetOption);
 			}
 		}
 	};
