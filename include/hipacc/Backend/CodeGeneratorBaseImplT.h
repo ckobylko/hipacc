@@ -38,7 +38,6 @@
 #include "CommonDefines.h"
 #include "ICodeGenerator.h"
 #include <map>
-#include <sstream>
 #include <string>
 #include <utility>
 
@@ -97,41 +96,32 @@ namespace Backend
 		}
 
 
-		std::string _FetchSwitchOption(CommonDefines::ArgumentVectorType &rvecArguments, size_t szSwitchIndex, size_t szOptionOffset = static_cast<size_t>(1))
+		template <class SwitchClass>
+		typename SwitchClass::OptionParser::ReturnType _ParseOption(CommonDefines::ArgumentVectorType &rvecArguments, size_t szSwitchIndex, size_t szOptionOffset = static_cast<size_t>(1))
 		{
+			// Fetch option
 			if (rvecArguments.size() <= szSwitchIndex + szOptionOffset)
 			{
 				throw MissingOptionException(rvecArguments[szSwitchIndex], GetName());
 			}
 
-			return rvecArguments[szSwitchIndex + szOptionOffset];
-		}
-		
-		::clang::hipacc::CompilerOption _ParseOnOffOption(std::string strOption, std::string strSwitch)
-		{
-			if		(strOption == "off")	return USER_OFF;
-			else if	(strOption == "on")		return USER_ON;
-			else
+			std::string strOption = rvecArguments[szSwitchIndex + szOptionOffset];
+
+			// Parse option
+			try
 			{
-				throw InvalidOptionException(strSwitch, strOption);
+				return typename SwitchClass::OptionParser::Parse(strOption);
+			}
+			catch (InvalidOptionException &)
+			{
+				throw;
+			}
+			catch (BackendException &e)
+			{
+				llvm::errs() << "ERROR: " << e.what() << "\n\n";
+				throw InvalidOptionException(rvecArguments[szSwitchIndex], strOption);
 			}
 		}
-
-		int _ParseIntegerOption(std::string strOption, std::string strSwitch)
-		{
-			std::istringstream buffer(strOption.c_str());
-			
-			int iRetVal;
-			buffer >> iRetVal;
-
-			if (buffer.fail())
-			{
-				throw InvalidOptionException(strSwitch, strOption);
-			}
-
-			return iRetVal;
-		}
-
 
 
 		virtual size_t	_HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;

@@ -55,28 +55,33 @@ namespace Backend
 				inline static std::string Key()					{ return "-rs-package"; }
 				inline static std::string AdditionalOptions()	{ return "<string>"; }
 				inline static std::string Description()			{ return " Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
+
+
+				struct OptionParser final
+				{
+					typedef std::string		ReturnType;
+
+					inline static ReturnType Parse(std::string strOption)
+					{
+						std::string strPackageEnding(".rs");
+
+						if (strOption.length() < strPackageEnding.length())
+						{
+							throw InvalidOptionException(Key(), strOption);
+						}
+
+						std::string strOptionEnding = strOption.substr(strOption.length() - strPackageEnding.length());
+
+						if (strOptionEnding != strPackageEnding)
+						{
+							throw InvalidOptionException(Key(), strOption);
+						}
+
+						return strOption;
+					}
+				};
 			};
 		};
-
-
-		inline static std::string _CheckRsPackageOption(std::string strRsPackageOption)
-		{
-			std::string strPackageEnding(".rs");
-
-			if (strRsPackageOption.length() < strPackageEnding.length())
-			{
-				throw InvalidOptionException(AndroidSwitches::RsPackage::Key(), strRsPackageOption);
-			}
-			
-			std::string strOptionEnding = strRsPackageOption.substr(strRsPackageOption.length() - strPackageEnding.length());
-
-			if (strOptionEnding != strPackageEnding)
-			{
-				throw InvalidOptionException(AndroidSwitches::RsPackage::Key(), strRsPackageOption);
-			}
-
-			return strRsPackageOption;
-		}
 	};
 } // end namespace Backend
 } // end namespace hipacc

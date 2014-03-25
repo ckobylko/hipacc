@@ -33,6 +33,9 @@
 #ifndef _BACKEND_COMMON_DEFINES_H_
 #define _BACKEND_COMMON_DEFINES_H_
 
+#include "hipacc/Config/CompilerOptions.h"
+#include "BackendExceptions.h"
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -114,6 +117,46 @@ namespace Backend
 			inline void				SetSwitchType(SwitchTypeEnum eNewSwitchType)	{ _eSwitchType = eNewSwitchType; }
 		};
 
+
+		class OptionParsers final
+		{
+		public:
+
+			struct Integer final
+			{
+				typedef	int		ReturnType;
+
+				inline static ReturnType Parse(std::string strOption)
+				{
+					std::istringstream buffer(strOption.c_str());
+
+					int iRetVal;
+					buffer >> iRetVal;
+
+					if (buffer.fail())
+					{
+						throw RuntimeErrorException("Expected integer value");
+					}
+
+					return iRetVal;
+				}
+			};
+
+			struct OnOff final
+			{
+				typedef	::clang::hipacc::CompilerOption		ReturnType;
+
+				inline static ReturnType Parse(std::string strOption)
+				{
+					if		(strOption == "off")	return USER_OFF;
+					else if	(strOption == "on")		return USER_ON;
+					else
+					{
+						throw RuntimeErrorException("Invalid value");
+					}
+				}
+			};
+		};
 	};
 } // end namespace Backend
 } // end namespace hipacc

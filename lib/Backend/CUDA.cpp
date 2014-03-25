@@ -45,66 +45,52 @@ size_t CUDA::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Common
 	{
 	case CompilerSwitchTypeEnum::EmitPadding:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setPadding(_ParseIntegerOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setPadding(_ParseOption< AcceleratorDeviceSwitches::EmitPadding >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::ExploreConfig:
-		{
-			GetCompilerOptions().setExploreConfig(USER_ON);
-		}
+		GetCompilerOptions().setExploreConfig(USER_ON);
 		break;
 	case CompilerSwitchTypeEnum::PixelsPerThread:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setPixelsPerThread(_ParseIntegerOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setPixelsPerThread(_ParseOption< AcceleratorDeviceSwitches::PixelsPerThread >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::Target:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setTargetDevice(AcceleratorDeviceBase::_ParseTargetOption(strOption));
+			GetCompilerOptions().setTargetDevice(_ParseOption< AcceleratorDeviceSwitches::Target >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::TimeKernels:
-		{
-			GetCompilerOptions().setTimeKernels(USER_ON);
-		}
+		GetCompilerOptions().setTimeKernels(USER_ON);
 		break;
 	case CompilerSwitchTypeEnum::UseConfig:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-		
-			int x = 0, y = 0;
-			if (sscanf(strOption.c_str(), "%dx%d", &x, &y) != 2)
-			{
-				throw RuntimeErrorException("ERROR: Expected valid configuration specification for -use-config switch.\n\n");
-			}
+			typedef	AcceleratorDeviceSwitches::UseConfig	SwitchType;
 
-			GetCompilerOptions().setKernelConfig(x, y);
+			SwitchType::OptionParser::ReturnType	Value = _ParseOption< SwitchType >(rvecArguments, szCurrentIndex);
+
+			GetCompilerOptions().setKernelConfig(Value.first, Value.second);
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::UseLocal:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setLocalMemory(_ParseOnOffOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 	case CompilerSwitchTypeEnum::UseTextures:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setTextureMemory(AcceleratorDeviceBase::_ParseTextureOption(strOption));
+			GetCompilerOptions().setTextureMemory(_ParseOption< AcceleratorDeviceSwitches::UseTextures >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::Vectorize:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setVectorizeKernels(_ParseOnOffOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;

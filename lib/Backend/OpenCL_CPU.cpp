@@ -48,15 +48,13 @@ size_t OpenCL_CPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, 
 		break;
 	case CompilerSwitchTypeEnum::UseLocal:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setLocalMemory(_ParseOnOffOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::Vectorize:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setVectorizeKernels(_ParseOnOffOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;

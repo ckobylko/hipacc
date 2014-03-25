@@ -35,6 +35,7 @@
 
 #include "hipacc/Device/TargetDevices.h"
 #include "BackendExceptions.h"
+#include "CommonDefines.h"
 #include <string>
 
 namespace clang
@@ -56,6 +57,9 @@ namespace Backend
 				inline static std::string Key()					{ return "-emit-padding"; }
 				inline static std::string AdditionalOptions()	{ return "<n>"; }
 				inline static std::string Description()			{ return "Emit CUDA/OpenCL/Renderscript image padding, using alignment of <n> bytes for GPU devices"; }
+
+
+				typedef CommonDefines::OptionParsers::Integer	OptionParser;
 			};
 
 			struct ExploreConfig final
@@ -70,6 +74,9 @@ namespace Backend
 				inline static std::string Key()					{ return "-pixels-per-thread"; }
 				inline static std::string AdditionalOptions()	{ return "<n>"; }
 				inline static std::string Description()			{ return "Specify how many pixels should be calculated per thread"; }
+
+
+				typedef CommonDefines::OptionParsers::Integer	OptionParser;
 			};
 
 			struct Target final
@@ -95,6 +102,32 @@ namespace Backend
 
 					return strDescription;
 				}
+			
+			
+				struct OptionParser final
+				{
+					typedef ::clang::hipacc::TargetDevice	ReturnType;
+
+					inline static ReturnType Parse(std::string strOption)
+					{
+						if		(strOption == "Tesla-10")			return ::clang::hipacc::TESLA_10;
+						else if	(strOption == "Tesla-11")			return ::clang::hipacc::TESLA_11;
+						else if	(strOption == "Tesla-12")			return ::clang::hipacc::TESLA_12;
+						else if	(strOption == "Tesla-13")			return ::clang::hipacc::TESLA_13;
+						else if	(strOption == "Fermi-20")			return ::clang::hipacc::FERMI_20;
+						else if	(strOption == "Fermi-21")			return ::clang::hipacc::FERMI_21;
+						else if	(strOption == "Kepler-30")			return ::clang::hipacc::KEPLER_30;
+						else if	(strOption == "Kepler-35")			return ::clang::hipacc::KEPLER_35;
+						else if	(strOption == "Evergreen")			return ::clang::hipacc::EVERGREEN;
+						else if	(strOption == "NorthernIsland")		return ::clang::hipacc::NORTHERN_ISLAND;
+						else if	(strOption == "Midgard")			return ::clang::hipacc::MIDGARD;
+						else if	(strOption == "KnightsCorner")		return ::clang::hipacc::KNIGHTSCORNER;
+						else
+						{
+							throw InvalidOptionException(Key(), strOption);
+						}
+					}
+				};
 			};
 
 			struct TimeKernels final
@@ -109,6 +142,23 @@ namespace Backend
 				inline static std::string Key()					{ return "-use-config"; }
 				inline static std::string AdditionalOptions()	{ return "<nxm>"; }
 				inline static std::string Description()			{ return "Emit code that uses a configuration of nxm threads, e.g. 128x1"; }
+
+
+				struct OptionParser final
+				{
+					typedef std::pair< int, int >	ReturnType;
+
+					inline static ReturnType Parse(std::string strOption)
+					{
+						int x = 0, y = 0;
+						if (sscanf(strOption.c_str(), "%dx%d", &x, &y) != 2)
+						{
+							throw InvalidOptionException(Key(), strOption);
+						}
+
+						return ReturnType(x, y);
+					}
+				};
 			};
 
 			struct UseLocal final
@@ -124,6 +174,9 @@ namespace Backend
 
 					return strDescription;
 				}
+
+
+				typedef CommonDefines::OptionParsers::OnOff	OptionParser;
 			};
 
 			struct UseTextures final
@@ -140,6 +193,25 @@ namespace Backend
 
 					return strDescription;
 				}
+
+
+				struct OptionParser final
+				{
+					typedef ::clang::hipacc::TextureType	ReturnType;
+
+					inline static ReturnType Parse(std::string strOption)
+					{
+						if		(strOption == "off")		return ::clang::hipacc::NoTexture;
+						else if	(strOption == "Linear1D")	return ::clang::hipacc::Linear1D;
+						else if	(strOption == "Linear2D")	return ::clang::hipacc::Linear2D;
+						else if	(strOption == "Array2D")	return ::clang::hipacc::Array2D;
+						else if	(strOption == "Ldg")		return ::clang::hipacc::Ldg;
+						else
+						{
+							throw InvalidOptionException(Key(), strOption);
+						}
+					}
+				};
 			};
 
 			struct Vectorize final
@@ -155,42 +227,11 @@ namespace Backend
 
 					return strDescription;
 				}
+
+
+				typedef CommonDefines::OptionParsers::OnOff	OptionParser;
 			};
 		};
-
-
-		inline static ::clang::hipacc::TargetDevice _ParseTargetOption( std::string strTargetOption )
-		{
-			if		(strTargetOption == "Tesla-10")			return ::clang::hipacc::TESLA_10;
-			else if (strTargetOption == "Tesla-11")			return ::clang::hipacc::TESLA_11;
-			else if (strTargetOption == "Tesla-12")			return ::clang::hipacc::TESLA_12;
-			else if (strTargetOption == "Tesla-13")			return ::clang::hipacc::TESLA_13;
-			else if (strTargetOption == "Fermi-20")			return ::clang::hipacc::FERMI_20;
-			else if (strTargetOption == "Fermi-21")			return ::clang::hipacc::FERMI_21;
-			else if (strTargetOption == "Kepler-30")		return ::clang::hipacc::KEPLER_30;
-			else if (strTargetOption == "Kepler-35")		return ::clang::hipacc::KEPLER_35;
-			else if (strTargetOption == "Evergreen")		return ::clang::hipacc::EVERGREEN;
-			else if (strTargetOption == "NorthernIsland")	return ::clang::hipacc::NORTHERN_ISLAND;
-			else if (strTargetOption == "Midgard")			return ::clang::hipacc::MIDGARD;
-			else if (strTargetOption == "KnightsCorner")	return ::clang::hipacc::KNIGHTSCORNER;
-			else
-			{
-				throw InvalidOptionException(AcceleratorDeviceSwitches::Target::Key(), strTargetOption);
-			}
-		}
-
-		inline static ::clang::hipacc::TextureType _ParseTextureOption( std::string strTextureOption )
-		{
-			if		(strTextureOption == "off")			return ::clang::hipacc::NoTexture;
-			else if	(strTextureOption == "Linear1D")	return ::clang::hipacc::Linear1D;
-			else if	(strTextureOption == "Linear2D")	return ::clang::hipacc::Linear2D;
-			else if	(strTextureOption == "Array2D")		return ::clang::hipacc::Array2D;
-			else if	(strTextureOption == "Ldg")			return ::clang::hipacc::Ldg;
-			else
-			{
-				throw InvalidOptionException(AcceleratorDeviceSwitches::UseTextures::Key(), strTextureOption);
-			}
-		}
 	};
 } // end namespace Backend
 } // end namespace hipacc

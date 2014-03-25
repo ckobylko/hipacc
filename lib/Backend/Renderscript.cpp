@@ -44,22 +44,19 @@ size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch
 	{
 	case CompilerSwitchTypeEnum::EmitPadding:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setPadding(_ParseIntegerOption(strOption, strCurrentSwitch));
+			GetCompilerOptions().setPadding(_ParseOption< AcceleratorDeviceSwitches::EmitPadding >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::PixelsPerThread:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setPixelsPerThread( _ParseIntegerOption(strOption, strCurrentSwitch) );
+			GetCompilerOptions().setPixelsPerThread(_ParseOption< AcceleratorDeviceSwitches::PixelsPerThread >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
 	case CompilerSwitchTypeEnum::RsPackage:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setRSPackageName(_CheckRsPackageOption(strOption));
+			GetCompilerOptions().setRSPackageName(_ParseOption< AndroidSwitches::RsPackage >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;

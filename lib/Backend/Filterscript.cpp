@@ -44,8 +44,7 @@ size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch
 	{
 	case CompilerSwitchTypeEnum::RsPackage:
 		{
-			string strOption = _FetchSwitchOption(rvecArguments, szCurrentIndex);
-			GetCompilerOptions().setRSPackageName(_CheckRsPackageOption(strOption));
+			GetCompilerOptions().setRSPackageName(_ParseOption< AndroidSwitches::RsPackage >(rvecArguments, szCurrentIndex));
 			++szReturnIndex;
 		}
 		break;
