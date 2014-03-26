@@ -36,6 +36,28 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
+CUDA::CodeGenerator::Descriptor::Descriptor()
+{
+	SetTargetCode(::clang::hipacc::TARGET_CUDA);
+	SetName("CUDA");
+	SetEmissionKey("cuda");
+	SetDescription("Emit CUDA code for GPU devices");
+}
+
+CUDA::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+{
+	_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>(CompilerSwitchTypeEnum::EmitPadding);
+	_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig	>(CompilerSwitchTypeEnum::ExploreConfig);
+	_InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread	>(CompilerSwitchTypeEnum::PixelsPerThread);
+	_InitSwitch< AcceleratorDeviceSwitches::Target			>(CompilerSwitchTypeEnum::Target);
+	_InitSwitch< AcceleratorDeviceSwitches::TimeKernels		>(CompilerSwitchTypeEnum::TimeKernels);
+	_InitSwitch< AcceleratorDeviceSwitches::UseConfig		>(CompilerSwitchTypeEnum::UseConfig);
+	_InitSwitch< AcceleratorDeviceSwitches::UseLocal		>(CompilerSwitchTypeEnum::UseLocal);
+	_InitSwitch< AcceleratorDeviceSwitches::UseTextures		>(CompilerSwitchTypeEnum::UseTextures);
+	_InitSwitch< AcceleratorDeviceSwitches::Vectorize		>(CompilerSwitchTypeEnum::Vectorize);
+}
+
+
 size_t CUDA::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch = rvecArguments[szCurrentIndex];

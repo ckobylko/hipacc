@@ -35,6 +35,18 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
+CPU_x86::CodeGenerator::Descriptor::Descriptor()
+{
+	SetTargetCode(::clang::hipacc::TARGET_C);
+	SetName("CPU-x86");
+	SetEmissionKey("cpu");
+	SetDescription("Emit C++ code for x86-CPUs");
+}
+
+CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+{
+}
+
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

@@ -58,12 +58,12 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 	_InitSwitch< KnownSwitches::Version	>( CompilerSwitchTypeEnum::Version );
 
 
-	// Init known code generators
-	_InitCodeGenerator<CPU_x86::CodeGenerator>();
-	_InitCodeGenerator<CUDA::CodeGenerator>();
-	_InitCodeGenerator<OpenCL_CPU::CodeGenerator>();
-	_InitCodeGenerator<Renderscript::CodeGenerator>();
-	_InitCodeGenerator<Filterscript::CodeGenerator>();
+	// Init known backends
+	_InitBackend<CPU_x86>();
+	_InitBackend<CUDA>();
+	_InitBackend<OpenCL_CPU>();
+	_InitBackend<Renderscript>();
+	_InitBackend<Filterscript>();
 }
 	
 

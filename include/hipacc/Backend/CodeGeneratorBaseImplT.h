@@ -55,6 +55,46 @@ namespace Backend
 
 		typedef CommonDefines::CompilerSwitchInfoT< SwitchTypeEnum >	CompilerSwitchInfoType;
 
+		class CodeGeneratorDescriptorBase
+		{
+		private:
+
+			::clang::hipacc::TargetCode	_eTargetCode;
+			std::string					_strName;
+			std::string					_strEmissionKey;
+			std::string					_strDescription;
+
+		protected:
+
+			inline CodeGeneratorDescriptorBase()	{}
+
+			inline void SetDescription( std::string strNewDescription )					{ _strDescription	= strNewDescription; }
+			inline void SetEmissionKey( std::string strNewEmissionKey )					{ _strEmissionKey	= strNewEmissionKey; }
+			inline void SetName( std::string strNewName )								{ _strName			= strNewName; }
+			inline void SetTargetCode( ::clang::hipacc::TargetCode eNewTargetCode )		{ _eTargetCode		= eNewTargetCode; }
+
+		public:
+
+			inline CodeGeneratorDescriptorBase(const CodeGeneratorDescriptorBase &crRVal)	{ *this = crRVal; }
+
+			inline CodeGeneratorDescriptorBase& operator=(const CodeGeneratorDescriptorBase &crRVal)
+			{
+				_eTargetCode	= crRVal._eTargetCode;
+				_strName		= crRVal._strName;
+				_strEmissionKey	= crRVal._strEmissionKey;
+				_strDescription	= crRVal._strDescription;
+
+				return *this;
+			}
+
+			virtual ~CodeGeneratorDescriptorBase()	{}
+
+			inline std::string					Description() const		{ return _strDescription; }
+			inline std::string					EmissionKey() const		{ return _strEmissionKey; }
+			inline std::string					Name() const			{ return _strName; }
+			inline ::clang::hipacc::TargetCode	TargetCode() const		{ return _eTargetCode; }
+		};
+
 
 	private:
 
@@ -62,11 +102,9 @@ namespace Backend
 
 		::clang::hipacc::CompilerOptions	*_pCompilerOptions;
 
-		const std::string _strDescription;
-		const std::string _strEmissionKey;
-		const std::string _strName;
-
 		CompilerSwitchMapType	_mapKnownSwitches;
+
+		const CodeGeneratorDescriptorBase	_Descriptor;
 
 
 	protected:
@@ -126,16 +164,20 @@ namespace Backend
 
 		virtual size_t	_HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
 
-		virtual void	_CheckConfiguration()	{}
+		virtual void _CheckConfiguration()
+		{
+			// kernels are timed internally by the runtime in case of exploration
+			if (GetCompilerOptions().timeKernels(USER_ON) && GetCompilerOptions().exploreConfig(USER_ON))
+			{
+				GetCompilerOptions().setTimeKernels(OFF);
+			}
+		}
 
 
 	public:
 
-		CodeGeneratorBaseImplT(	::clang::hipacc::CompilerOptions *pCompilerOptions, std::string strName,
-								std::string strEmissionKey, std::string strDescription ) :	_pCompilerOptions(pCompilerOptions),
-																							_strDescription(strDescription),
-																							_strEmissionKey(strEmissionKey),
-																							_strName(strName)
+		CodeGeneratorBaseImplT(::clang::hipacc::CompilerOptions *pCompilerOptions, const CodeGeneratorDescriptorBase &crDescriptor) :	_pCompilerOptions(pCompilerOptions),
+																																		_Descriptor(crDescriptor)
 		{
 			if (_pCompilerOptions == nullptr)
 			{
@@ -151,9 +193,9 @@ namespace Backend
 
 		/** \name ICodeGenerator members */
 		//@{
-		virtual std::string GetDescription() const final override	{ return _strDescription; }
-		virtual std::string GetEmissionKey() const final override	{ return _strEmissionKey; }
-		virtual std::string	GetName() const final override			{ return _strName; }
+		virtual std::string GetDescription() const final override	{ return _Descriptor.Description(); }
+		virtual std::string GetEmissionKey() const final override	{ return _Descriptor.EmissionKey(); }
+		virtual std::string	GetName() const final override			{ return _Descriptor.Name(); }
 
 
 		virtual CommonDefines::SwitchDisplayInfoVectorType GetCompilerSwitches() const final override
@@ -172,6 +214,9 @@ namespace Backend
 
 		virtual void Configure(CommonDefines::ArgumentVectorType & rvecArguments) final override
 		{
+			// Set the target code for this code generator
+			GetCompilerOptions().setTargetCode(_Descriptor.TargetCode());
+
 			// Parse all command line switches and options by the derived code generator
 			for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
 			{

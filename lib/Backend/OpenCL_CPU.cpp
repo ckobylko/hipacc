@@ -36,6 +36,22 @@ using namespace clang::hipacc::Backend;
 using namespace clang::hipacc;
 using namespace std;
 
+OpenCL_CPU::CodeGenerator::Descriptor::Descriptor()
+{
+	SetTargetCode(::clang::hipacc::TARGET_OpenCLCPU);
+	SetName("OpenCL for CPU");
+	SetEmissionKey("opencl-cpu");
+	SetDescription("Emit OpenCL code for CPU devices");
+}
+
+OpenCL_CPU::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+{
+	_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig >(CompilerSwitchTypeEnum::ExploreConfig);
+	_InitSwitch< AcceleratorDeviceSwitches::UseLocal	  >(CompilerSwitchTypeEnum::UseLocal);
+	_InitSwitch< AcceleratorDeviceSwitches::Vectorize	  >(CompilerSwitchTypeEnum::Vectorize);
+}
+
+
 size_t OpenCL_CPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

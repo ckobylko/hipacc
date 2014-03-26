@@ -35,6 +35,21 @@
 using namespace clang::hipacc::Backend;
 using namespace std;
 
+Renderscript::CodeGenerator::Descriptor::Descriptor()
+{
+	SetTargetCode(::clang::hipacc::TARGET_Renderscript);
+	SetName("Renderscript");
+	SetEmissionKey("renderscript");
+	SetDescription("Emit Renderscript code for Android");
+}
+
+Renderscript::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+{
+	_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>(CompilerSwitchTypeEnum::EmitPadding);
+	_InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread	>(CompilerSwitchTypeEnum::PixelsPerThread);
+	_InitSwitch< AndroidSwitches::RsPackage					>(CompilerSwitchTypeEnum::RsPackage);
+}
+
 size_t Renderscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];

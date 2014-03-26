@@ -126,9 +126,11 @@ namespace Backend
 		ICodeGeneratorPtr		_spSelectedCodeGenerator;
 
 
-		template <class GeneratorType>
-		void _InitCodeGenerator()
+		template <class BackendType>
+		void _InitBackend()
 		{
+			typedef typename BackendType::CodeGenerator		GeneratorType;
+
 			static_assert(std::is_base_of< ICodeGenerator, GeneratorType >::value, "Code generators must be derived from \"ICodeGenerator\"");
 
 			ICodeGeneratorPtr spCodeGenerator( new GeneratorType(_pCompilerOptions) );

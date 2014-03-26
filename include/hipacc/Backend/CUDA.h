@@ -69,6 +69,12 @@ namespace Backend
 			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
 			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
 
+			class Descriptor final : public BaseType::CodeGeneratorDescriptorBase
+			{
+			public:
+				Descriptor();
+			};
+
 		protected:
 
 			virtual size_t	_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) final override;
@@ -76,18 +82,7 @@ namespace Backend
 
 		public:
 
-			inline CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, "CUDA", "cuda", "Emit CUDA code for GPU devices")
-			{
-				_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>( CompilerSwitchTypeEnum::EmitPadding );
-				_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig	>( CompilerSwitchTypeEnum::ExploreConfig );
-				_InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread	>( CompilerSwitchTypeEnum::PixelsPerThread );
-				_InitSwitch< AcceleratorDeviceSwitches::Target			>( CompilerSwitchTypeEnum::Target );
-				_InitSwitch< AcceleratorDeviceSwitches::TimeKernels		>( CompilerSwitchTypeEnum::TimeKernels );
-				_InitSwitch< AcceleratorDeviceSwitches::UseConfig		>( CompilerSwitchTypeEnum::UseConfig );
-				_InitSwitch< AcceleratorDeviceSwitches::UseLocal		>( CompilerSwitchTypeEnum::UseLocal );
-				_InitSwitch< AcceleratorDeviceSwitches::UseTextures		>( CompilerSwitchTypeEnum::UseTextures );
-				_InitSwitch< AcceleratorDeviceSwitches::Vectorize		>( CompilerSwitchTypeEnum::Vectorize );
-			}
+			CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions);
 		};
 
 	};
