@@ -39,6 +39,7 @@
 #include "hipacc/Backend/CUDA.h"
 #include "hipacc/Backend/Filterscript.h"
 #include "hipacc/Backend/OpenCL_CPU.h"
+#include "hipacc/Backend/OpenCL_GPU.h"
 #include "hipacc/Backend/Renderscript.h"
 
 using namespace clang::hipacc::Backend;
@@ -62,6 +63,7 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 	_InitBackend<CPU_x86>();
 	_InitBackend<CUDA>();
 	_InitBackend<OpenCL_CPU>();
+	_InitBackend<OpenCL_GPU>();
 	_InitBackend<Renderscript>();
 	_InitBackend<Filterscript>();
 }

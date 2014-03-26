@@ -24,27 +24,27 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-//===--- CUDA.cpp - Implements the NVidia CUDA code generator. -----------------------===//
+//===--- OpenCL_GPU.cpp - Implements the OpenCL code generator for GPUs. -------------===//
 //
-// This file implements the NVidia CUDA code generator.
+// This file implements the OpenCL code generator for GPUs.
 //
 //===---------------------------------------------------------------------------------===//
 
-#include "hipacc/Backend/CUDA.h"
+#include "hipacc/Backend/OpenCL_GPU.h"
 #include "hipacc/Device/TargetDescription.h"
 
 using namespace clang::hipacc::Backend;
 using namespace std;
 
-CUDA::CodeGenerator::Descriptor::Descriptor()
+OpenCL_GPU::CodeGenerator::Descriptor::Descriptor()
 {
-	SetTargetCode(::clang::hipacc::TARGET_CUDA);
-	SetName("CUDA");
-	SetEmissionKey("cuda");
-	SetDescription("Emit CUDA code for GPU devices");
+	SetTargetCode(::clang::hipacc::TARGET_OpenCLGPU);
+	SetName("OpenCL for GPU");
+	SetEmissionKey("opencl-gpu");
+	SetDescription("Emit OpenCL code for GPU devices");
 }
 
-CUDA::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+OpenCL_GPU::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
 	_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>(CompilerSwitchTypeEnum::EmitPadding);
 	_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig	>(CompilerSwitchTypeEnum::ExploreConfig);
@@ -58,7 +58,7 @@ CUDA::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOp
 }
 
 
-size_t CUDA::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
+size_t OpenCL_GPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
 	string	strCurrentSwitch = rvecArguments[szCurrentIndex];
 	size_t	szReturnIndex = szCurrentIndex;
@@ -122,7 +122,7 @@ size_t CUDA::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Common
 	return szReturnIndex;
 }
 
-void CUDA::CodeGenerator::_CheckConfiguration()
+void OpenCL_GPU::CodeGenerator::_CheckConfiguration()
 {
 	// Check base configuration
 	BaseType::_CheckConfiguration();
@@ -131,29 +131,21 @@ void CUDA::CodeGenerator::_CheckConfiguration()
 	HipaccDevice ConfiguredTargetDevive(GetCompilerOptions());
 
 	// Check target device
-	if (! ConfiguredTargetDevive.isNVIDIAGPU())
+	if (! (ConfiguredTargetDevive.isAMDGPU() || ConfiguredTargetDevive.isARMGPU() || ConfiguredTargetDevive.isNVIDIAGPU()) )
 	{
-		throw RuntimeErrorException("CUDA code generation selected, but no CUDA - capable target device specified!\n  Please select correct target device/code generation back end combination.");
+		throw RuntimeErrorException("OpenCL (GPU) code generation selected, but no OpenCL-capable GPU target device specified!\n  Please select correct target device/code generation back end combination.");
 	}
 
 
 	// Check texture support
 	if (GetCompilerOptions().useTextureMemory(USER_ON))
 	{
-		// Writing to Array2D textures has been introduced with Fermi architecture
-		if ( (GetCompilerOptions().getTextureType() == Array2D) && (GetCompilerOptions().getTargetDevice() < FERMI_20) )
+		// Only Array2D textures supported in OpenCL
+		if (GetCompilerOptions().getTextureType() != Array2D)
 		{
-			llvm::errs() << "Warning: 'Array2D' texture memory only supported for Fermi and later on (CC >= 2.0)!  Using 'Linear2D' instead!\n";
+			llvm::errs() << "Warning: 'Linear1D', 'Linear2D', and 'Ldg' texture memory not supported by OpenCL!  Using 'Array2D' instead!\n";
 
-			GetCompilerOptions().setTextureMemory(Linear2D);
-		}
-
-		// Ldg (load via texture cache) was introduced with Kepler architecture
-		if ( (GetCompilerOptions().getTextureType() == Ldg) && (GetCompilerOptions().getTargetDevice() < KEPLER_35) )
-		{
-			llvm::errs() << "Warning: 'Ldg' texture memory only supported for Kepler and later on (CC >= 3.5)!  Using 'Linear1D' instead!\n";
-
-			GetCompilerOptions().setTextureMemory(Linear1D);
+			GetCompilerOptions().setTextureMemory(Array2D);
 		}
 	}
 }
