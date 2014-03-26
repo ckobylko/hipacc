@@ -56,7 +56,7 @@ namespace Backend
 
 		enum class CompilerSwitchTypeEnum
 		{
-			Emit, Help, Version
+			Emit, Help, OutputFile, Version
 		};
 
 
@@ -97,6 +97,15 @@ namespace Backend
 				}
 			};
 
+			struct OutputFile final
+			{
+				inline static std::string Key()					{ return "-o"; }
+				inline static std::string AdditionalOptions()	{ return "<file>"; }
+				inline static std::string Description()			{ return "Write output to <file>"; }
+
+				inline static AliasesVectorType GetAliases()	{ return AliasesVectorType(); }
+			};
+
 			struct Version final
 			{
 				inline static std::string Key()					{ return "--version"; }
@@ -123,6 +132,8 @@ namespace Backend
 		SwitchAliasMapType		_mapSwitchAliases;
 		CodeGeneratorsMapType	_mapCodeGenerators;
 
+		std::string				_strInputFile;
+		std::string				_strOutputFile;
 		ICodeGeneratorPtr		_spSelectedCodeGenerator;
 
 
@@ -200,6 +211,9 @@ namespace Backend
 
 
 		void Configure(CommonDefines::ArgumentVectorType & rvecArguments);
+
+
+		CommonDefines::ArgumentVectorType GetClangArguments();
 	};
 
 } // end namespace Backend

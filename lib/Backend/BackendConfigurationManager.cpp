@@ -49,6 +49,9 @@ using namespace std;
 
 BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr)
 {
+	_strInputFile	= "";
+	_strOutputFile	= "";
+
 	if (_pCompilerOptions == nullptr)
 	{
 		throw BackendException("Compiler options have not been set");
@@ -56,8 +59,9 @@ BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompi
 
 
 	// Init all known common switches
-	_InitSwitch< KnownSwitches::Help	>( CompilerSwitchTypeEnum::Help );
-	_InitSwitch< KnownSwitches::Version	>( CompilerSwitchTypeEnum::Version );
+	_InitSwitch< KnownSwitches::Help		>( CompilerSwitchTypeEnum::Help );
+	_InitSwitch< KnownSwitches::OutputFile	>( CompilerSwitchTypeEnum::OutputFile );
+	_InitSwitch< KnownSwitches::Version		>( CompilerSwitchTypeEnum::Version );
 
 
 	// Init known backends
@@ -247,7 +251,7 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 {
 	CompilerSwitchTypeEnum eSwitchType = _mapKnownSwitches[strSwitch].GetSwitchType();
 
-	size_t szLastParsedSwitch = szCurIndex;
+	size_t szReturnIndex = szCurIndex;
 
 	switch (eSwitchType)
 	{
@@ -260,6 +264,24 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 		else
 		{
 			_spSelectedCodeGenerator = _mapCodeGenerators[strSwitch];
+		}
+
+		break;
+	}
+	case CompilerSwitchTypeEnum::OutputFile:
+	{
+		if (_strOutputFile != "")
+		{
+			throw RuntimeErrorException("Only one output file can be specified for the compiler invocation");
+		}
+		else if (szCurIndex >= rvecArguments.size())
+		{
+			throw MissingOptionException(strSwitch);
+		}
+		else
+		{
+			_strOutputFile = rvecArguments[szCurIndex + 1];
+			++szReturnIndex;
 		}
 
 		break;
@@ -279,7 +301,7 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 	default: throw UnhandledSwitchException(strSwitch);
 	}
 
-	return szLastParsedSwitch;
+	return szReturnIndex;
 }
 
 
@@ -291,20 +313,36 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
 
 		for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
 		{
-			string strArgument = _TranslateSwitchAlias(rvecArguments[i]);
-
-			auto itSwitch = _mapKnownSwitches.find(strArgument);
-
-			if (itSwitch != _mapKnownSwitches.end())
+			if ((i + 1) == rvecArguments.size())
 			{
-				i = _HandleSwitch(strArgument, rvecArguments, i);
+				// Last argument must be input file
+				_strInputFile = rvecArguments[i];
 			}
 			else
 			{
-				vecUnknownArguments.push_back(rvecArguments[i]);
+				string strArgument = _TranslateSwitchAlias(rvecArguments[i]);
+
+				auto itSwitch = _mapKnownSwitches.find(strArgument);
+
+				if (itSwitch != _mapKnownSwitches.end())
+				{
+					i = _HandleSwitch(strArgument, rvecArguments, i);
+				}
+				else
+				{
+					vecUnknownArguments.push_back(rvecArguments[i]);
+				}
 			}
 		}
 
+		if (_strInputFile == "")
+		{
+			throw RuntimeErrorException("No input file has been specified!");
+		}
+		else if (_strOutputFile == "")
+		{
+			throw RuntimeErrorException(string("No output file has been specified! Did you forget the \"") + KnownSwitches::OutputFile::Key() + string("\" switch?"));
+		}
 
 		// Configure the selected code generator
 		if (_spSelectedCodeGenerator)
@@ -313,13 +351,34 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
 		}
 		else
 		{
-			throw RuntimeErrorException("No code generator has been selected! Did you forget the \"-emit-<X>\" switch?");
+			throw RuntimeErrorException(string("No code generator has been selected! Did you forget the \"") + KnownSwitches::EmissionSwitchBase() + string("<X>\" switch?"));
 		}
 	}
 	catch (AbortException &e)
 	{
 		exit(e.GetExitCode());
 	}
+}
+
+
+CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments()
+{
+	CommonDefines::ArgumentVectorType vecClangArguments;
+
+	// Add exception support
+	vecClangArguments.push_back("-fexceptions");
+
+	// Set C++ 11 support
+	vecClangArguments.push_back("-std=c++11");
+
+	// Add output file
+	vecClangArguments.push_back("-o");
+	vecClangArguments.push_back(_strOutputFile);
+
+	// Add input file
+	vecClangArguments.push_back(_strInputFile);
+
+	return vecClangArguments;
 }
 
 
