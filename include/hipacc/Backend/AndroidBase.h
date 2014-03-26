@@ -54,7 +54,7 @@ namespace Backend
 			{
 				inline static std::string Key()					{ return "-rs-package"; }
 				inline static std::string AdditionalOptions()	{ return "<string>"; }
-				inline static std::string Description()			{ return " Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
+				inline static std::string Description()			{ return "Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
 
 
 				struct OptionParser final

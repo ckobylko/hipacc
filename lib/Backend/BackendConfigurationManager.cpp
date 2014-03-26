@@ -117,18 +117,23 @@ void BackendConfigurationManager::_PrintUsage()
 	{
 		ICodeGeneratorPtr spCodeGenerator = itCodeGenerator.second;
 
-		llvm::errs() << "\n\nSpecific options for code generator \"" << spCodeGenerator->GetName() << "\":\n\n";
+		CommonDefines::SwitchDisplayInfoVectorType vecCodeGeneratorSwitches = spCodeGenerator->GetCompilerSwitches();
 
-		_PrintSwitches(spCodeGenerator->GetCompilerSwitches());
+		if (! vecCodeGeneratorSwitches.empty())
+		{
+			llvm::errs() << "\nSpecific options for code generator \"" << spCodeGenerator->GetName() << "\":\n\n";
+
+			_PrintSwitches(vecCodeGeneratorSwitches);
+		}
 	}
 }
 
 void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches)
 {
-	const size_t cszPrintWidth			= 50;
-	const size_t cszMinDescriptionWidth = 20;
-	const size_t cszPadLeft				=  2;
-	const size_t cszDescriptionDistance =  2;
+	const size_t cszPrintWidth			= 110;
+	const size_t cszMinDescriptionWidth =  20;
+	const size_t cszPadLeft				=   2;
+	const size_t cszDescriptionDistance =   2;
 
 
 	// Fetch maximum width of switch string
@@ -190,18 +195,38 @@ void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInf
 				string::size_type szSectionOffset	= static_cast<string::size_type>( vecNewLinePositions[i] + 1 );
 				string::size_type szSectionLength	= static_cast<string::size_type>( vecNewLinePositions[i + 1] ) - szSectionOffset;
 
-				string strCurrentSection = strDescription.substr( static_cast<string::size_type>( vecNewLinePositions[i] + 1 ) );
+				string strCurrentSection = strDescription.substr(szSectionOffset, szSectionLength);
 
 				// Break the current section into pieces of the maximum display width
-				for (size_t szPieceOffset = static_cast<size_t>(0); szPieceOffset < strCurrentSection.length(); szPieceOffset += szDescriptionWidth)
+				for (size_t szPieceOffset = static_cast<size_t>(0); szPieceOffset < strCurrentSection.length(); )
 				{
 					size_t szPieceLength = szDescriptionWidth;
+
 					if (szPieceOffset + szPieceLength >= strCurrentSection.length())
 					{
-						szPieceLength = strCurrentSection.length() - szPieceOffset;
+						// Whole rest of the description can be displayed in one line
+						vecDescriptionSubStrings.push_back(strCurrentSection.substr(szPieceOffset));
+						break;
 					}
+					else
+					{
+						// The rest of the description still needs to be broken into several lines
+						string strCurrentPiece = strCurrentSection.substr(szPieceOffset, szPieceLength);
 
-					vecDescriptionSubStrings.push_back(strCurrentSection.substr(szPieceOffset, szPieceLength));
+						string::size_type szLastWhiteSpace = strCurrentPiece.find_last_of(' ');
+
+						if (szLastWhiteSpace == string::npos)
+						{
+							vecDescriptionSubStrings.push_back(strCurrentPiece);
+							szPieceOffset += szPieceLength;
+						}
+						else
+						{
+							// Whitespace found => Break at whitespace
+							vecDescriptionSubStrings.push_back(strCurrentPiece.substr(0, szLastWhiteSpace));
+							szPieceOffset += szLastWhiteSpace + 1;
+						}
+					}
 				}
 			}
 		}
