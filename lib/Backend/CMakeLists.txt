@@ -1,9 +1,10 @@
 SET(CURRENT_HEADER_DIR "${HIPACC_RELATIVE_INCLUDE_DIR}/Backend")
 
-SET(Backend_Generators_SOURCES CPU_x86.cpp CUDA.cpp Filterscript.cpp OpenCL_CPU.cpp OpenCL_GPU.cpp Renderscript.cpp)
+SET(Backend_Generators_SOURCES CPU_x86.cpp CUDA.cpp Filterscript.cpp OpenCL_ACC.cpp OpenCL_CPU.cpp OpenCL_GPU.cpp Renderscript.cpp)
 SET(Backend_Generators_HEADERS "${CURRENT_HEADER_DIR}/CPU_x86.h"
 	                           "${CURRENT_HEADER_DIR}/CUDA.h"
 	                           "${CURRENT_HEADER_DIR}/Filterscript.h"
+	                           "${CURRENT_HEADER_DIR}/OpenCL_ACC.h"
 	                           "${CURRENT_HEADER_DIR}/OpenCL_CPU.h"
 	                           "${CURRENT_HEADER_DIR}/OpenCL_GPU.h"
                                "${CURRENT_HEADER_DIR}/Renderscript.h")
