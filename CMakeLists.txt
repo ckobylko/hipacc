@@ -26,6 +26,16 @@ INCLUDE(CMakeDependentOption)
 CMAKE_DEPENDENT_OPTION(USE_JIT_ESTIMATE "Compile kernels JIT to estimate resource usage" ON "NOT APPLE" OFF)
 
 
+# Check MinGW setting
+OPTION(USE_MINGW "Use MinGW include files instead of the ones from the installed compiler" OFF)
+
+IF(MSVC)
+    IF(NOT USE_MINGW)
+        MESSAGE(FATAL_ERROR "HIPACC cannot parse the Visual Studio STL! You have to use MinGW instead -> Check USE_MINGW")
+    ENDIF()
+ENDIF(MSVC)
+
+
 # get repository and revision
 OPTION(CHECK_GIT_REPO_VERSION "Check GIT repository and version" ON)
 IF(CHECK_GIT_REPO_VERSION)
@@ -52,6 +62,15 @@ INCLUDE_DIRECTORIES(${LLVM_INCLUDE_DIR})
 FIND_PACKAGE(CUDA)
 FIND_PACKAGE(OpenCL)
 FIND_PACKAGE(RenderScript)
+
+IF(USE_MINGW)
+    FIND_PACKAGE(MinGW REQUIRED)
+
+    IF(NOT MINGW_FOUND)
+        MESSAGE(FATAL_ERROR "MinGW could not be found! HIPACC most probably will not function correctly.")
+    ENDIF(NOT MINGW_FOUND)
+ENDIF(USE_MINGW)
+
 
 IF(NOT CUDA_FOUND AND NOT OPENCL_FOUND AND NOT RENDERSCRIPT_FOUND)
     MESSAGE(WARNING "Neither CUDA, OpenCL nor RenderScript found. At least one of them is required to use HIPACC properly.")
