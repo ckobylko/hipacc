@@ -33,6 +33,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "hipacc.h"
+#include "hipacc\Backend\BackendConfigurationManager.h"
 
 using namespace clang;
 using namespace hipacc;
@@ -111,12 +112,6 @@ void printUsage() {
 }
 
 
-void printVersion() {
-  llvm::errs() << "hipacc version " << HIPACC_VERSION
-    << " (" << GIT_REPOSITORY " " << GIT_VERSION << ")\n";
-}
-
-
 /// entry to our framework
 int main(int argc, char *argv[]) {
   // first, print the Copyright notice
@@ -130,188 +125,42 @@ int main(int argc, char *argv[]) {
   SmallVector<const char *, 16> Args;
   CompilerOptions compilerOptions = CompilerOptions();
 
-  // support exceptions
-  Args.push_back("-fexceptions");
 
-  // parse command line options
-  for (int i=1; i<argc; ++i) {
-    if (StringRef(argv[i]) == "-emit-cpu") {
-      compilerOptions.setTargetCode(TARGET_C);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-cuda") {
-      compilerOptions.setTargetCode(TARGET_CUDA);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-opencl-acc") {
-      compilerOptions.setTargetCode(TARGET_OpenCLACC);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-opencl-cpu") {
-      compilerOptions.setTargetCode(TARGET_OpenCLCPU);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-opencl-gpu") {
-      compilerOptions.setTargetCode(TARGET_OpenCLGPU);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-renderscript") {
-      compilerOptions.setTargetCode(TARGET_Renderscript);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-filterscript") {
-      compilerOptions.setTargetCode(TARGET_Filterscript);
-      compilerOptions.setPixelsPerThread(1);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-emit-padding") {
-      assert(i<(argc-1) && "Mandatory alignment parameter for -emit-padding switch missing.");
-      std::istringstream buffer(argv[i+1]);
-      int val;
-      buffer >> val;
-      if (buffer.fail()) {
-        llvm::errs() << "ERROR: Expected alignment in bytes for -emit-padding switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      compilerOptions.setPadding(val);
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-target") {
-      assert(i<(argc-1) && "Mandatory code name parameter for -target switch missing.");
-      if (StringRef(argv[i+1]) == "Tesla-10") {
-        compilerOptions.setTargetDevice(TESLA_10);
-      } else if (StringRef(argv[i+1]) == "Tesla-11") {
-        compilerOptions.setTargetDevice(TESLA_11);
-      } else if (StringRef(argv[i+1]) == "Tesla-12") {
-        compilerOptions.setTargetDevice(TESLA_12);
-      } else if (StringRef(argv[i+1]) == "Tesla-13") {
-        compilerOptions.setTargetDevice(TESLA_13);
-      } else if (StringRef(argv[i+1]) == "Fermi-20") {
-        compilerOptions.setTargetDevice(FERMI_20);
-      } else if (StringRef(argv[i+1]) == "Fermi-21") {
-        compilerOptions.setTargetDevice(FERMI_21);
-      } else if (StringRef(argv[i+1]) == "Kepler-30") {
-        compilerOptions.setTargetDevice(KEPLER_30);
-      } else if (StringRef(argv[i+1]) == "Kepler-35") {
-        compilerOptions.setTargetDevice(KEPLER_35);
-      } else if (StringRef(argv[i+1]) == "Evergreen") {
-        compilerOptions.setTargetDevice(EVERGREEN);
-      } else if (StringRef(argv[i+1]) == "NorthernIsland") {
-        compilerOptions.setTargetDevice(NORTHERN_ISLAND);
-      } else if (StringRef(argv[i+1]) == "Midgard") {
-        compilerOptions.setTargetDevice(MIDGARD);
-      } else if (StringRef(argv[i+1]) == "KnightsCorner") {
-        compilerOptions.setTargetDevice(KNIGHTSCORNER);
-      } else {
-        llvm::errs() << "ERROR: Expected valid code name specification for -target switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-explore-config") {
-      compilerOptions.setExploreConfig(USER_ON);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-use-config") {
-      assert(i<(argc-1) && "Mandatory configuration specification for -use-config switch missing.");
-      int x=0, y=0, ret=0;
-      ret = sscanf(argv[i+1], "%dx%d", &x, &y);
-      if (ret!=2) {
-        llvm::errs() << "ERROR: Expected valid configuration specification for -use-config switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      compilerOptions.setKernelConfig(x, y);
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-time-kernels") {
-      compilerOptions.setTimeKernels(USER_ON);
-      continue;
-    }
-    if (StringRef(argv[i]) == "-use-textures") {
-      assert(i<(argc-1) && "Mandatory texture memory specification for -use-textures switch missing.");
-      if (StringRef(argv[i+1]) == "off") {
-        compilerOptions.setTextureMemory(NoTexture);
-      } else if (StringRef(argv[i+1]) == "Linear1D") {
-        compilerOptions.setTextureMemory(Linear1D);
-      } else if (StringRef(argv[i+1]) == "Linear2D") {
-        compilerOptions.setTextureMemory(Linear2D);
-      } else if (StringRef(argv[i+1]) == "Array2D") {
-        compilerOptions.setTextureMemory(Array2D);
-      } else if (StringRef(argv[i+1]) == "Ldg") {
-        compilerOptions.setTextureMemory(Ldg);
-      } else {
-        llvm::errs() << "ERROR: Expected valid texture memory specification for -use-textures switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-use-local") {
-      assert(i<(argc-1) && "Mandatory local memory specification for -use-local switch missing.");
-      if (StringRef(argv[i+1]) == "off") {
-        compilerOptions.setLocalMemory(USER_OFF);
-      } else if (StringRef(argv[i+1]) == "on") {
-        compilerOptions.setLocalMemory(USER_ON);
-      } else {
-        llvm::errs() << "ERROR: Expected valid local memory specification for -use-local switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-vectorize") {
-      assert(i<(argc-1) && "Mandatory vectorization specification for -vectorize switch missing.");
-      if (StringRef(argv[i+1]) == "off") {
-        compilerOptions.setVectorizeKernels(USER_OFF);
-      } else if (StringRef(argv[i+1]) == "on") {
-        compilerOptions.setVectorizeKernels(USER_ON);
-      } else {
-        llvm::errs() << "ERROR: Expected valid vectorization specification for -use-vectorize switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-pixels-per-thread") {
-      assert(i<(argc-1) && "Mandatory integer parameter for -pixels-per-thread switch missing.");
-      std::istringstream buffer(argv[i+1]);
-      int val;
-      buffer >> val;
-      if (buffer.fail()) {
-        llvm::errs() << "ERROR: Expected integer parameter for -pixels-per-thread switch.\n\n";
-        printUsage();
-        return EXIT_FAILURE;
-      }
-      compilerOptions.setPixelsPerThread(val);
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-rs-package") {
-      assert(i<(argc-1) && "Mandatory package name string for -rs-package switch missing.");
-      compilerOptions.setRSPackageName(argv[i+1]);
-      ++i;
-      continue;
-    }
-    if (StringRef(argv[i]) == "-help" || StringRef(argv[i]) == "--help") {
-      printUsage();
-      return EXIT_SUCCESS;
-    }
-    if (StringRef(argv[i]) == "-version" || StringRef(argv[i]) == "--version") {
-      printVersion();
-      return EXIT_SUCCESS;
+  // Initialize the backends
+  Backend::BackendConfigurationManager	BackendConfigManager(&compilerOptions);
+  try
+  {
+    // Convert the command line arguments into the backend argument vector type
+    Backend::CommonDefines::ArgumentVectorType vecArguments;
+    for (int i = 1; i < argc; ++i)
+    {
+      vecArguments.push_back(argv[i]);
     }
 
-    Args.push_back(argv[i]);
+    // Let the backend configuration manager parse the command line arguments
+    BackendConfigManager.Configure(vecArguments);
+
+    // Fetch the commands vector the clang invocation and convert it to clang's format
+    vecArguments = BackendConfigManager.GetClangArguments();
+    for each (auto itArgument in vecArguments)
+    {
+      char *pcArgument = (char*) calloc(itArgument.size() + 1, sizeof(char));
+      if (pcArgument == NULL)
+      {
+        throw std::runtime_error("Cannot allocate memory for clang command argument!");
+      }
+
+      strcpy(pcArgument, itArgument.c_str());
+
+      Args.push_back(pcArgument);
+    }
   }
+  catch (std::exception &e)
+  {
+	  llvm::errs() << "ERROR: " << e.what();
+	  return EXIT_FAILURE;
+  }
+
 
   // create target device description from compiler options
   HipaccDevice targetDevice(compilerOptions);
@@ -320,65 +169,6 @@ int main(int argc, char *argv[]) {
   // sanity checks
   //
 
-  // CUDA supported only on NVIDIA devices
-  if (compilerOptions.emitCUDA() && !targetDevice.isNVIDIAGPU()) {
-    llvm::errs() << "ERROR: CUDA code generation selected, but no CUDA-capable target device specified!\n"
-                 << "  Please select correct target device/code generation back end combination.\n\n";
-    printUsage();
-    return EXIT_FAILURE;
-  }
-  // OpenCL (GPU) only supported on GPU devices
-  if (compilerOptions.emitOpenCLGPU() &&
-      !(targetDevice.isAMDGPU() || targetDevice.isARMGPU() ||
-        targetDevice.isNVIDIAGPU())) {
-    llvm::errs() << "ERROR: OpenCL (GPU) code generation selected, but no OpenCL-capable GPU target device specified!\n"
-                 << "  Please select correct target device/code generation back end combination.\n\n";
-    printUsage();
-    return EXIT_FAILURE;
-  }
-  // OpenCL (ACC) only supported on accelerator devices
-  if (compilerOptions.emitOpenCLACC() && !targetDevice.isINTELACC()) {
-    llvm::errs() << "ERROR: OpenCL (ACC) code generation selected, but no OpenCL-capable accelerator device specified!\n"
-                 << "  Please select correct target device/code generation back end combination.\n\n";
-    printUsage();
-    return EXIT_FAILURE;
-  }
-  // Textures in CUDA - writing to Array2D textures introduced with Fermi
-  if (compilerOptions.emitCUDA() && compilerOptions.useTextureMemory(USER_ON)) {
-    if (compilerOptions.getTextureType()==Array2D &&
-        compilerOptions.getTargetDevice() < FERMI_20) {
-      llvm::errs() << "Warning: 'Array2D' texture memory only supported for Fermi and later on (CC >= 2.0)!"
-                   << "  Using 'Linear2D' instead!\n";
-      compilerOptions.setTextureMemory(Linear2D);
-    }
-  }
-  // Textures in CUDA - Ldg (load via texture cache) was introduced with Kepler
-  if (compilerOptions.emitCUDA() && compilerOptions.useTextureMemory(USER_ON)) {
-    if (compilerOptions.getTextureType()==Ldg &&
-        compilerOptions.getTargetDevice() < KEPLER_35) {
-      llvm::errs() << "Warning: 'Ldg' texture memory only supported for Kepler and later on (CC >= 3.5)!"
-                   << "  Using 'Linear1D' instead!\n";
-      compilerOptions.setTextureMemory(Linear1D);
-    }
-  }
-  // Textures in OpenCL - only supported on some CPU platforms
-  if (compilerOptions.emitOpenCLCPU() && compilerOptions.useTextureMemory(USER_ON)) {
-      llvm::errs() << "\nWarning: image support is only available on some CPU devices!\n\n";
-  }
-  // Textures in OpenCL - only supported on some CPU platforms
-  if (compilerOptions.emitOpenCLACC() && compilerOptions.useTextureMemory(USER_ON)) {
-      llvm::errs() << "\nWarning: image support is not available on ACC devices!\n\n";
-      printUsage();
-      return EXIT_FAILURE;
-  }
-  // Textures in OpenCL - only Array2D textures supported
-  if (compilerOptions.emitOpenCLGPU() && compilerOptions.useTextureMemory(USER_ON)) {
-    if (compilerOptions.getTextureType()!=Array2D) {
-      llvm::errs() << "Warning: 'Linear1D', 'Linear2D', and 'Ldg' texture memory not supported by OpenCL!"
-                   << "  Using 'Array2D' instead!\n";
-      compilerOptions.setTextureMemory(Array2D);
-    }
-  }
   // Invalid specification for kernel configuration
   if (compilerOptions.useKernelConfig(USER_ON)) {
     if (compilerOptions.getKernelConfigX()*compilerOptions.getKernelConfigY() >
@@ -396,11 +186,6 @@ int main(int argc, char *argv[]) {
                  << "  Please disable multiple pixels per thread oder switch target code generation back end.\n\n";
     printUsage();
     return EXIT_FAILURE;
-  }
-  if (compilerOptions.timeKernels(USER_ON) &&
-      compilerOptions.exploreConfig(USER_ON)) {
-    // kernels are timed internally by the runtime in case of exploration
-    compilerOptions.setTimeKernels(OFF);
   }
 
   // print summary of compiler options
