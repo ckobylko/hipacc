@@ -96,12 +96,12 @@ MESSAGE(STATUS "===")
 # platform specific fixes linker flags
 IF(MSVC)
     # Correct syntax for LLVM libraries
-	STRING(STRIP "${LLVM_MODULE_LIBS}" LLVM_MODULE_LIBS)
+    STRING(STRIP "${LLVM_MODULE_LIBS}" LLVM_MODULE_LIBS)
     STRING(REPLACE "-lLLVM" "LLVM" LLVM_MODULE_LIBS "${LLVM_MODULE_LIBS}")
     STRING(REPLACE " " ";" LLVM_MODULE_LIBS "${LLVM_MODULE_LIBS}")
 
     # Erase incompatible LLVM linker flags
-	SET(LLVM_LFLAGS "")
+    SET(LLVM_LFLAGS "")
 
     # Additional linker settings
     SET(CUDA_LINK "")

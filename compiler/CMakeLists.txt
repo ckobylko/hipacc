@@ -49,7 +49,7 @@ LINK_DIRECTORIES(${LLVM_LIBRARY_DIR})
 
 SET(hipacc_SOURCES hipacc.cpp)
 SET(hipacc_HEADERS hipacc.h "../include/hipacc/Config/CompilerOptions.h"
-	                        "${HIPACC_BINARY_DIR}/include/hipacc/Config/config.h")
+                            "${HIPACC_BINARY_DIR}/include/hipacc/Config/config.h")
 ADD_EXECUTABLE(hipacc ${hipacc_SOURCES} ${hipacc_HEADERS})
 
 
