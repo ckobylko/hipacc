@@ -47,117 +47,153 @@ namespace hipacc
 {
 namespace Backend
 {
-	class CommonDefines final
-	{
-	public:
+  /** \brief  Contains a set of common type definitions, classes etc. for the backend library. */
+  class CommonDefines final
+  {
+  public:
 
-		typedef std::vector< std::string >				ArgumentVectorType;
+    typedef std::vector< std::string >              ArgumentVectorType;           //!< Type definition for a vector of command arguments.
 
-		typedef std::pair< std::string, std::string >	SwitchDisplayInfoType;
-		typedef std::vector< SwitchDisplayInfoType >	SwitchDisplayInfoVectorType;
-
-
-		template < typename SwitchTypeEnum >
-		class CompilerSwitchInfoT final
-		{
-		private:
-
-			static_assert( std::is_enum<SwitchTypeEnum>::value, "The \"switch type\"-type must be an enum or strongly-typed enum!" );
-
-			SwitchTypeEnum		_eSwitchType;
-			std::string			_strDescription;
-			std::string			_strAdditionalOptions;
-
-		public:
-
-			inline CompilerSwitchInfoT()		{}
-
-			inline CompilerSwitchInfoT(SwitchTypeEnum eType, std::string strDescription, std::string strAdditionalOptions = "")
-			{
-				_eSwitchType			= eType;
-				_strDescription			= strDescription;
-				_strAdditionalOptions	= strAdditionalOptions;
-			}
-
-			inline CompilerSwitchInfoT(CompilerSwitchInfoT &crRVal)
-			{
-				*this = crRVal;
-			}
-
-			inline CompilerSwitchInfoT& operator=(CompilerSwitchInfoT &crRVal)
-			{
-				_eSwitchType			= crRVal._eSwitchType;
-				_strDescription			= crRVal._strDescription;
-				_strAdditionalOptions	= crRVal._strAdditionalOptions;
-
-				return *this;
-			}
+    typedef std::pair< std::string, std::string >   SwitchDisplayInfoType;        //!< Type definition for the display information of a compiler switch (for the compiler usage).
+    typedef std::vector< SwitchDisplayInfoType >    SwitchDisplayInfoVectorType;  //!< Type definition for a vector of switch display informations.
 
 
-			inline SwitchDisplayInfoType CreateDisplayInfo(std::string strSwitch) const
-			{
-				SwitchDisplayInfoType SwitchInfo(strSwitch, GetDescription());
+    /** \brief  Encapsulates the necessary information about a known compiler switch.
+     *  \tparam SwitchTypeEnum  An (strongly-typed) enumeration type which specifies the known switches of a specific code generator. */
+    template < typename SwitchTypeEnum >
+    class CompilerSwitchInfoT final
+    {
+    private:
 
-				if (!_strAdditionalOptions.empty())
-				{
-					SwitchInfo.first += std::string(" ") + _strAdditionalOptions;
-				}
+      static_assert(std::is_enum<SwitchTypeEnum>::value, "The \"switch type\"-type must be an enum or strongly-typed enum!");
 
-				return SwitchInfo;
-			}
+      SwitchTypeEnum    _eSwitchType;           //!< The internal enum value representing this switch.
+      std::string       _strDescription;        //!< The user-readable description of the compiler switch.
+      std::string       _strAdditionalOptions;  //!< A string containing the place-holder for additional options (can be empty).
+
+    public:
+
+      /** \brief  Default constructor. */
+      inline CompilerSwitchInfoT()  {}
+
+      /** \brief  "Single-line" constructor.
+       *  \param  eType                 The internal enum value representing this switch.
+       *  \param  strDescription        The user-readable description of the compiler switch.
+       *  \param  strAdditionalOptions  A string containing the place-holder for additional options (can be empty). */
+      inline CompilerSwitchInfoT(SwitchTypeEnum eType, std::string strDescription, std::string strAdditionalOptions = "")
+      {
+        _eSwitchType = eType;
+        _strDescription = strDescription;
+        _strAdditionalOptions = strAdditionalOptions;
+      }
+
+      /** \brief  Copy constructor. */
+      inline CompilerSwitchInfoT(CompilerSwitchInfoT &crRVal)
+      {
+        *this = crRVal;
+      }
+
+      /** \brief  Assignment operator. */
+      inline CompilerSwitchInfoT& operator=(CompilerSwitchInfoT &crRVal)
+      {
+        _eSwitchType = crRVal._eSwitchType;
+        _strDescription = crRVal._strDescription;
+        _strAdditionalOptions = crRVal._strAdditionalOptions;
+
+        return *this;
+      }
+
+      /** \brief  Creates a switch display information object for this switch.
+       *  \param  strSwitch  The command for this compiler switch (it is not stored internally). */
+      inline SwitchDisplayInfoType CreateDisplayInfo(std::string strSwitch) const
+      {
+        SwitchDisplayInfoType SwitchInfo(strSwitch, GetDescription());
+
+        if (!_strAdditionalOptions.empty())
+        {
+          SwitchInfo.first += std::string(" ") + _strAdditionalOptions;
+        }
+
+        return SwitchInfo;
+      }
 
 
-			inline std::string	GetAdditionalOptions() const						{ return _strAdditionalOptions; }
-			inline void			SetAdditionalOptions(std::string strNewOptions)		{ _strAdditionalOptions = strNewOptions; }
+      /** \name Public properties. */
+      //@{
 
-			inline std::string	GetDescription() const								{ return _strDescription; }
-			inline void			SetDescription(std::string strNewDescription)		{ _strDescription = strNewDescription; }
+      /** \brief  Gets the currently set additional options string. */
+      inline std::string  GetAdditionalOptions() const                      { return _strAdditionalOptions; }
+      /** \brief  Sets a new additional options string.
+       *  \param  strNewOptions  The new additional options string. */
+      inline void         SetAdditionalOptions(std::string strNewOptions)   { _strAdditionalOptions = strNewOptions; }
 
-			inline SwitchTypeEnum	GetSwitchType()	 const							{ return _eSwitchType; }
-			inline void				SetSwitchType(SwitchTypeEnum eNewSwitchType)	{ _eSwitchType = eNewSwitchType; }
-		};
+      /** \brief  Gets the currently set switch description. */
+      inline std::string  GetDescription() const                          { return _strDescription; }
+      /** \brief  Sets a new switch description.
+       *  \param  strNewDescription  The new switch description. */
+      inline void         SetDescription(std::string strNewDescription)   { _strDescription = strNewDescription; }
+
+      /** \brief  Gets the currently set internal switch type. */
+      inline SwitchTypeEnum GetSwitchType() const                         { return _eSwitchType; }
+      /** \brief  Sets a new internal switch type.
+       *  \param  eNewSwitchType  The new internal switch type. */
+      inline void           SetSwitchType(SwitchTypeEnum eNewSwitchType)  { _eSwitchType = eNewSwitchType; }
+
+      //@}
+    };
 
 
-		class OptionParsers final
-		{
-		public:
+    /** \brief    Contains common parsing routines for command line options.
+     *  \remarks  The internal option parsers rely on static polymorphism, thus each parser struct must define the type <b>ReturnType</b>
+     *            and the static method <b>Parse()</b>. */
+    class OptionParsers final
+    {
+    public:
 
-			struct Integer final
-			{
-				typedef	int		ReturnType;
+      /** \brief  Common parser for integral options. */
+      struct Integer final
+      {
+        typedef int   ReturnType;   //!<  The type of the parsed option.
 
-				inline static ReturnType Parse(std::string strOption)
-				{
-					std::istringstream buffer(strOption.c_str());
+        /** \brief  Tries to parse the option as an integer.
+         *  \param  strOption   The command line option as string.
+         *  \return If successful, the option as an integer value. */
+        inline static ReturnType Parse(std::string strOption)
+        {
+          std::istringstream buffer(strOption.c_str());
 
-					int iRetVal;
-					buffer >> iRetVal;
+          int iRetVal;
+          buffer >> iRetVal;
 
-					if (buffer.fail())
-					{
-						throw RuntimeErrorException("Expected integer value");
-					}
+          if (buffer.fail())
+          {
+            throw RuntimeErrorException("Expected integer value");
+          }
 
-					return iRetVal;
-				}
-			};
+          return iRetVal;
+        }
+      };
 
-			struct OnOff final
-			{
-				typedef	::clang::hipacc::CompilerOption		ReturnType;
+      /** \brief  Common parser for "boolean" options, which can be either <b>on</b> or <b>off</b>. */
+      struct OnOff final
+      {
+        typedef ::clang::hipacc::CompilerOption   ReturnType;
 
-				inline static ReturnType Parse(std::string strOption)
-				{
-					if		(strOption == "off")	return USER_OFF;
-					else if	(strOption == "on")		return USER_ON;
-					else
-					{
-						throw RuntimeErrorException("Invalid value");
-					}
-				}
-			};
-		};
-	};
+        /** \brief  Tries to parse the option as a pseudo-boolean <b>on / off</b> value.
+         *  \param  strOption   The command line option as string.
+         *  \return If successful, the option as a <b>clang::hipacc::CompilerOption</b> value. */
+        inline static ReturnType Parse(std::string strOption)
+        {
+          if      (strOption == "off")  return USER_OFF;
+          else if (strOption == "on")   return USER_ON;
+          else
+          {
+            throw RuntimeErrorException("Invalid value");
+          }
+        }
+      };
+    };
+  };
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang

@@ -43,23 +43,36 @@ namespace hipacc
 {
 namespace Backend
 {
-	class ICodeGenerator
-	{
-	public:
-		virtual ~ICodeGenerator()	{}
+  /** \brief    The base interface for all code generators.
+   *  \remarks  All relevant methods for the code generator dependent rewriting shall be declared here. */
+  class ICodeGenerator
+  {
+  public:
+    virtual ~ICodeGenerator() {}
+
+    /** \name Required methods for the internal management */
+    //@{
+
+    /** \brief  Returns the description of the derived code generator for the compiler usage. */
+    virtual std::string GetDescription() const = 0;
+
+    /** \brief  Returns the suffix for the <b>-emit-...</b> compiler switch which selects the derived code generator. */
+    virtual std::string GetEmissionKey() const = 0;
+
+    /** \brief  Returns the internal name of the derivied code generator. */
+    virtual std::string GetName() const = 0;
+
+    /** \brief  Returns a vector containing display information about the known switches of the derived code generator (for the compiler usage). */
+    virtual CommonDefines::SwitchDisplayInfoVectorType GetCompilerSwitches() const = 0;
 
 
-		virtual std::string GetDescription() const = 0;
-		virtual std::string GetEmissionKey() const = 0;
-		virtual std::string	GetName() const = 0;
+    /** \brief  Parses a vector of command line arguments and configures the compiler. */
+    virtual void Configure(CommonDefines::ArgumentVectorType & rvecArguments) = 0;
+    //@}
+  };
 
-		virtual CommonDefines::SwitchDisplayInfoVectorType GetCompilerSwitches() const = 0;
-
-		virtual void Configure(CommonDefines::ArgumentVectorType & rvecArguments) = 0;
-	};
-
-
-	typedef std::shared_ptr< ICodeGenerator >	ICodeGeneratorPtr;
+  /** \brief  The shared pointer type for code generators */
+  typedef std::shared_ptr< ICodeGenerator >   ICodeGeneratorPtr;
 
 } // end namespace Backend
 } // end namespace hipacc
