@@ -42,41 +42,55 @@ namespace hipacc
 {
 namespace Backend
 {
-	class Filterscript final : public AndroidBase
-	{
-	private:
+  /** \brief    The backend for Filterscript code on Android operating systems.
+   *  \extends  AndroidBase */
+  class Filterscript final : public AndroidBase
+  {
+  private:
 
-		enum class CompilerSwitchTypeEnum
-		{
-			RsPackage
-		};
+    /** \brief  Contains the IDs of all supported specific compiler switches for this backend. */
+    enum class CompilerSwitchTypeEnum
+    {
+      RsPackage   //!< ID of the "Renderscript package name" switch
+    };
 
 
-	public:
+  public:
 
-		class CodeGenerator final : public CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >
-		{
-		private:
+    /** \brief    The code generator for Android Filterscript code.
+     *  \extends  CodeGeneratorBaseImplT */
+    class CodeGenerator final : public CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >
+    {
+    private:
 
-			typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >	BaseType;
-			typedef BaseType::CompilerSwitchInfoType					CompilerSwitchInfoType;
+      typedef CodeGeneratorBaseImplT< CompilerSwitchTypeEnum >  BaseType;                 //!< The type of the base class.
+      typedef BaseType::CompilerSwitchInfoType                  CompilerSwitchInfoType;   //!< The type of the switch information class for this code generator.
 
-			class Descriptor final : public BaseType::CodeGeneratorDescriptorBase
-			{
-			public:
-				Descriptor();
-			};
+      /** \brief    The specific descriptor class for this code generator.
+       *  \extends  CodeGeneratorBaseImplT::CodeGeneratorDescriptorBase. */
+      class Descriptor final : public BaseType::CodeGeneratorDescriptorBase
+      {
+      public:
+        /** \brief  Initializes the fields of the base class. */
+        Descriptor();
+      };
 
-		protected:
+    protected:
 
-			virtual size_t _HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
+      /** \name CodeGeneratorBaseImplT members */
+      //@{
 
-		public:
+      virtual size_t _HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) override;
 
-			CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions);
-		};
+      //@}
 
-	};
+    public:
+
+      /** \brief  Constructor.
+       *  \param  pCompilerOptions  A pointer to the global compiler options object. */
+      CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions);
+    };
+  };
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
