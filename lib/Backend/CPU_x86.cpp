@@ -37,10 +37,10 @@ using namespace std;
 
 CPU_x86::CodeGenerator::Descriptor::Descriptor()
 {
-	SetTargetCode(::clang::hipacc::TARGET_C);
-	SetName("CPU-x86");
-	SetEmissionKey("cpu");
-	SetDescription("Emit C++ code for x86-CPUs");
+  SetTargetCode(::clang::hipacc::TARGET_C);
+  SetName("CPU-x86");
+  SetEmissionKey("cpu");
+  SetDescription("Emit C++ code for x86-CPUs");
 }
 
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
@@ -49,15 +49,15 @@ CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompile
 
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
-	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
-	size_t	szReturnIndex		= szCurrentIndex;
+  string  strCurrentSwitch  = rvecArguments[szCurrentIndex];
+  size_t  szReturnIndex     = szCurrentIndex;
 
-	switch (eSwitch)
-	{
-  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
-	}
+  switch (eSwitch)
+  {
+  default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
+  }
 
-	return szReturnIndex;
+  return szReturnIndex;
 }
 
 

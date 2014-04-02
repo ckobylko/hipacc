@@ -38,96 +38,97 @@ using namespace std;
 
 OpenCL_ACC::CodeGenerator::Descriptor::Descriptor()
 {
-	SetTargetCode(::clang::hipacc::TARGET_OpenCLACC);
-	SetName("OpenCL for Accelerator devices");
-	SetEmissionKey("opencl-acc");
-	SetDescription("Emit OpenCL code for Accelerator devices");
+  SetTargetCode(::clang::hipacc::TARGET_OpenCLACC);
+  SetName("OpenCL for Accelerator devices");
+  SetEmissionKey("opencl-acc");
+  SetDescription("Emit OpenCL code for Accelerator devices");
 }
 
-OpenCL_ACC::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+OpenCL_ACC::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions)  : BaseType(pCompilerOptions, Descriptor())
 {
-	_InitSwitch< AcceleratorDeviceSwitches::EmitPadding		>(CompilerSwitchTypeEnum::EmitPadding);
-	_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig	>(CompilerSwitchTypeEnum::ExploreConfig);
-	_InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread	>(CompilerSwitchTypeEnum::PixelsPerThread);
-	_InitSwitch< AcceleratorDeviceSwitches::Target			>(CompilerSwitchTypeEnum::Target);
-	_InitSwitch< AcceleratorDeviceSwitches::TimeKernels		>(CompilerSwitchTypeEnum::TimeKernels);
-	_InitSwitch< AcceleratorDeviceSwitches::UseConfig		>(CompilerSwitchTypeEnum::UseConfig);
-	_InitSwitch< AcceleratorDeviceSwitches::UseLocal		>(CompilerSwitchTypeEnum::UseLocal);
-	_InitSwitch< AcceleratorDeviceSwitches::Vectorize		>(CompilerSwitchTypeEnum::Vectorize);
+  _InitSwitch< AcceleratorDeviceSwitches::EmitPadding     >(CompilerSwitchTypeEnum::EmitPadding);
+  _InitSwitch< AcceleratorDeviceSwitches::ExploreConfig   >(CompilerSwitchTypeEnum::ExploreConfig);
+  _InitSwitch< AcceleratorDeviceSwitches::PixelsPerThread >(CompilerSwitchTypeEnum::PixelsPerThread);
+  _InitSwitch< AcceleratorDeviceSwitches::Target          >(CompilerSwitchTypeEnum::Target);
+  _InitSwitch< AcceleratorDeviceSwitches::TimeKernels     >(CompilerSwitchTypeEnum::TimeKernels);
+  _InitSwitch< AcceleratorDeviceSwitches::UseConfig       >(CompilerSwitchTypeEnum::UseConfig);
+  _InitSwitch< AcceleratorDeviceSwitches::UseLocal        >(CompilerSwitchTypeEnum::UseLocal);
+  _InitSwitch< AcceleratorDeviceSwitches::Vectorize       >(CompilerSwitchTypeEnum::Vectorize);
 }
 
 
 size_t OpenCL_ACC::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
-	string	strCurrentSwitch = rvecArguments[szCurrentIndex];
-	size_t	szReturnIndex = szCurrentIndex;
+  string  strCurrentSwitch  = rvecArguments[szCurrentIndex];
+  size_t  szReturnIndex     = szCurrentIndex;
 
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::EmitPadding:
-		{
-			GetCompilerOptions().setPadding(_ParseOption< AcceleratorDeviceSwitches::EmitPadding >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::ExploreConfig:
-		GetCompilerOptions().setExploreConfig(USER_ON);
-		break;
-	case CompilerSwitchTypeEnum::PixelsPerThread:
-		{
-			GetCompilerOptions().setPixelsPerThread(_ParseOption< AcceleratorDeviceSwitches::PixelsPerThread >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::Target:
-		{
-			GetCompilerOptions().setTargetDevice(_ParseOption< AcceleratorDeviceSwitches::Target >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::TimeKernels:
-		GetCompilerOptions().setTimeKernels(USER_ON);
-		break;
-	case CompilerSwitchTypeEnum::UseConfig:
-		{
-			typedef	AcceleratorDeviceSwitches::UseConfig	SwitchType;
+  switch (eSwitch)
+  {
+  case CompilerSwitchTypeEnum::EmitPadding:
+    {
+      GetCompilerOptions().setPadding(_ParseOption< AcceleratorDeviceSwitches::EmitPadding >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::ExploreConfig:
+    GetCompilerOptions().setExploreConfig(USER_ON);
+    break;
+  case CompilerSwitchTypeEnum::PixelsPerThread:
+    {
+      GetCompilerOptions().setPixelsPerThread(_ParseOption< AcceleratorDeviceSwitches::PixelsPerThread >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::Target:
+    {
+      GetCompilerOptions().setTargetDevice(_ParseOption< AcceleratorDeviceSwitches::Target >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::TimeKernels:
+    GetCompilerOptions().setTimeKernels(USER_ON);
+    break;
+  case CompilerSwitchTypeEnum::UseConfig:
+    {
+      typedef AcceleratorDeviceSwitches::UseConfig  SwitchType;
 
-			SwitchType::OptionParser::ReturnType	Value = _ParseOption< SwitchType >(rvecArguments, szCurrentIndex);
+      SwitchType::OptionParser::ReturnType  Value = _ParseOption< SwitchType >(rvecArguments, szCurrentIndex);
 
-			GetCompilerOptions().setKernelConfig(Value.first, Value.second);
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::UseLocal:
-		{
-			GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-	case CompilerSwitchTypeEnum::Vectorize:
-		{
-			GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
-	}
+      GetCompilerOptions().setKernelConfig(Value.first, Value.second);
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::UseLocal:
+    {
+      GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::Vectorize:
+    {
+      GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
+  }
 
-	return szReturnIndex;
+  return szReturnIndex;
 }
 
 void OpenCL_ACC::CodeGenerator::_CheckConfiguration()
 {
-	// Check base configuration
-	BaseType::_CheckConfiguration();
+  // Check base configuration
+  BaseType::_CheckConfiguration();
 
 
-	HipaccDevice ConfiguredTargetDevive(GetCompilerOptions());
+  HipaccDevice ConfiguredTargetDevive(GetCompilerOptions());
 
-	// Check target device
-	if (! ConfiguredTargetDevive.isINTELACC())
-	{
-		throw RuntimeErrorException("OpenCL (ACC) code generation selected, but no OpenCL-capable accelerator device specified!\n  Please select correct target device/code generation back end combination.");
-	}
+  // Check target device
+  if (! ConfiguredTargetDevive.isINTELACC())
+  {
+    throw RuntimeErrorException("OpenCL (ACC) code generation selected, but no OpenCL-capable accelerator device specified!\n  Please select correct target device/code generation back end combination.");
+  }
 }
 
 

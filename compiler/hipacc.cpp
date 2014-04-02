@@ -157,8 +157,8 @@ int main(int argc, char *argv[]) {
   }
   catch (std::exception &e)
   {
-	  llvm::errs() << "ERROR: " << e.what();
-	  return EXIT_FAILURE;
+    llvm::errs() << "ERROR: " << e.what();
+    return EXIT_FAILURE;
   }
 
 

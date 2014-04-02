@@ -38,46 +38,46 @@ using namespace std;
 
 OpenCL_CPU::CodeGenerator::Descriptor::Descriptor()
 {
-	SetTargetCode(::clang::hipacc::TARGET_OpenCLCPU);
-	SetName("OpenCL for CPU");
-	SetEmissionKey("opencl-cpu");
-	SetDescription("Emit OpenCL code for CPU devices");
+  SetTargetCode(::clang::hipacc::TARGET_OpenCLCPU);
+  SetName("OpenCL for CPU");
+  SetEmissionKey("opencl-cpu");
+  SetDescription("Emit OpenCL code for CPU devices");
 }
 
-OpenCL_CPU::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+OpenCL_CPU::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions)  : BaseType(pCompilerOptions, Descriptor())
 {
-	_InitSwitch< AcceleratorDeviceSwitches::ExploreConfig >(CompilerSwitchTypeEnum::ExploreConfig);
-	_InitSwitch< AcceleratorDeviceSwitches::UseLocal	  >(CompilerSwitchTypeEnum::UseLocal);
-	_InitSwitch< AcceleratorDeviceSwitches::Vectorize	  >(CompilerSwitchTypeEnum::Vectorize);
+  _InitSwitch< AcceleratorDeviceSwitches::ExploreConfig >(CompilerSwitchTypeEnum::ExploreConfig);
+  _InitSwitch< AcceleratorDeviceSwitches::UseLocal      >(CompilerSwitchTypeEnum::UseLocal);
+  _InitSwitch< AcceleratorDeviceSwitches::Vectorize     >(CompilerSwitchTypeEnum::Vectorize);
 }
 
 
 size_t OpenCL_CPU::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
-	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
-	size_t	szReturnIndex		= szCurrentIndex;
+  string  strCurrentSwitch  = rvecArguments[szCurrentIndex];
+  size_t  szReturnIndex     = szCurrentIndex;
 
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::ExploreConfig:
-		GetCompilerOptions().setExploreConfig(USER_ON);
-		break;
-	case CompilerSwitchTypeEnum::UseLocal:
-		{
-			GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-	case CompilerSwitchTypeEnum::Vectorize:
-		{
-			GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
-	}
+  switch (eSwitch)
+  {
+  case CompilerSwitchTypeEnum::ExploreConfig:
+    GetCompilerOptions().setExploreConfig(USER_ON);
+    break;
+  case CompilerSwitchTypeEnum::UseLocal:
+    {
+      GetCompilerOptions().setLocalMemory(_ParseOption< AcceleratorDeviceSwitches::UseLocal >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::Vectorize:
+    {
+      GetCompilerOptions().setVectorizeKernels(_ParseOption< AcceleratorDeviceSwitches::Vectorize >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
+  }
 
-	return szReturnIndex;
+  return szReturnIndex;
 }
 
 

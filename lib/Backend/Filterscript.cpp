@@ -37,35 +37,35 @@ using namespace std;
 
 Filterscript::CodeGenerator::Descriptor::Descriptor()
 {
-	SetTargetCode(::clang::hipacc::TARGET_Filterscript);
-	SetName("Filterscript");
-	SetEmissionKey("filterscript");
-	SetDescription("Emit Filterscript code for Android");
+  SetTargetCode(::clang::hipacc::TARGET_Filterscript);
+  SetName("Filterscript");
+  SetEmissionKey("filterscript");
+  SetDescription("Emit Filterscript code for Android");
 }
 
-Filterscript::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
+Filterscript::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions)  : BaseType(pCompilerOptions, Descriptor())
 {
-	_InitSwitch< AndroidSwitches::RsPackage >(CompilerSwitchTypeEnum::RsPackage);
+  _InitSwitch< AndroidSwitches::RsPackage >(CompilerSwitchTypeEnum::RsPackage);
 }
 
 
 size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
 {
-	string	strCurrentSwitch	= rvecArguments[szCurrentIndex];
-	size_t	szReturnIndex		= szCurrentIndex;
+  string  strCurrentSwitch  = rvecArguments[szCurrentIndex];
+  size_t  szReturnIndex     = szCurrentIndex;
 
-	switch (eSwitch)
-	{
-	case CompilerSwitchTypeEnum::RsPackage:
-		{
-			GetCompilerOptions().setRSPackageName(_ParseOption< AndroidSwitches::RsPackage >(rvecArguments, szCurrentIndex));
-			++szReturnIndex;
-		}
-		break;
-  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
-	}
+  switch (eSwitch)
+  {
+  case CompilerSwitchTypeEnum::RsPackage:
+    {
+      GetCompilerOptions().setRSPackageName(_ParseOption< AndroidSwitches::RsPackage >(rvecArguments, szCurrentIndex));
+      ++szReturnIndex;
+    }
+    break;
+  default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
+  }
 
-	return szReturnIndex;
+  return szReturnIndex;
 }
 
 
