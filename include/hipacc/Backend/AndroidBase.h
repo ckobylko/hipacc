@@ -42,47 +42,60 @@ namespace hipacc
 {
 namespace Backend
 {
-	class AndroidBase
-	{
-	protected:
+  /** \brief    A base class for all Android-based backends.
+   *  \details  Contains common definitions for Android. */
+  class AndroidBase
+  {
+  protected:
 
-		class AndroidSwitches final
-		{
-		public:
+    /** \brief  Contains all known common compiler switches for Android-based code generators. */
+    class AndroidSwitches final
+    {
+    public:
 
-			struct RsPackage final
-			{
-				inline static std::string Key()					{ return "-rs-package"; }
-				inline static std::string AdditionalOptions()	{ return "<string>"; }
-				inline static std::string Description()			{ return "Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
+      /** \brief  The switch type for the "Renderscript package name" switch. */
+      struct RsPackage final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-rs-package"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return "<string>"; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()         { return "Specify Renderscript package name. (default: \"org.hipacc.rs\")"; }
 
 
-				struct OptionParser final
-				{
-					typedef std::string		ReturnType;
+        /** \brief  The option parser for this switch. */
+        struct OptionParser final
+        {
+          typedef std::string   ReturnType;   //!< The type of the parsed option.
 
-					inline static ReturnType Parse(std::string strOption)
-					{
-						std::string strPackageEnding(".rs");
+          /** \brief  Checks the given RS-package name for validity.
+           *  \param  strOption   The command line option as a string.
+           *  \return If successful, the valid RS-package name. */
+          inline static ReturnType Parse(std::string strOption)
+          {
+            std::string strPackageEnding(".rs");
 
-						if (strOption.length() < strPackageEnding.length())
-						{
+            if (strOption.length() < strPackageEnding.length())
+            {
               throw RuntimeErrors::InvalidOptionException(Key(), strOption);
-						}
+            }
 
-						std::string strOptionEnding = strOption.substr(strOption.length() - strPackageEnding.length());
+            std::string strOptionEnding = strOption.substr(strOption.length() - strPackageEnding.length());
 
-						if (strOptionEnding != strPackageEnding)
-						{
+            if (strOptionEnding != strPackageEnding)
+            {
               throw RuntimeErrors::InvalidOptionException(Key(), strOption);
-						}
+            }
 
-						return strOption;
-					}
-				};
-			};
-		};
-	};
+            return strOption;
+          }
+        };
+      };
+    };
+  };
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
