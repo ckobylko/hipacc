@@ -109,7 +109,7 @@ size_t OpenCL_ACC::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, 
 			++szReturnIndex;
 		}
 		break;
-	default:	throw UnhandledSwitchException(strCurrentSwitch, GetName());
+  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
 	}
 
 	return szReturnIndex;

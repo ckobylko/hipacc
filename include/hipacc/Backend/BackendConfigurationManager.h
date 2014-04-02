@@ -150,7 +150,7 @@ namespace Backend
 
 			if (_mapCodeGenerators.find(strEmissionKey) != _mapCodeGenerators.end())
 			{
-				throw DuplicateSwitchEntryException(strEmissionKey);
+        throw InternalErrors::DuplicateSwitchEntryException(strEmissionKey);
 			}
 			else
 			{
@@ -169,7 +169,7 @@ namespace Backend
 			// Check for duplicate switch entry
 			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
 			{
-				throw DuplicateSwitchEntryException(strSwitch);
+        throw InternalErrors::DuplicateSwitchEntryException(strSwitch);
 			}
 			else
 			{

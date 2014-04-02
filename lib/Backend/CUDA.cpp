@@ -116,7 +116,7 @@ size_t CUDA::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Common
 			++szReturnIndex;
 		}
 		break;
-	default:	throw UnhandledSwitchException(strCurrentSwitch, GetName());
+  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
 	}
 
 	return szReturnIndex;

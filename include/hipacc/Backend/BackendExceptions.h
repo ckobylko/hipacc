@@ -42,141 +42,209 @@ namespace hipacc
 {
 namespace Backend
 {
-	/** \brief	Root class of all exceptions which can be thrown by the backend. **/
-	class BackendException : public std::runtime_error
-	{
-	private:
+  /** \name Exception base classes. */
+  //@{
 
-		typedef std::runtime_error	BaseType;
+  /** \brief    Root class of all exceptions which can be thrown by the backend. 
+   *  \extends  std::runtime_error */
+  class BackendException : public std::runtime_error
+  {
+  private:
 
-	public:
+    typedef std::runtime_error  BaseType;   //!< The base type of this class.
 
-		inline BackendException(std::string strMessage) : BaseType(std::string("Backend exception: ") + strMessage)	{}
+  public:
 
-		virtual ~BackendException()	{}
-	};
+    /** \brief  Constructor.
+     *  \param  strMessage  The message which shall be displayed. */
+    inline BackendException(std::string strMessage) : BaseType(std::string("Backend exception: ") + strMessage) {}
 
-	/** \brief	Root class for all internal errors of the backend (errors due to invalid assumptions at design time). **/
-	class InternalErrorException : public BackendException
-	{
-	private:
+    virtual ~BackendException() {}
+  };
 
-		typedef BackendException	BaseType;
+  /** \brief    Root class for all internal errors of the backend. 
+   *  \remarks  This type of error is caused by invalid assumptions at design time. Thus a user should never see an exception like in an ideal case.
+   *  \extends  BackendException */
+  class InternalErrorException : public BackendException
+  {
+  private:
 
-	public:
+    typedef BackendException  BaseType;   //!< The base type of this class.
 
-		inline InternalErrorException(std::string strMessage) : BaseType(std::string("Internal error: ") + strMessage)	{}
+  public:
 
-		virtual ~InternalErrorException()	{}
-	};
+    /** \brief  Constructor.
+     *  \param  strMessage  The message which shall be displayed. */
+    inline InternalErrorException(std::string strMessage) : BaseType(std::string("Internal error: ") + strMessage)  {}
 
-	/** \brief	Root class for all run-time errors of the backend (errors due to invalid inputs). **/
-	class RuntimeErrorException : public BackendException
-	{
-	private:
+    virtual ~InternalErrorException() {}
+  };
 
-		typedef BackendException	BaseType;
+  /** \brief    Root class for all run-time errors of the backend.
+   *  \remarks  This type of error is raised whenever a problem occurs at run-time, e.g. wrong parametrization or incompatible input files etc.
+   *  \extends  BackendException */
+  class RuntimeErrorException : public BackendException
+  {
+  private:
 
-	public:
+    typedef BackendException  BaseType;   //!< The base type of this class.
 
-		inline RuntimeErrorException(std::string strMessage) : BaseType(std::string("Runtime error: ") + strMessage)	{}
+  public:
 
-		virtual ~RuntimeErrorException()	{}
-	};
+    /** \brief  Constructor.
+     *  \param  strMessage  The message which shall be displayed. */
+    inline RuntimeErrorException(std::string strMessage) : BaseType(std::string("Runtime error: ") + strMessage)  {}
 
+    virtual ~RuntimeErrorException()	{}
+  };
 
-	class DuplicateSwitchEntryException final : public InternalErrorException
-	{
-	private:
-
-		typedef InternalErrorException	BaseType;
-
-	public:
-
-		inline DuplicateSwitchEntryException(std::string strSwitch) : BaseType(std::string("The switch \"") + strSwitch + std::string("\" has already been defined!")) {}
-
-		inline DuplicateSwitchEntryException(std::string strSwitch, std::string strGeneratorName) : BaseType(std::string("The switch \"") + strSwitch +
-																											 std::string("\" has already been defined in code generator \"") +
-																											 strGeneratorName + std::string("\"!"))
-		{}
-	};
-
-	class UnhandledSwitchException final : public InternalErrorException
-	{
-	private:
-
-		typedef InternalErrorException	BaseType;
-
-	public:
-
-		inline UnhandledSwitchException(std::string strSwitch) : BaseType(std::string("Handler for switch \"") + strSwitch + std::string("\" is missing!")) {}
-
-		inline UnhandledSwitchException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("Handler for switch \"") + strSwitch +
-																										 std::string("\" is missing in code generator \"") + 
-																										 strGeneratorName + std::string("\"!") )
-		{}
-	};
-
-	class AbortException final : public RuntimeErrorException
-	{
-	private:
-
-		typedef RuntimeErrorException	BaseType;
-
-		int _iExitCode;
-
-	public:
-
-		inline AbortException(int iExitCode) : BaseType("Abort!"), _iExitCode(iExitCode)	{}
-
-		inline int GetExitCode()	{ return _iExitCode; }
-	};
+  //@}
 
 
-	class UnknownSwitchException final : public RuntimeErrorException
-	{
-	private:
+  /** \brief  Contains all specialized internal error exception classes. */
+  class InternalErrors
+  {
+  public:
 
-		typedef RuntimeErrorException	BaseType;
+    /** \brief    Internal error which indicates that a compiler switch has been declared twice with different meanings.
+     *  \extends  InternalErrorException */
+    class DuplicateSwitchEntryException final : public InternalErrorException
+    {
+    private:
 
-	public:
+      typedef InternalErrorException  BaseType;   //!< The base type of this class.
 
-		inline UnknownSwitchException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The switch \"") + strSwitch +
-																									   std::string("\" is not supported in code generator \"") +
-																									   strGeneratorName + std::string("\"!") )
-		{}
-	};
+    public:
 
-	class InvalidOptionException final : public RuntimeErrorException
-	{
-	private:
+      /** \brief  General constructor.
+       *  \param  strSwitch  The compiler switch which caused this error. */
+      inline DuplicateSwitchEntryException(std::string strSwitch) : BaseType(std::string("The switch \"") + strSwitch + std::string("\" has already been defined!"))  {}
 
-		typedef RuntimeErrorException	BaseType;
+      /** \brief  Special constructor for the code generators.
+       *  \param  strSwitch         The compiler switch which caused this error.
+       *  \param  strGeneratorName  The name of the code generator for which the error happened. */
+      inline DuplicateSwitchEntryException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The switch \"") + strSwitch +
+                                                                                                            std::string("\" has already been defined in code generator \"") +
+                                                                                                            strGeneratorName + std::string("\"!") )
+      {}
+    };
 
-	public:
 
-		inline InvalidOptionException(std::string strSwitch, std::string strOption) : BaseType( std::string("The option \"") + strOption +
-																								std::string("\" is invalid for the switch \"") +
-																								strSwitch + std::string("\"!") )
-		{}
-	};
+    /** \brief    Internal error which indicates that a configuration handler for a known compiler switch is missing.
+     *  \extends  InternalErrorException */
+    class UnhandledSwitchException final : public InternalErrorException
+    {
+    private:
 
-	class MissingOptionException final : public RuntimeErrorException
-	{
-	private:
+      typedef InternalErrorException  BaseType;   //!< The base type of this class.
 
-		typedef RuntimeErrorException	BaseType;
+    public:
 
-	public:
+      /** \brief  General constructor.
+       *  \param  strSwitch  The compiler switch which caused this error. */
+      inline UnhandledSwitchException(std::string strSwitch) : BaseType(std::string("Handler for switch \"") + strSwitch + std::string("\" is missing!")) {}
 
-		inline MissingOptionException(std::string strSwitch) : BaseType(std::string("The required option for switch \"") + strSwitch + std::string("\" is missing!"))
-		{}
+      /** \brief  Special constructor for the code generators.
+       *  \param  strSwitch         The compiler switch which caused this error.
+       *  \param  strGeneratorName  The name of the code generator for which the error happened. */
+      inline UnhandledSwitchException(std::string strSwitch, std::string strGeneratorName)  : BaseType( std::string("Handler for switch \"") + strSwitch +
+                                                                                                        std::string("\" is missing in code generator \"") +
+                                                                                                        strGeneratorName + std::string("\"!") )
+      {}
+    };
+  };
 
-		inline MissingOptionException(std::string strSwitch, std::string strGeneratorName) : BaseType( std::string("The required option for switch \"") + strSwitch +
-																									   std::string("\" is missing for code generator \"") +
-																									   strGeneratorName + std::string("\"!") )
-		{}
-	};
+
+  /** \brief  Contains all specialized run-time error exception classes. */
+  class RuntimeErrors
+  {
+  public:
+
+    /** \brief    Run-time error which indicates that a program abort has been requested.
+     *  \extends  RuntimeErrorException */
+    class AbortException final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;   //!< The base type of this class.
+
+      const int _ciExitCode;                      //!< The requested exit code for the abort.
+
+    public:
+
+      /** \brief  General constructor.
+       *  \param  iExitCode  The requested exit code for the abort. */
+      inline AbortException(int iExitCode) : BaseType("Abort!"), _ciExitCode(iExitCode) {}
+
+      /** \brief  Returns the requested abort code. */
+      inline int GetExitCode() const  { return _ciExitCode; }
+    };
+
+
+    /** \brief    Run-time error which indicates that the user-defined option for a compiler switch is invalid.
+     *  \extends  RuntimeErrorException */
+    class InvalidOptionException final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;   //!< The base type of this class.
+
+    public:
+
+      /** \brief  General constructor.
+       *  \param  strSwitch  The compiler switch whose option is invalid.
+       *  \param  strOption  The compiler switch option which caused this error. */
+      inline InvalidOptionException(std::string strSwitch, std::string strOption) : BaseType( std::string("The option \"") + strOption +
+                                                                                              std::string("\" is invalid for the switch \"") +
+                                                                                              strSwitch + std::string("\"!") )
+      {}
+    };
+
+
+    /** \brief    Run-time error which indicates that a required option for a user-defined compiler switch is missing.
+     *  \extends  RuntimeErrorException */
+    class MissingOptionException final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;   //!< The base type of this class.
+
+    public:
+
+      /** \brief  General constructor.
+       *  \param  strSwitch  The compiler switch which caused this error. */
+      inline MissingOptionException(std::string strSwitch)  : BaseType(std::string("The required option for switch \"") + strSwitch + std::string("\" is missing!"))
+      {}
+
+      /** \brief  Special constructor for the code generators.
+       *  \param  strSwitch         The compiler switch which caused this error.
+       *  \param  strGeneratorName  The name of the code generator for which the error happened. */
+      inline MissingOptionException(std::string strSwitch, std::string strGeneratorName)  : BaseType( std::string("The required option for switch \"") + strSwitch +
+                                                                                                      std::string("\" is missing for code generator \"") +
+                                                                                                      strGeneratorName + std::string("\"!") )
+      {}
+    };
+
+
+    /** \brief    Run-time error which indicates that a user-defined compiler switch is not known.
+     *  \extends  RuntimeErrorException */
+    class UnknownSwitchException final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;   //!< The base type of this class.
+
+    public:
+
+      /** \brief  Special constructor for the code generators.
+       *  \param  strSwitch         The compiler switch which caused this error.
+       *  \param  strGeneratorName  The name of the code generator for which the error happened. */
+      inline UnknownSwitchException(std::string strSwitch, std::string strGeneratorName)  : BaseType( std::string("The switch \"") + strSwitch +
+                                                                                                      std::string("\" is not supported in code generator \"") +
+                                                                                                      strGeneratorName + std::string("\"!") )
+      {}
+    };
+  };
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang

@@ -276,7 +276,7 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 		}
 		else if (szCurIndex >= rvecArguments.size())
 		{
-			throw MissingOptionException(strSwitch);
+      throw RuntimeErrors::MissingOptionException(strSwitch);
 		}
 		else
 		{
@@ -290,15 +290,15 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 	{
 		_PrintUsage();
 
-		throw AbortException(EXIT_SUCCESS);
+		throw RuntimeErrors::AbortException(EXIT_SUCCESS);
 	}
 	case CompilerSwitchTypeEnum::Version:
 	{
 		llvm::errs() << "hipacc version " << HIPACC_VERSION << " (" << GIT_REPOSITORY " " << GIT_VERSION << ")\n";
 
-		throw AbortException(EXIT_SUCCESS);
+		throw RuntimeErrors::AbortException(EXIT_SUCCESS);
 	}
-	default: throw UnhandledSwitchException(strSwitch);
+  default: throw InternalErrors::UnhandledSwitchException(strSwitch);
 	}
 
 	return szReturnIndex;
@@ -354,7 +354,7 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
 			throw RuntimeErrorException(string("No code generator has been selected! Did you forget the \"") + KnownSwitches::EmissionSwitchBase() + string("<X>\" switch?"));
 		}
 	}
-	catch (AbortException &e)
+	catch (RuntimeErrors::AbortException &e)
 	{
 		exit(e.GetExitCode());
 	}
@@ -377,9 +377,11 @@ CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments
 
 	vecClangArguments.push_back("-isystem");
 	vecClangArguments.push_back(MINGW_INCLUDE_ROOT_CPP);
-	vecClangArguments.push_back("-isystem");
+
+	vecClangArguments.push_back("-isystem");
 	vecClangArguments.push_back(string(MINGW_INCLUDE_ROOT_CPP) + string("/c++"));
-	vecClangArguments.push_back("-isystem");
+
+	vecClangArguments.push_back("-isystem");
 	vecClangArguments.push_back(string(MINGW_INCLUDE_ROOT_CPP) + string("/c++/mingw32"));
 #endif
 

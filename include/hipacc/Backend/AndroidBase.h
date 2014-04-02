@@ -67,14 +67,14 @@ namespace Backend
 
 						if (strOption.length() < strPackageEnding.length())
 						{
-							throw InvalidOptionException(Key(), strOption);
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
 						}
 
 						std::string strOptionEnding = strOption.substr(strOption.length() - strPackageEnding.length());
 
 						if (strOptionEnding != strPackageEnding)
 						{
-							throw InvalidOptionException(Key(), strOption);
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
 						}
 
 						return strOption;

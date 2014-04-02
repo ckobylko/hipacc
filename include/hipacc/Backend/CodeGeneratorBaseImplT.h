@@ -119,7 +119,7 @@ namespace Backend
 
 			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
 			{
-				throw DuplicateSwitchEntryException(strSwitch, GetName());
+        throw InternalErrors::DuplicateSwitchEntryException(strSwitch, GetName());
 			}
 			else
 			{
@@ -140,7 +140,7 @@ namespace Backend
 			// Fetch option
 			if (rvecArguments.size() <= szSwitchIndex + szOptionOffset)
 			{
-				throw MissingOptionException(rvecArguments[szSwitchIndex], GetName());
+        throw RuntimeErrors::MissingOptionException(rvecArguments[szSwitchIndex], GetName());
 			}
 
 			std::string strOption = rvecArguments[szSwitchIndex + szOptionOffset];
@@ -150,14 +150,14 @@ namespace Backend
 			{
 				return typename SwitchClass::OptionParser::Parse(strOption);
 			}
-			catch (InvalidOptionException &)
+      catch (RuntimeErrors::InvalidOptionException &)
 			{
 				throw;
 			}
 			catch (BackendException &e)
 			{
 				llvm::errs() << "ERROR: " << e.what() << "\n\n";
-				throw InvalidOptionException(rvecArguments[szSwitchIndex], strOption);
+        throw RuntimeErrors::InvalidOptionException(rvecArguments[szSwitchIndex], strOption);
 			}
 		}
 
@@ -226,7 +226,7 @@ namespace Backend
 
 				if (itSwitchEntry == _mapKnownSwitches.end())
 				{
-					throw UnknownSwitchException(strSwitch, GetName());
+          throw RuntimeErrors::UnknownSwitchException(strSwitch, GetName());
 				}
 
 				i = _HandleSwitch(itSwitchEntry->second.GetSwitchType(), rvecArguments, i);

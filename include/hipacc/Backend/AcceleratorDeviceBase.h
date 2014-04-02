@@ -124,7 +124,7 @@ namespace Backend
 						else if	(strOption == "KnightsCorner")		return ::clang::hipacc::KNIGHTSCORNER;
 						else
 						{
-							throw InvalidOptionException(Key(), strOption);
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
 						}
 					}
 				};
@@ -153,7 +153,7 @@ namespace Backend
 						int x = 0, y = 0;
 						if (sscanf(strOption.c_str(), "%dx%d", &x, &y) != 2)
 						{
-							throw InvalidOptionException(Key(), strOption);
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
 						}
 
 						return ReturnType(x, y);
@@ -208,7 +208,7 @@ namespace Backend
 						else if	(strOption == "Ldg")		return ::clang::hipacc::Ldg;
 						else
 						{
-							throw InvalidOptionException(Key(), strOption);
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
 						}
 					}
 				};

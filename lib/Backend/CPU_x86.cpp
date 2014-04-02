@@ -54,7 +54,7 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 
 	switch (eSwitch)
 	{
-	default:	throw UnhandledSwitchException(strCurrentSwitch, GetName());
+  default:	throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
 	}
 
 	return szReturnIndex;
