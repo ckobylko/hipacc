@@ -68,6 +68,14 @@ size_t Filterscript::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch
   return szReturnIndex;
 }
 
+void Filterscript::CodeGenerator::_CheckConfiguration()
+{
+  // Check base configuration
+  BaseType::_CheckConfiguration();
+
+  // Filterscript supports only one pixel thread
+  GetCompilerOptions().setPixelsPerThread(1);
+}
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 

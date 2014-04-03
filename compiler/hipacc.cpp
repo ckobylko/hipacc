@@ -165,11 +165,8 @@ int main(int argc, char *argv[]) {
   // create target device description from compiler options
   HipaccDevice targetDevice(compilerOptions);
 
-  //
-  // sanity checks
-  //
 
-  // Invalid specification for kernel configuration
+  // Sanity check - Invalid specification for kernel configuration
   if (compilerOptions.useKernelConfig(USER_ON)) {
     if (compilerOptions.getKernelConfigX()*compilerOptions.getKernelConfigY() >
         (int)targetDevice.max_threads_per_block) {
@@ -179,14 +176,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-  // Pixels per thread > 1 not supported on Filterscript
-  if (compilerOptions.emitFilterscript() &&
-      compilerOptions.getPixelsPerThread() > 1) {
-    llvm::errs() << "ERROR: Calculating multiple pixels per thread selected, which is not supported for Filterscript!\n"
-                 << "  Please disable multiple pixels per thread oder switch target code generation back end.\n\n";
-    printUsage();
-    return EXIT_FAILURE;
-  }
+
 
   // print summary of compiler options
   compilerOptions.printSummary(targetDevice.getTargetDeviceName());
