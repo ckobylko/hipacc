@@ -50,172 +50,267 @@ namespace hipacc
 {
 namespace Backend
 {
-	class BackendConfigurationManager final
-	{
-	private:
+  /** \brief  Manages all known backend code generators and controls the compiler configuration process. */
+  class BackendConfigurationManager final
+  {
+  private:
 
-		enum class CompilerSwitchTypeEnum
-		{
-			Emit, Help, OutputFile, Version
-		};
+    /** \name Internal type definitions. */
+    //@{
 
-
-		typedef CommonDefines::CompilerSwitchInfoT< CompilerSwitchTypeEnum >	CompilerSwitchInfoType;
-
-
-		typedef std::map< std::string, CompilerSwitchInfoType >		CompilerSwitchMapType;
-		typedef std::map< std::string, std::string >				SwitchAliasMapType;
-		typedef std::map< std::string, ICodeGeneratorPtr >			CodeGeneratorsMapType;
-
-
-	private:
-
-		class KnownSwitches final
-		{
-		public:
-
-			typedef std::vector< std::string >		AliasesVectorType;
-
-		public:
-
-			inline static std::string EmissionSwitchBase()			{ return "-emit-"; }
+    /** \brief  Contains the IDs of all supported specific compiler switches for this backend. */
+    enum class CompilerSwitchTypeEnum
+    {
+      Emit,         //!< ID of all code generator selection switches
+      Help,         //!< ID of the "print help" switch
+      OutputFile,   //!< ID of the "output file" switch
+      Version       //!< ID of the "print version" switch
+    };
 
 
-			struct Help final
-			{
-				inline static std::string Key()					{ return "--help"; }
-				inline static std::string AdditionalOptions()	{ return ""; }
-				inline static std::string Description()			{ return "Display available options"; }
+    typedef CommonDefines::CompilerSwitchInfoT< CompilerSwitchTypeEnum >  CompilerSwitchInfoType;   //!< Type definition for the switch information class.
 
-				inline static AliasesVectorType GetAliases()
-				{
-					AliasesVectorType vecDuplicates;
+    typedef std::map< std::string, CompilerSwitchInfoType >   CompilerSwitchMapType;  //!< Type definition for the dictionary of known compiler switches.
+    typedef std::map< std::string, std::string >              SwitchAliasMapType;     //!< Type definition for the dictionary of known compiler switch aliases.
+    typedef std::map< std::string, ICodeGeneratorPtr >        CodeGeneratorsMapType;  //!< Type definition for the dictionary of known code generators.
 
-					vecDuplicates.push_back("-help");
-
-					return vecDuplicates;
-				}
-			};
-
-			struct OutputFile final
-			{
-				inline static std::string Key()					{ return "-o"; }
-				inline static std::string AdditionalOptions()	{ return "<file>"; }
-				inline static std::string Description()			{ return "Write output to <file>"; }
-
-				inline static AliasesVectorType GetAliases()	{ return AliasesVectorType(); }
-			};
-
-			struct Version final
-			{
-				inline static std::string Key()					{ return "--version"; }
-				inline static std::string AdditionalOptions()	{ return ""; }
-				inline static std::string Description()			{ return "Display version information"; }
-
-				inline static AliasesVectorType GetAliases()
-				{
-					AliasesVectorType vecDuplicates;
-
-					vecDuplicates.push_back("-version");
-
-					return vecDuplicates;
-				}
-			};
-		};
+    //@}
 
 
-	private:
+  private:
 
-		::clang::hipacc::CompilerOptions	*_pCompilerOptions;
+    /** \name Internal class declarations. */
+    //@{
 
-		CompilerSwitchMapType	_mapKnownSwitches;
-		SwitchAliasMapType		_mapSwitchAliases;
-		CodeGeneratorsMapType	_mapCodeGenerators;
+    /** \brief  Contains all known common compiler switches which are independent of the selected code generator. */
+    class KnownSwitches final
+    {
+    public:
 
-		std::string				_strInputFile;
-		std::string				_strOutputFile;
-		ICodeGeneratorPtr		_spSelectedCodeGenerator;
+      typedef std::vector< std::string >  AliasesVectorType;  //!< Type definition for a vector of aliases for a switch
+
+    public:
+
+      /** \brief  Returns the prefix for all code generator selection switches. */
+      inline static std::string EmissionSwitchBase()  { return "-emit-"; }
 
 
-		template <class BackendType>
-		void _InitBackend()
-		{
-			typedef typename BackendType::CodeGenerator		GeneratorType;
+      /** \brief  The switch type for the "print help" switch. */
+      struct Help final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "--help"; }
 
-			static_assert(std::is_base_of< ICodeGenerator, GeneratorType >::value, "Code generators must be derived from \"ICodeGenerator\"");
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return ""; }
 
-			ICodeGeneratorPtr spCodeGenerator( new GeneratorType(_pCompilerOptions) );
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()         { return "Display available options"; }
 
-			std::string strEmissionKey = KnownSwitches::EmissionSwitchBase() + spCodeGenerator->GetEmissionKey();
+        /** \brief  Returns the vector of known aliases for this switch. */
+        inline static AliasesVectorType GetAliases()
+        {
+          AliasesVectorType vecDuplicates;
 
-			if (_mapCodeGenerators.find(strEmissionKey) != _mapCodeGenerators.end())
-			{
+          vecDuplicates.push_back("-help");
+
+          return vecDuplicates;
+        }
+      };
+
+      /** \brief  The switch type for the "output file" switch. */
+      struct OutputFile final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-o"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return "<file>"; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()         { return "Write output to <file>"; }
+
+        /** \brief  Returns the vector of known aliases for this switch. */
+        inline static AliasesVectorType GetAliases()    { return AliasesVectorType(); }
+      };
+
+      /** \brief  The switch type for the "print version" switch. */
+      struct Version final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "--version"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return ""; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()         { return "Display version information"; }
+
+        /** \brief  Returns the vector of known aliases for this switch. */
+        inline static AliasesVectorType GetAliases()
+        {
+          AliasesVectorType vecDuplicates;
+
+          vecDuplicates.push_back("-version");
+
+          return vecDuplicates;
+        }
+      };
+    };
+
+    /** \brief  Handles the output to the console (e.g. printing of the usage). */
+    class ConsoleOutput final
+    {
+    private:
+
+      const size_t _cszPrintWidth;            //!< The maximum allowed line width for the console output.
+      const size_t _cszMinDescriptionWidth;   //!< The minimum width for one line of the compiler switch description.
+      const size_t _cszPadLeft;               //!< The intend for the printing of the compiler switches.
+      const size_t _cszDescriptionDistance;   //!< The printing distance between a compiler switch name and its decription.
+
+      /** \brief  Returns a string containing only whitespaces.
+       *  \param  szPadSize   The requested length of the pad string. */
+      std::string _GetPadString(size_t szPadSize);
+
+      /** \brief  Internal function which prints the display information for compiler switches. 
+       *  \param  crvecSwitches   A reference to the display information vector for the compiler switches. */
+      void _PrintSwitches(const CommonDefines::SwitchDisplayInfoVectorType &crvecSwitches);
+
+    public:
+
+      /** \brief  Constructor.
+       *  \param  szPrintWidth  The maximum allowed line width for the console output. */
+      ConsoleOutput(size_t szPrintWidth) : _cszPrintWidth(szPrintWidth), _cszMinDescriptionWidth(20), _cszPadLeft(2), _cszDescriptionDistance(2)
+      {}
+
+
+      /** \brief  Prints the usage of one specific code generator.
+       *  \param  spCodeGenerator   A shared pointer to the code generator whose usage shall be printed. */
+      void PrintCodeGeneratorSwitches(ICodeGeneratorPtr spCodeGenerator);
+
+      /** \brief  Prints the usage of the HIPAcc compiler and a summary of all known common compiler switches.
+       *  \param  crvecCommonSwitches   A reference to the display information vector for the common compiler switches. */
+      void PrintUsage(const CommonDefines::SwitchDisplayInfoVectorType &crvecCommonSwitches);
+
+      /** \brief  Prints the version of the HIPAcc compiler. */
+      void PrintVersion();
+    };
+
+    //@}
+
+
+  private:
+
+    ConsoleOutput                     _ConsoleOutput;       //!< Private instance of the ConsoleOutput class.
+    ::clang::hipacc::CompilerOptions  *_pCompilerOptions;   //!< A pointer to the global compiler options object (used for the configuration).
+
+    CompilerSwitchMapType   _mapKnownSwitches;      //!< The dictionary of known compiler switches.
+    SwitchAliasMapType      _mapSwitchAliases;      //!< The dictionary of known compiler switch aliases.
+    CodeGeneratorsMapType   _mapCodeGenerators;     //!< The dictionary of known code generators.
+
+    std::string         _strInputFile;              //!< The path to the user-defined input file (will be set in the configuration process).
+    std::string         _strOutputFile;             //!< The path to the user-defined output file (will be set in the configuration process).
+    ICodeGeneratorPtr   _spSelectedCodeGenerator;   //!< A shared pointer to the user-defined code generator (will be set in the configuration process).
+
+
+
+    /** \brief    Enters a code generator into the known code generators dictionary.
+     *  \remarks  The purpose of this function is to establish a link between an code generator object and its corresponding "-emit-..." switch.
+     *  \tparam   BackendType   The type of the backend which contains the code generator (uses static polymorphism). */
+    template <class BackendType>
+    void _InitBackend()
+    {
+      typedef typename BackendType::CodeGenerator   GeneratorType;
+
+      static_assert(std::is_base_of< ICodeGenerator, GeneratorType >::value, "Code generators must be derived from \"ICodeGenerator\"");
+
+      ICodeGeneratorPtr spCodeGenerator(new GeneratorType(_pCompilerOptions));
+
+      std::string strEmissionKey = KnownSwitches::EmissionSwitchBase() + spCodeGenerator->GetEmissionKey();
+
+      if (_mapCodeGenerators.find(strEmissionKey) != _mapCodeGenerators.end())
+      {
         throw InternalErrors::DuplicateSwitchEntryException(strEmissionKey);
-			}
-			else
-			{
-				_mapCodeGenerators[strEmissionKey]	= spCodeGenerator;
-				_mapKnownSwitches[strEmissionKey]	= CompilerSwitchInfoType(CompilerSwitchTypeEnum::Emit, spCodeGenerator->GetDescription());
-			}
-		}
+      }
+      else
+      {
+        _mapCodeGenerators[strEmissionKey] = spCodeGenerator;
+        _mapKnownSwitches[strEmissionKey] = CompilerSwitchInfoType(CompilerSwitchTypeEnum::Emit, spCodeGenerator->GetDescription());
+      }
+    }
 
 
-		template <class SwitchClass>
-		void _InitSwitch(CompilerSwitchTypeEnum eSwitch)
-		{
-			// Extract switch key
-			std::string strSwitch = SwitchClass::Key();
+    /** \brief    Enters a compiler switch into the known switches dictionary.
+     *  \remarks  The purpose of this function is to establish a link between the string and enum representation of a compiler switch.
+     *            Furthermore, all known aliases for this switch (if there are any) are automatically set.
+     *  \tparam   SwitchClass   The type of the switch structure (uses static polymorphism).
+     *  \param    eSwitch       The specific enum value for this switch. */
+    template <class SwitchClass>
+    void _InitSwitch(CompilerSwitchTypeEnum eSwitch)
+    {
+      // Extract switch key
+      std::string strSwitch = SwitchClass::Key();
 
-			// Check for duplicate switch entry
-			if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
-			{
+      // Check for duplicate switch entry
+      if (_mapKnownSwitches.find(strSwitch) != _mapKnownSwitches.end())
+      {
         throw InternalErrors::DuplicateSwitchEntryException(strSwitch);
-			}
-			else
-			{
-				// Enter switch into the "known switches" map
-				CompilerSwitchInfoType SwitchInfo;
+      }
+      else
+      {
+        // Enter switch into the "known switches" map
+        CompilerSwitchInfoType SwitchInfo;
 
-				SwitchInfo.SetAdditionalOptions(SwitchClass::AdditionalOptions());
-				SwitchInfo.SetDescription(SwitchClass::Description());
-				SwitchInfo.SetSwitchType(eSwitch);
+        SwitchInfo.SetAdditionalOptions(SwitchClass::AdditionalOptions());
+        SwitchInfo.SetDescription(SwitchClass::Description());
+        SwitchInfo.SetSwitchType(eSwitch);
 
-				_mapKnownSwitches[strSwitch] = SwitchInfo;
-
-
-				// Set all switches Aliases
-				KnownSwitches::AliasesVectorType vecAliases = SwitchClass::GetAliases();
-
-				for each (std::string strAlias in vecAliases)
-				{
-					_mapSwitchAliases[strAlias] = strSwitch;
-				}
-			}
-		}
+        _mapKnownSwitches[strSwitch] = SwitchInfo;
 
 
-		std::string _TranslateSwitchAlias( std::string strSwitch );
+        // Set all switches Aliases
+        KnownSwitches::AliasesVectorType vecAliases = SwitchClass::GetAliases();
 
-		size_t _HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType & rvecArguments, size_t szCurIndex);
-
-		std::string _GetPadString(size_t szPadSize);
-		void _PrintUsage();
-		void _PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches);
-
-	public:
-
-		BackendConfigurationManager(::clang::hipacc::CompilerOptions *pCompilerOptions);
-
-		BackendConfigurationManager(const BackendConfigurationManager&) = delete;
-		BackendConfigurationManager& operator=(const BackendConfigurationManager&) = delete;
+        for each (std::string strAlias in vecAliases)
+        {
+          _mapSwitchAliases[strAlias] = strSwitch;
+        }
+      }
+    }
 
 
-		void Configure(CommonDefines::ArgumentVectorType & rvecArguments);
+    /** \brief    Processes one specific compiler switch during the configuration processes.
+     *  \param    strSwitch       The currently processed switch.
+     *  \param    rvecArguments   A reference to vector containing the command arguments.
+     *  \param    szSwitchIndex   The index of the currently processed switch in command arguments vector.
+     *  \return   The index of the last processed argument in the command arguments vector. */
+    size_t _HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurIndex);
+
+    /** \brief    Translates a switch alias into the actual compiler switch.
+     *  \remarks  A switch alias is another name for an existing switch (like a symbolic link).
+     *  \param    strSwitch   The switch which shall be translated.
+     *  \return   The translated switch, if the input was an alias, or the input switch otherwise. */
+    std::string _TranslateSwitchAlias(std::string strSwitch);
 
 
-		CommonDefines::ArgumentVectorType GetClangArguments();
-	};
+  public:
 
+    /** \brief  Initializes the backend configuration manager.
+     *  \param  pCompilerOptions  A pointer to the global compiler options object. */
+    BackendConfigurationManager(::clang::hipacc::CompilerOptions *pCompilerOptions);
+
+    // This class is supposed to exist only once => delete copy constructor and assignment operator
+    BackendConfigurationManager(const BackendConfigurationManager&) = delete;
+    BackendConfigurationManager& operator=(const BackendConfigurationManager&) = delete;
+
+
+    /** \brief    Parses a vector of command line arguments and configures the compiler.
+     *  \remarks  This method also selects the user-defined code generator and launches its Configure() method. */
+    void Configure(CommonDefines::ArgumentVectorType &rvecArguments);
+
+    /** \brief  Returns the command arguments vector required for the clang frontend invocation. */
+    CommonDefines::ArgumentVectorType GetClangArguments();
+  };
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang

@@ -130,6 +130,22 @@ namespace Backend
     };
 
 
+    /** \brief    Internal error which indicates that a pointer is NULL although this should not be possible.
+     *  \extends  InternalErrorException */
+    class NullPointerException final : public InternalErrorException
+    {
+    private:
+
+      typedef InternalErrorException  BaseType;   //!< The base type of this class.
+
+    public:
+
+      /** \brief  General constructor.
+       *  \param  strPointerName  The name of the pointer which caused this error. */
+      inline NullPointerException(std::string strPointerName) : BaseType(std::string("The pointer \"") + strPointerName + std::string("\" is NULL!"))  {}
+    };
+
+
     /** \brief    Internal error which indicates that a configuration handler for a known compiler switch is missing.
      *  \extends  InternalErrorException */
     class UnhandledSwitchException final : public InternalErrorException

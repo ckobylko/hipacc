@@ -47,102 +47,19 @@ using namespace clang::hipacc::Backend;
 using namespace clang::hipacc;
 using namespace std;
 
-BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr)
-{
-  _strInputFile = "";
-  _strOutputFile = "";
-
-  if (_pCompilerOptions == nullptr)
-  {
-    throw BackendException("Compiler options have not been set");
-  }
-
-
-  // Init all known common switches
-  _InitSwitch< KnownSwitches::Help        >(CompilerSwitchTypeEnum::Help);
-  _InitSwitch< KnownSwitches::OutputFile  >(CompilerSwitchTypeEnum::OutputFile);
-  _InitSwitch< KnownSwitches::Version     >(CompilerSwitchTypeEnum::Version);
-
-
-  // Init known backends
-  _InitBackend<CPU_x86>();
-  _InitBackend<CUDA>();
-  _InitBackend<OpenCL_ACC>();
-  _InitBackend<OpenCL_CPU>();
-  _InitBackend<OpenCL_GPU>();
-  _InitBackend<Renderscript>();
-  _InitBackend<Filterscript>();
-}
-
-
-string BackendConfigurationManager::_TranslateSwitchAlias(string strSwitch)
-{
-  auto itTranslatedSwitch = _mapSwitchAliases.find(strSwitch);
-
-  if (itTranslatedSwitch != _mapSwitchAliases.end())
-  {
-    return itTranslatedSwitch->second;
-  }
-  else
-  {
-    return strSwitch;
-  }
-}
-
-
-string BackendConfigurationManager::_GetPadString(size_t szPadSize)
+// Implementation of class BackendConfigurationManager::ConsoleOutput
+string BackendConfigurationManager::ConsoleOutput::_GetPadString(size_t szPadSize)
 {
   string strPadString("");
   strPadString.resize(szPadSize, ' ');
   return strPadString;
 }
 
-void BackendConfigurationManager::_PrintUsage()
+void BackendConfigurationManager::ConsoleOutput::_PrintSwitches(const CommonDefines::SwitchDisplayInfoVectorType &crvecSwitches)
 {
-  // Print head-lines
-  llvm::errs() << "OVERVIEW: HIPAcc - Heterogeneous Image Processing Acceleration framework\n\n";
-  llvm::errs() << "USAGE:  hipacc [options] <input>\n\n";
-  llvm::errs() << "OPTIONS:\n\n";
-
-
-  // Format and print known common switches
-  CommonDefines::SwitchDisplayInfoVectorType vecSwitches;
-
-  for (auto itSwitch = _mapKnownSwitches.begin(); itSwitch != _mapKnownSwitches.end(); itSwitch++)
-  {
-    vecSwitches.push_back(itSwitch->second.CreateDisplayInfo(itSwitch->first));
-  }
-
-  _PrintSwitches(vecSwitches);
-
-
-  // Print the specific switches for all known code generators
-  for each (auto itCodeGenerator in _mapCodeGenerators)
-  {
-    ICodeGeneratorPtr spCodeGenerator = itCodeGenerator.second;
-
-    CommonDefines::SwitchDisplayInfoVectorType vecCodeGeneratorSwitches = spCodeGenerator->GetCompilerSwitches();
-
-    if (! vecCodeGeneratorSwitches.empty())
-    {
-      llvm::errs() << "\nSpecific options for code generator \"" << spCodeGenerator->GetName() << "\":\n\n";
-
-      _PrintSwitches(vecCodeGeneratorSwitches);
-    }
-  }
-}
-
-void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInfoVectorType & rvecSwitches)
-{
-  const size_t cszPrintWidth          = 110;
-  const size_t cszMinDescriptionWidth =  20;
-  const size_t cszPadLeft             =   2;
-  const size_t cszDescriptionDistance =   2;
-
-
   // Fetch maximum width of switch string
   size_t szMaxSwitchWidth = static_cast<size_t>(0);
-  for each (auto itCurrentSwitch in rvecSwitches)
+  for each (auto itCurrentSwitch in crvecSwitches)
   {
     size_t szCurrentSize = itCurrentSwitch.first.length();
 
@@ -153,20 +70,21 @@ void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInf
   }
 
   // Compute padded switch width and description width
-  szMaxSwitchWidth += cszPadLeft + cszDescriptionDistance;
-  size_t szDescriptionWidth = cszMinDescriptionWidth;
-  if (cszMinDescriptionWidth + szMaxSwitchWidth < cszPrintWidth)
+  szMaxSwitchWidth          += _cszPadLeft + _cszDescriptionDistance;
+  size_t szDescriptionWidth  = _cszMinDescriptionWidth;
+
+  if (_cszMinDescriptionWidth + szMaxSwitchWidth < _cszPrintWidth)
   {
-    szDescriptionWidth = cszPrintWidth - szMaxSwitchWidth;
+    szDescriptionWidth = _cszPrintWidth - szMaxSwitchWidth;
   }
 
 
   // Re-format every switch entry and print it
-  for each (auto itCurrentSwitch in rvecSwitches)
+  for each (auto itCurrentSwitch in crvecSwitches)
   {
     // Pad the switch key
-    string strPrintString = _GetPadString(cszPadLeft) + itCurrentSwitch.first;
-    strPrintString       += _GetPadString(szMaxSwitchWidth - strPrintString.length());
+    string strPrintString  = _GetPadString(_cszPadLeft) + itCurrentSwitch.first;
+    strPrintString        += _GetPadString(szMaxSwitchWidth - strPrintString.length());
 
     // Break the description into pieces
     vector<string> vecDescriptionSubStrings;
@@ -246,6 +164,69 @@ void BackendConfigurationManager::_PrintSwitches(CommonDefines::SwitchDisplayInf
   }
 }
 
+void BackendConfigurationManager::ConsoleOutput::PrintCodeGeneratorSwitches(ICodeGeneratorPtr spCodeGenerator)
+{
+  if (spCodeGenerator == nullptr)
+  {
+    throw InternalErrors::NullPointerException("spCodeGenerator");
+  }
+
+  CommonDefines::SwitchDisplayInfoVectorType vecCodeGeneratorSwitches = spCodeGenerator->GetCompilerSwitches();
+
+  // Only print the code generator specifc usage if the code generator has specific switches
+  if (! vecCodeGeneratorSwitches.empty())
+  {
+    llvm::errs() << "\nSpecific options for code generator \"" << spCodeGenerator->GetName() << "\":\n\n";
+
+    _PrintSwitches(vecCodeGeneratorSwitches);
+  }
+}
+
+void BackendConfigurationManager::ConsoleOutput::PrintUsage(const CommonDefines::SwitchDisplayInfoVectorType &crvecCommonSwitches)
+{
+  // Print head-lines
+  llvm::errs() << "OVERVIEW: HIPAcc - Heterogeneous Image Processing Acceleration framework\n\n";
+  llvm::errs() << "USAGE:  hipacc [options] <input>\n\n";
+  llvm::errs() << "OPTIONS:\n\n";
+
+  // Format and known common switches
+  _PrintSwitches(crvecCommonSwitches);
+}
+
+void BackendConfigurationManager::ConsoleOutput::PrintVersion()
+{
+  llvm::errs() << "hipacc version " << HIPACC_VERSION << " (" << GIT_REPOSITORY " " << GIT_VERSION << ")\n";
+}
+
+
+// Implementation of class BackendConfigurationManager
+BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr),
+                                                                                              _ConsoleOutput(static_cast<size_t>(110))
+{
+  _strInputFile   = "";
+  _strOutputFile  = "";
+
+  if (_pCompilerOptions == nullptr)
+  {
+    throw BackendException("Compiler options have not been set");
+  }
+
+
+  // Init all known common switches
+  _InitSwitch< KnownSwitches::Help        >(CompilerSwitchTypeEnum::Help);
+  _InitSwitch< KnownSwitches::OutputFile  >(CompilerSwitchTypeEnum::OutputFile);
+  _InitSwitch< KnownSwitches::Version     >(CompilerSwitchTypeEnum::Version);
+
+
+  // Init known backends
+  _InitBackend<CPU_x86>();
+  _InitBackend<CUDA>();
+  _InitBackend<OpenCL_ACC>();
+  _InitBackend<OpenCL_CPU>();
+  _InitBackend<OpenCL_GPU>();
+  _InitBackend<Renderscript>();
+  _InitBackend<Filterscript>();
+}
 
 size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType & rvecArguments, size_t szCurIndex)
 {
@@ -286,18 +267,52 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
     break;
   case CompilerSwitchTypeEnum::Help:
     {
-      _PrintUsage();
+      // Format known common switches and print common usage
+      CommonDefines::SwitchDisplayInfoVectorType vecSwitches;
+
+      for (auto itSwitch = _mapKnownSwitches.begin(); itSwitch != _mapKnownSwitches.end(); itSwitch++)
+      {
+        vecSwitches.push_back(itSwitch->second.CreateDisplayInfo(itSwitch->first));
+      }
+
+      _ConsoleOutput.PrintUsage(vecSwitches);
+
+
+      // Print the specific switches for all known code generators
+      for each (auto itCodeGenerator in _mapCodeGenerators)
+      {
+        _ConsoleOutput.PrintCodeGeneratorSwitches(itCodeGenerator.second);
+      }
+
       throw RuntimeErrors::AbortException(EXIT_SUCCESS);
     }
   case CompilerSwitchTypeEnum::Version:
     {
-      llvm::errs() << "hipacc version " << HIPACC_VERSION << " (" << GIT_REPOSITORY " " << GIT_VERSION << ")\n";
+      _ConsoleOutput.PrintVersion();
+
       throw RuntimeErrors::AbortException(EXIT_SUCCESS);
     }
   default:  throw InternalErrors::UnhandledSwitchException(strSwitch);
   }
 
   return szReturnIndex;
+}
+
+string BackendConfigurationManager::_TranslateSwitchAlias(string strSwitch)
+{
+  // Check whether the current switch is a known alias
+  auto itTranslatedSwitch = _mapSwitchAliases.find(strSwitch);
+
+  if (itTranslatedSwitch != _mapSwitchAliases.end())
+  {
+    // Current switch is an aliase => Return the actual switch string
+    return itTranslatedSwitch->second;
+  }
+  else
+  {
+    // No alias correspondence found => Return the current switch string
+    return strSwitch;
+  }
 }
 
 
@@ -307,15 +322,17 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
   {
     CommonDefines::ArgumentVectorType vecUnknownArguments;
 
+    // Parse the command arguments vector
     for (size_t i = static_cast<size_t>(0); i < rvecArguments.size(); ++i)
     {
-      if ((i + 1) == rvecArguments.size())
+      if ((rvecArguments.size() > 1) && ((i + 1) == rvecArguments.size()))
       {
         // Last argument must be input file
         _strInputFile = rvecArguments[i];
       }
       else
       {
+        // Try to parse the current switch and pass unknown switches to the code generator
         string strArgument = _TranslateSwitchAlias(rvecArguments[i]);
 
         auto itSwitch = _mapKnownSwitches.find(strArgument);
@@ -331,6 +348,7 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
       }
     }
 
+    // Check the common configuration
     if (_strInputFile == "")
     {
       throw RuntimeErrorException("No input file has been specified!");
@@ -355,7 +373,6 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
     exit(e.GetExitCode());
   }
 }
-
 
 CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments()
 {
@@ -396,7 +413,6 @@ CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments
 
   return vecClangArguments;
 }
-
 
 // vim: set ts=2 sw=2 sts=2 et ai:
 

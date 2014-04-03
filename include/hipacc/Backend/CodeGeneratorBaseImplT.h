@@ -216,7 +216,7 @@ namespace Backend
      *  \param    szSwitchIndex   The index of the currently processed switch in command arguments vector.
      *  \remarks  This function must be overridden by the derived class. The overriden function must throw an exception, when an argument is invalid or unknown.
      *  \return   The index of the last processed argument in the command arguments vector. */
-    virtual size_t	_HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
+    virtual size_t  _HandleSwitch(SwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex) = 0;
 
     /** \brief    Checks the configuration for possible mistakes.
      *  \remarks  This function will be called directly after the configuration process. The derived class can override it to perform specific checks,
