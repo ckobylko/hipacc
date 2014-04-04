@@ -31,8 +31,11 @@
 //===---------------------------------------------------------------------------------===//
 
 #include "hipacc/Backend/CPU_x86.h"
+#include <sstream>
 
 using namespace clang::hipacc::Backend;
+using namespace clang::hipacc;
+using namespace clang;
 using namespace std;
 
 CPU_x86::CodeGenerator::Descriptor::Descriptor()
@@ -58,6 +61,104 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
   }
 
   return szReturnIndex;
+}
+
+
+string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer)
+{
+  stringstream FormatStream;
+
+  if (bConstPointer)
+  {
+    FormatStream << "const ";
+  }
+
+  FormatStream << pHipaccMemoryObject->getTypeStr() << " " << strName;
+  FormatStream << "[" << pHipaccMemoryObject->getSizeYStr() << "]";
+  FormatStream << "[" << pHipaccMemoryObject->getSizeXStr() << "]";
+
+  return FormatStream.str();
+}
+
+
+bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
+{
+  // write kernel name and qualifiers
+  rOutputStream << "void " << pKernel->getKernelName() << "(";
+
+  // write kernel parameters
+  size_t comma = 0;
+  for (size_t i = 0, e = pKernelFunction->getNumParams(); i != e; ++i)
+  {
+    std::string Name(pKernelFunction->getParamDecl(i)->getNameAsString());
+    FieldDecl *FD = pKernel->getDeviceArgFields()[i];
+
+    if (!pKernel->getUsed(Name))
+    {
+      continue;
+    }
+
+    QualType T = pKernelFunction->getParamDecl(i)->getType();
+    T.removeLocalConst();
+    T.removeLocalRestrict();
+
+    // check if we have a Mask or Domain
+    HipaccMask *Mask = pKernel->getMaskFromMapping(FD);
+    if (Mask)
+    {
+      if (!Mask->isConstant())
+      {
+        if (comma++) rOutputStream << ", ";
+
+        rOutputStream << _GetImageDeclarationString(Mask->getName(), Mask, true);
+      }
+
+      continue;
+    }
+
+    // check if we have an Accessor
+    HipaccAccessor *Acc = pKernel->getImgFromMapping(FD);
+    MemoryAccess memAcc = UNDEFINED;
+    if (i == 0)
+    { // first argument is always the output image
+      Acc = pKernel->getIterationSpace()->getAccessor();
+      memAcc = WRITE_ONLY;
+    }
+    else if (Acc)
+    {
+      memAcc = pKernelClass->getImgAccess(FD);
+    }
+
+    if (Acc)
+    {
+      if (comma++) rOutputStream << ", ";
+
+      rOutputStream << _GetImageDeclarationString(Name, Acc->getImage(), memAcc == READ_ONLY);
+
+      continue;
+    }
+
+    // normal arguments
+    if (comma++) rOutputStream << ", ";
+    T.getAsStringInternal(Name, GetPrintingPolicy());
+    rOutputStream << Name;
+
+    // default arguments ...
+    if (Expr *Init = pKernelFunction->getParamDecl(i)->getInit())
+    {
+      CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(Init);
+      if (!CCE || CCE->getConstructor()->isCopyConstructor()) {
+        rOutputStream << " = ";
+      }
+      Init->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
+    }
+  }
+  rOutputStream << ") ";
+
+  // print kernel body
+  pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
+
+  return true;
 }
 
 

@@ -34,6 +34,7 @@
 #define _BACKEND_CPU_X86_H_
 
 #include "CodeGeneratorBaseImplT.h"
+#include "hipacc/DSL/ClassRepresentation.h"
 
 namespace clang
 {
@@ -72,6 +73,15 @@ namespace Backend
         Descriptor();
       };
 
+
+
+      /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
+       *  \param  strName               The name of the image buffer variable.
+       *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
+       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.*/
+      std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
+
+
     protected:
 
       /** \name CodeGeneratorBaseImplT members */
@@ -86,6 +96,14 @@ namespace Backend
       /** \brief  Constructor.
        *  \param  pCompilerOptions  A pointer to the global compiler options object. */
       CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions);
+
+
+      /** \name ICodeGenerator members */
+      //@{
+
+      virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) final override;
+
+      //@}
     };
   };
 } // end namespace Backend
