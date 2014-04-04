@@ -15,7 +15,8 @@ SET(Backend_Generators_Base_HEADERS "${CURRENT_HEADER_DIR}/AcceleratorDeviceBase
 
 SET(Backend_Common_HEADERS "${CURRENT_HEADER_DIR}/BackendExceptions.h"
                            "${CURRENT_HEADER_DIR}/CommonDefines.h"
-                           "${CURRENT_HEADER_DIR}/ICodeGenerator.h")
+                           "${CURRENT_HEADER_DIR}/ICodeGenerator.h"
+                           "${CURRENT_HEADER_DIR}/OptionParsers.h")
 
 SET(Backend_SOURCES BackendConfigurationManager.cpp ${Backend_Generators_SOURCES})
 SET(Backend_HEADERS "${CURRENT_HEADER_DIR}/BackendConfigurationManager.h"
