@@ -367,9 +367,6 @@ void BackendConfigurationManager::Configure(CommonDefines::ArgumentVectorType & 
     {
       throw RuntimeErrorException(string("No code generator has been selected! Did you forget the \"") + KnownSwitches::EmissionSwitchBase() + string("<X>\" switch?"));
     }
-
-    // Set the selected code generator in the compiler options
-    _pCompilerOptions->setCodeGenerator(_spSelectedCodeGenerator);
   }
   catch (RuntimeErrors::AbortException &e)
   {

@@ -133,7 +133,6 @@ namespace Backend
     ::clang::hipacc::CompilerOptions    *_pCompilerOptions;     //!< A pointer to the global compiler options object (used for the configuration).
     CompilerSwitchMapType               _mapKnownSwitches;      //!< The dictionary of known compiler switches.
     const CodeGeneratorDescriptorBase   _Descriptor;            //!< The description object for the derived code generator.
-    ::clang::PrintingPolicy             *_pPrintPolicy;         //!< A pointer to the global clang printing policy object.
     //@}
 
 
@@ -143,10 +142,7 @@ namespace Backend
     //@{
 
     /** \brief  Returns a referenece to the global compiler options object. */
-    inline ::clang::hipacc::CompilerOptions& GetCompilerOptions()     { return *_pCompilerOptions; }
-
-    /** \brief  Returns a referenece to the global clang printing policy object. */
-    inline const ::clang::PrintingPolicy& GetPrintingPolicy() const   { return *_pPrintPolicy; }
+    inline ::clang::hipacc::CompilerOptions& GetCompilerOptions()   { return *_pCompilerOptions; }
 
     /** \brief    Enters a compiler switch into the known switches dictionary.
      *  \remarks  The purpose of this function is to establish a link between the string and enum representation of a compiler switch.
@@ -244,8 +240,6 @@ namespace Backend
      *  \param  crDescriptor      A reference to a description object for the derived code generator. */
     CodeGeneratorBaseImplT(::clang::hipacc::CompilerOptions *pCompilerOptions, const CodeGeneratorDescriptorBase &crDescriptor) : _pCompilerOptions(pCompilerOptions), _Descriptor(crDescriptor)
     {
-      _pPrintPolicy = nullptr;
-
       if (_pCompilerOptions == nullptr)
       {
         throw BackendException("Compiler options have not been set");
@@ -299,18 +293,6 @@ namespace Backend
 
       // Finally, check the configuration
       _CheckConfiguration();
-    }
-
-
-    // Default override for code generators which do not print the kernel function themselves
-    virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) override
-    {
-      return false;
-    }
-
-    virtual void SetPrintingPolicy(PrintingPolicy *pPrintingPolicy) final override
-    {
-      _pPrintPolicy = pPrintingPolicy;
     }
     //@}
   };
