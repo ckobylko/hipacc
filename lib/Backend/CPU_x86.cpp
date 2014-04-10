@@ -39,6 +39,7 @@ using namespace clang::hipacc;
 using namespace clang;
 using namespace std;
 
+// Implementation of class CPU_x86::CodeGenerator::Descriptor
 CPU_x86::CodeGenerator::Descriptor::Descriptor()
 {
   SetTargetCode(::clang::hipacc::TARGET_C);
@@ -47,6 +48,75 @@ CPU_x86::CodeGenerator::Descriptor::Descriptor()
   SetDescription("Emit C++ code for x86-CPUs");
 }
 
+
+// Implementation of class CPU_x86::CodeGenerator::KernelSubFunctionBuilder
+bool CPU_x86::CodeGenerator::KernelSubFunctionBuilder::_IsVariableUsed(const string &crstrVariableName, ::clang::Stmt *pStatement)
+{
+  if (pStatement == nullptr)
+  {
+    // Break for invalid statements
+    return false;
+  }
+  else if (isa<DeclRefExpr>(pStatement))
+  {
+    // Found a declaration reference expression => Check if it refers to specified variable
+    if (dyn_cast<DeclRefExpr>(pStatement)->getNameInfo().getAsString() == crstrVariableName)
+    {
+      return true;
+    }
+  }
+  else
+  {
+    // Check all child statements for references to the specified variable
+    for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
+    {
+      if (_IsVariableUsed(crstrVariableName, *itChild))
+      {
+        return true;
+      }
+    }
+
+  }
+
+  return false;
+}
+
+void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang::DeclRefExpr *pCallParam)
+{
+  _vecArgumentTypes.push_back(pCallParam->getDecl()->getType());
+  _vecArgumentNames.push_back(pCallParam->getDecl()->getNameAsString());
+  _vecCallParams.push_back(pCallParam);
+}
+
+void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
+{
+  for (size_t i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
+  {
+    ParmVarDecl *pParamVarDecl = pRootFunctionDecl->getParamDecl(i);
+
+    if (_IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
+    {
+      AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
+    }
+  }
+}
+
+CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::CodeGenerator::KernelSubFunctionBuilder::CreateFuntionDeclarationAndCall(string strFunctionName, const ::clang::QualType &crResultType)
+{
+  DeclCallPairType pairDeclAndCall;
+
+  pairDeclAndCall.first  = ASTNode::createFunctionDecl( _rASTContext, _rASTContext.getTranslationUnitDecl(), strFunctionName, crResultType,
+                                                        ArrayRef< ::clang::QualType >(_vecArgumentTypes.data(), _vecArgumentTypes.size()),
+                                                        ArrayRef< string >(_vecArgumentNames.data(), _vecArgumentNames.size()) );
+
+  pairDeclAndCall.second = ASTNode::createFunctionCall( _rASTContext, pairDeclAndCall.first, _vecCallParams );
+
+  return pairDeclAndCall;
+}
+
+
+
+// Implementation of class CPU_x86::CodeGenerator
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
 }
@@ -81,12 +151,16 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
   return FormatStream.str();
 }
 
-void CPU_x86::CodeGenerator::_PrintFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
+
+string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, bool bCheckUsage)
 {
+  std::string strStreamBuffer;
+  llvm::raw_string_ostream OutputStream(strStreamBuffer);
+
   HipaccKernelClass *pKernelClass = pKernel->getKernelClass();
 
   // write kernel name and qualifiers
-  rOutputStream << "void " << pFunctionDecl->getNameAsString() << "(";
+  OutputStream << pFunctionDecl->getResultType().getAsString(GetPrintingPolicy()) << " " << pFunctionDecl->getNameAsString() << "(";
 
   // write kernel parameters
   size_t comma = 0;
@@ -95,7 +169,7 @@ void CPU_x86::CodeGenerator::_PrintFunctionHeader(FunctionDecl *pFunctionDecl, H
     std::string Name(pFunctionDecl->getParamDecl(i)->getNameAsString());
     FieldDecl *FD = pKernel->getDeviceArgFields()[i];
 
-    if (!pKernel->getUsed(Name))
+    if ( bCheckUsage && (! pKernel->getUsed(Name)) )
     {
       continue;
     }
@@ -110,9 +184,9 @@ void CPU_x86::CodeGenerator::_PrintFunctionHeader(FunctionDecl *pFunctionDecl, H
     {
       if (!Mask->isConstant())
       {
-        if (comma++) rOutputStream << ", ";
+        if (comma++) OutputStream << ", ";
 
-        rOutputStream << _GetImageDeclarationString(Mask->getName(), Mask, true);
+        OutputStream << _GetImageDeclarationString(Mask->getName(), Mask, true);
       }
 
       continue;
@@ -133,30 +207,31 @@ void CPU_x86::CodeGenerator::_PrintFunctionHeader(FunctionDecl *pFunctionDecl, H
 
     if (Acc)
     {
-      if (comma++) rOutputStream << ", ";
+      if (comma++) OutputStream << ", ";
 
-      rOutputStream << _GetImageDeclarationString(Name, Acc->getImage(), memAcc == READ_ONLY);
+      OutputStream << _GetImageDeclarationString(Name, Acc->getImage(), memAcc == READ_ONLY);
 
       continue;
     }
 
     // normal arguments
-    if (comma++) rOutputStream << ", ";
+    if (comma++) OutputStream << ", ";
     T.getAsStringInternal(Name, GetPrintingPolicy());
-    rOutputStream << Name;
+    OutputStream << Name;
 
     // default arguments ...
     if (Expr *Init = pFunctionDecl->getParamDecl(i)->getInit())
     {
       CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(Init);
       if (!CCE || CCE->getConstructor()->isCopyConstructor()) {
-        rOutputStream << " = ";
+        OutputStream << " = ";
       }
-      Init->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
+      Init->printPretty(OutputStream, 0, GetPrintingPolicy(), 0);
     }
   }
-  rOutputStream << ") ";
+  OutputStream << ") ";
 
+  return OutputStream.str();
 }
 
 
@@ -214,6 +289,37 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       }
     }
 
+
+    const bool cbSeperateKernelBody = true;
+    if (cbSeperateKernelBody)
+    {
+      // Push loop body to own function
+      ::clang::Stmt *pKernelBody = pKernelFunction->getBody();
+
+      KernelSubFunctionBuilder SubFuncBuilder(Ctx);
+
+      SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
+      SubFuncBuilder.AddCallParameter(gid_y_ref);
+      SubFuncBuilder.AddCallParameter(gid_x_ref);
+
+      KernelSubFunctionBuilder::DeclCallPairType  DeclCallPair = SubFuncBuilder.CreateFuntionDeclarationAndCall(pKernelFunction->getNameAsString() + string("_Scalar"), pKernelFunction->getResultType());
+      DeclCallPair.first->setBody(pKernelBody);
+
+
+      // Create function call reference for kernel loop body
+      llvm::SmallVector< ::clang::Stmt*, 16 > vecNewKernelBody;
+      vecNewKernelBody.push_back(DeclCallPair.second);
+
+      pKernelFunction->setBody( ASTNode::createCompoundStmt(Ctx, vecNewKernelBody) );
+
+
+      // Print the new kernel body sub-function
+      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, pKernel, false);
+      DeclCallPair.first->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
+      rOutputStream << "\n\n";
+    }
+
+
     ForStmt *innerLoop = ASTNode::createForStmt(Ctx, gid_x_stmt, ASTNode::createBinaryOperator(Ctx,
       gid_x_ref, upper_x, BO_LT, Ctx.BoolTy),
       ASTNode::createUnaryOperator(Ctx, gid_x_ref, ::clang::UO_PostInc,
@@ -236,7 +342,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
   }
 
 
-  _PrintFunctionHeader(pKernelFunction, pKernel, rOutputStream);
+  rOutputStream << _FormatFunctionHeader(pKernelFunction, pKernel, true);
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);

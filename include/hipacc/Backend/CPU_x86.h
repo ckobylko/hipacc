@@ -35,6 +35,7 @@
 
 #include "CodeGeneratorBaseImplT.h"
 #include "hipacc/DSL/ClassRepresentation.h"
+#include <utility>
 
 namespace clang
 {
@@ -74,6 +75,55 @@ namespace Backend
       };
 
 
+      /** \brief  Helper class which extracts the inner loop body of a kernel function into an own sub-function. */
+      class KernelSubFunctionBuilder final
+      {
+      public:
+
+        typedef std::pair< ::clang::FunctionDecl*, ::clang::CallExpr* >   DeclCallPairType;   //!< Type definition for a sub-function declaration and call expression pair.
+
+
+      private:
+
+        ::clang::ASTContext                           &_rASTContext;      //!< A reference to the currently used ASTContext.
+        ::llvm::SmallVector< ::clang::QualType, 16 >  _vecArgumentTypes;  //!< A vector containing the qualified types of the sub-function arguments.
+        ::llvm::SmallVector< std::string, 16 >        _vecArgumentNames;  //!< A vector containing the names of the sub-function arguments.
+        ::llvm::SmallVector< ::clang::Expr*, 16 >     _vecCallParams;     //!< A vector containing the declaration reference expression used for the sub-function call.
+
+
+        KernelSubFunctionBuilder(const KernelSubFunctionBuilder &) = delete;
+        KernelSubFunctionBuilder& operator=(const KernelSubFunctionBuilder &) = delete;
+
+
+        /** \brief  Helper function, which checks whether a specific variable name is being used in a statement tree.
+         *  \param  crstrVariableName   A constant reference to the name of variable, whose usage shall be checked.
+         *  \param  pStatement          A pointer to the root of the statement tree, which shall be parsed. */
+        static bool _IsVariableUsed(const std::string &crstrVariableName, ::clang::Stmt *pStatement);
+
+
+      public:
+
+        /** \brief  Standard constructor.
+         *  \param  rASTContext   A reference to the  currently used ASTContext. */
+        inline KernelSubFunctionBuilder(::clang::ASTContext &rASTContext) : _rASTContext(rASTContext) {}
+
+
+        /** \brief  Adds a new parameter to the list of sub-function arguments.
+         *  \param  pCallParam  A declaration reference expression for the new argument. */
+        void AddCallParameter(::clang::DeclRefExpr *pCallParam);
+
+        /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
+         *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.
+         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references. */
+        void ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
+
+        /** \brief  Creates a new sub-function declaration and call expression pair.
+         *  \param  strFunctionName   The name of the new sub-function.
+         *  \param  crResultType      The qualified result type of the new sub-function. */
+        DeclCallPairType  CreateFuntionDeclarationAndCall(std::string strFunctionName, const ::clang::QualType &crResultType);
+      };
+
+
 
       /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
        *  \param  strName               The name of the image buffer variable.
@@ -81,12 +131,12 @@ namespace Backend
        *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.*/
       std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
 
-      /** \brief    Prints a function declaration for a specific kernel to an output stream
+      /** \brief    Formats a function declaration for a specific kernel into a string.
        *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
        *  \param    pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.
-       *  \param    rOutputStream     A reference to the LLVM output stream the kernel shall be written to.
+       *  \param    bCheckUsage       Specifies, whether the function parameters shall be checked for being used.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
-      void _PrintFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream);
+      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, bool bCheckUsage = true);
 
 
     protected:
