@@ -303,7 +303,7 @@ namespace Backend
 
 
     // Default override for code generators which do not print the kernel function themselves
-    virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) override
+    virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) override
     {
       return false;
     }

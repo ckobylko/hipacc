@@ -81,6 +81,13 @@ namespace Backend
        *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.*/
       std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
 
+      /** \brief    Prints a function declaration for a specific kernel to an output stream
+       *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
+       *  \param    pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.
+       *  \param    rOutputStream     A reference to the LLVM output stream the kernel shall be written to.
+       *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
+      void _PrintFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream);
+
 
     protected:
 
@@ -101,7 +108,7 @@ namespace Backend
       /** \name ICodeGenerator members */
       //@{
 
-      virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) final override;
+      virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) final override;
 
       //@}
     };

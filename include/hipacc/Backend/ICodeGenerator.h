@@ -87,11 +87,10 @@ namespace Backend
 
     /** \brief  Prints a kernel function to an output stream.
      *  \param  pKernelFunction   A pointer to the AST object declaring the kernel function.
-     *  \param  pKernelClass      A pointer to the <b>HipaccKernelClass</b> object containing syntactical information about the kernel class.
      *  \param  pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.
      *  \param  rOutputStream     A reference to the LLVM output stream the kernel shall be written to.
      *  \return <b>True</b> if the kernel function has been printed by the code generator, and <b>false</b> otherwise. */
-    virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) = 0;
+    virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) = 0;
 
     /** \brief  Sets a new printing policy object for the code generator.
      *  \param  pPrintingPolicy   A pointer to the printing policy object which shall be used by clang's pretty printers. */

@@ -81,17 +81,18 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
   return FormatStream.str();
 }
 
-
-bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernelClass *pKernelClass, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
+void CPU_x86::CodeGenerator::_PrintFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {
+  HipaccKernelClass *pKernelClass = pKernel->getKernelClass();
+
   // write kernel name and qualifiers
-  rOutputStream << "void " << pKernel->getKernelName() << "(";
+  rOutputStream << "void " << pFunctionDecl->getNameAsString() << "(";
 
   // write kernel parameters
   size_t comma = 0;
-  for (size_t i = 0, e = pKernelFunction->getNumParams(); i != e; ++i)
+  for (size_t i = 0, e = pFunctionDecl->getNumParams(); i != e; ++i)
   {
-    std::string Name(pKernelFunction->getParamDecl(i)->getNameAsString());
+    std::string Name(pFunctionDecl->getParamDecl(i)->getNameAsString());
     FieldDecl *FD = pKernel->getDeviceArgFields()[i];
 
     if (!pKernel->getUsed(Name))
@@ -99,7 +100,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       continue;
     }
 
-    QualType T = pKernelFunction->getParamDecl(i)->getType();
+    QualType T = pFunctionDecl->getParamDecl(i)->getType();
     T.removeLocalConst();
     T.removeLocalRestrict();
 
@@ -145,7 +146,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     rOutputStream << Name;
 
     // default arguments ...
-    if (Expr *Init = pKernelFunction->getParamDecl(i)->getInit())
+    if (Expr *Init = pFunctionDecl->getParamDecl(i)->getInit())
     {
       CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(Init);
       if (!CCE || CCE->getConstructor()->isCopyConstructor()) {
@@ -156,7 +157,11 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
   }
   rOutputStream << ") ";
 
+}
 
+
+bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
+{
   // Add the iteration space loops
   {
     ::clang::ASTContext &Ctx = pKernelFunction->getASTContext();
@@ -199,13 +204,13 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
       if (strDeclName == "gid_x")
       {
-        gid_x_stmt  = ASTNode::createDeclStmt(Ctx, pDecl);
-        gid_x_ref = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
+        gid_x_stmt = ASTNode::createDeclStmt(Ctx, pDecl);
+        gid_x_ref  = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
       }
       else if (strDeclName == "gid_y")
       {
-        gid_y_stmt  = ASTNode::createDeclStmt(Ctx, pDecl);
-        gid_y_ref = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
+        gid_y_stmt = ASTNode::createDeclStmt(Ctx, pDecl);
+        gid_y_ref  = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
       }
     }
 
@@ -225,11 +230,13 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
     llvm::SmallVector< ::clang::Stmt*, 16 > vecNewBody;
-    vecNewBody.push_back( outerLoop );
+    vecNewBody.push_back(outerLoop);
 
     pKernelFunction->setBody(ASTNode::createCompoundStmt(Ctx, vecNewBody));
   }
 
+
+  _PrintFunctionHeader(pKernelFunction, pKernel, rOutputStream);
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);

@@ -2686,7 +2686,7 @@ void Rewrite::printKernelFunction(FunctionDecl *D, HipaccKernelClass *KC,
 
   // Launch the print method of the code generator
   compilerOptions.getCodeGenerator()->SetPrintingPolicy(&Policy);
-  bool bKernelPrinted = compilerOptions.getCodeGenerator()->PrintKernelFunction(D, KC, K, *OS);
+  bool bKernelPrinted = compilerOptions.getCodeGenerator()->PrintKernelFunction(D, K, *OS);
 
   // Check if the code generator handled the printing of the kernel function
   if (!bKernelPrinted)
