@@ -124,12 +124,11 @@ namespace Backend
       };
 
 
-
       /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
        *  \param  strName               The name of the image buffer variable.
        *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
        *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.*/
-      std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
+      static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
        *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
@@ -137,6 +136,12 @@ namespace Backend
        *  \param    bCheckUsage       Specifies, whether the function parameters shall be checked for being used.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
       std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, bool bCheckUsage = true);
+
+      /** \brief    Wraps a clang statement into a compound statement.
+       *  \param    rContext    A reference to the currently used ASTContext.
+       *  \param    pStatement  A pointer to the clang statement, which shall be encapsulated into an compound statement
+       *  \return   The newly created compound statement, which contains the input statement as its only child. */
+      static ::clang::CompoundStmt* _WrapInCompoundStatement(::clang::ASTContext &rContext, ::clang::Stmt *pStatement);
 
 
     protected:

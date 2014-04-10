@@ -163,76 +163,87 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   OutputStream << pFunctionDecl->getResultType().getAsString(GetPrintingPolicy()) << " " << pFunctionDecl->getNameAsString() << "(";
 
   // write kernel parameters
-  size_t comma = 0;
-  for (size_t i = 0, e = pFunctionDecl->getNumParams(); i != e; ++i)
+  bool bSetComma = false;
+  for (size_t i = 0; i < pFunctionDecl->getNumParams(); ++i)
   {
-    std::string Name(pFunctionDecl->getParamDecl(i)->getNameAsString());
-    FieldDecl *FD = pKernel->getDeviceArgFields()[i];
+    ::clang::ParmVarDecl  *pParamDecl = pFunctionDecl->getParamDecl(i);
+    std::string Name(pParamDecl->getNameAsString());
 
-    if ( bCheckUsage && (! pKernel->getUsed(Name)) )
+    if (bCheckUsage && (!pKernel->getUsed(Name)))
     {
       continue;
     }
 
-    QualType T = pFunctionDecl->getParamDecl(i)->getType();
-    T.removeLocalConst();
-    T.removeLocalRestrict();
 
-    // check if we have a Mask or Domain
-    HipaccMask *Mask = pKernel->getMaskFromMapping(FD);
-    if (Mask)
+    FieldDecl       *FD = pKernel->getDeviceArgFields()[i];
+
+    // Fetch accessor, if available
+    HipaccAccessor  *pAccessor  = pKernel->getImgFromMapping(FD);
+    if (i == 0)   // first argument is always the output image
     {
-      if (!Mask->isConstant())
+      pAccessor = pKernel->getIterationSpace()->getAccessor();
+    }
+
+
+    // Print comma delimiters in between all arguments
+    if (bSetComma)
+    {
+      OutputStream << ", ";
+    }
+    else
+    {
+      bSetComma = true;
+    }
+
+
+    // Print argument, dependent on its type
+    if (HipaccMask *pMask = pKernel->getMaskFromMapping(FD))           // check if we have a Mask or Domain
+    {
+      if (! pMask->isConstant())
       {
-        if (comma++) OutputStream << ", ";
-
-        OutputStream << _GetImageDeclarationString(Mask->getName(), Mask, true);
+        OutputStream << _GetImageDeclarationString(pMask->getName(), pMask, true);
       }
-
-      continue;
     }
-
-    // check if we have an Accessor
-    HipaccAccessor *Acc = pKernel->getImgFromMapping(FD);
-    MemoryAccess memAcc = UNDEFINED;
-    if (i == 0)
-    { // first argument is always the output image
-      Acc = pKernel->getIterationSpace()->getAccessor();
-      memAcc = WRITE_ONLY;
-    }
-    else if (Acc)
+    else if (pAccessor != nullptr)                                    // check if we have an Accessor
     {
-      memAcc = pKernelClass->getImgAccess(FD);
+      OutputStream << _GetImageDeclarationString(Name, pAccessor->getImage(), pKernelClass->getImgAccess(FD) == READ_ONLY);
     }
-
-    if (Acc)
+    else                                                              // normal arguments
     {
-      if (comma++) OutputStream << ", ";
+      QualType T = pParamDecl->getType();
+      T.removeLocalConst();
+      T.removeLocalRestrict();
 
-      OutputStream << _GetImageDeclarationString(Name, Acc->getImage(), memAcc == READ_ONLY);
+      T.getAsStringInternal(Name, GetPrintingPolicy());
+      OutputStream << Name;
 
-      continue;
-    }
+      // default arguments ...
+      if (Expr *Init = pParamDecl->getInit())
+      {
+        CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(Init);
 
-    // normal arguments
-    if (comma++) OutputStream << ", ";
-    T.getAsStringInternal(Name, GetPrintingPolicy());
-    OutputStream << Name;
+        if (!CCE || CCE->getConstructor()->isCopyConstructor())
+        {
+          OutputStream << " = ";
+        }
 
-    // default arguments ...
-    if (Expr *Init = pFunctionDecl->getParamDecl(i)->getInit())
-    {
-      CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(Init);
-      if (!CCE || CCE->getConstructor()->isCopyConstructor()) {
-        OutputStream << " = ";
+        Init->printPretty(OutputStream, 0, GetPrintingPolicy(), 0);
       }
-      Init->printPretty(OutputStream, 0, GetPrintingPolicy(), 0);
     }
   }
   OutputStream << ") ";
 
   return OutputStream.str();
 }
+
+::clang::CompoundStmt* CPU_x86::CodeGenerator::_WrapInCompoundStatement(::clang::ASTContext &rContext, ::clang::Stmt *pStatement)
+{
+  llvm::SmallVector< ::clang::Stmt*, 16 > vecStatements;
+  vecStatements.push_back(pStatement);
+
+  return ASTNode::createCompoundStmt(rContext, vecStatements);
+}
+
 
 
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
@@ -244,18 +255,14 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     ::clang::Expr *upper_x = pKernel->getIterationSpace()->getAccessor()->getWidthDecl();
     ::clang::Expr *upper_y = pKernel->getIterationSpace()->getAccessor()->getHeightDecl();
 
-    if (pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl())
+    if (::clang::DeclRefExpr *pOffsetX = pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl())
     {
-      upper_x = ASTNode::createBinaryOperator(Ctx, upper_x,
-        pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl(), BO_Add,
-        Ctx.IntTy);
+      upper_x = ASTNode::createBinaryOperator(Ctx, upper_x, pOffsetX, BO_Add, Ctx.IntTy);
     }
 
-    if (pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl())
+    if (::clang::DeclRefExpr *pOffsetY = pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl())
     {
-      upper_y = ASTNode::createBinaryOperator(Ctx, upper_y,
-        pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl(), BO_Add,
-        Ctx.IntTy);
+      upper_y = ASTNode::createBinaryOperator(Ctx, upper_y, pOffsetY, BO_Add, Ctx.IntTy);
     }
 
     DeclContext *DC = FunctionDecl::castToDeclContext(pKernelFunction);
@@ -266,11 +273,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     {
       ::clang::Decl *pDecl = *itDecl;
 
-      if (pDecl == nullptr)
-      {
-        continue;
-      }
-      else if (!isa<ValueDecl>(pDecl))
+      if ( (pDecl == nullptr) || (! isa<ValueDecl>(pDecl)) )
       {
         continue;
       }
@@ -320,25 +323,17 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     }
 
 
-    ForStmt *innerLoop = ASTNode::createForStmt(Ctx, gid_x_stmt, ASTNode::createBinaryOperator(Ctx,
-      gid_x_ref, upper_x, BO_LT, Ctx.BoolTy),
-      ASTNode::createUnaryOperator(Ctx, gid_x_ref, ::clang::UO_PostInc,
-      gid_x_ref->getType()), pKernelFunction->getBody());
+    ForStmt *pInnerLoop = ASTNode::createForStmt( Ctx, gid_x_stmt, ASTNode::createBinaryOperator(Ctx, gid_x_ref, upper_x, BO_LT, Ctx.BoolTy),
+                                                  ASTNode::createUnaryOperator(Ctx, gid_x_ref, ::clang::UO_PostInc, gid_x_ref->getType()),
+                                                  pKernelFunction->getBody() );
 
 
-    llvm::SmallVector< ::clang::Stmt*, 16 > vecInnerLoopBody;
-    vecInnerLoopBody.push_back(innerLoop);
-
-    ForStmt *outerLoop = ASTNode::createForStmt(Ctx, gid_y_stmt, ASTNode::createBinaryOperator(Ctx,
-      gid_y_ref, upper_y, BO_LT, Ctx.BoolTy),
-      ASTNode::createUnaryOperator(Ctx, gid_y_ref, ::clang::UO_PostInc,
-      gid_y_ref->getType()), ASTNode::createCompoundStmt(Ctx, vecInnerLoopBody));
+    ForStmt *pOuterLoop = ASTNode::createForStmt( Ctx, gid_y_stmt, ASTNode::createBinaryOperator(Ctx, gid_y_ref, upper_y, BO_LT, Ctx.BoolTy),
+                                                  ASTNode::createUnaryOperator(Ctx, gid_y_ref, ::clang::UO_PostInc, gid_y_ref->getType()),
+                                                  _WrapInCompoundStatement(Ctx, pInnerLoop)) ;
 
 
-    llvm::SmallVector< ::clang::Stmt*, 16 > vecNewBody;
-    vecNewBody.push_back(outerLoop);
-
-    pKernelFunction->setBody(ASTNode::createCompoundStmt(Ctx, vecNewBody));
+    pKernelFunction->setBody(_WrapInCompoundStatement(Ctx, pOuterLoop));
   }
 
 
