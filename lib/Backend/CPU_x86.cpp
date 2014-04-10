@@ -30,6 +30,7 @@
 //
 //===---------------------------------------------------------------------------------===//
 
+#include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
 #include <sstream>
 
@@ -154,6 +155,81 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     }
   }
   rOutputStream << ") ";
+
+
+  // Add the iteration space loops
+  {
+    ::clang::ASTContext &Ctx = pKernelFunction->getASTContext();
+
+    ::clang::Expr *upper_x = pKernel->getIterationSpace()->getAccessor()->getWidthDecl();
+    ::clang::Expr *upper_y = pKernel->getIterationSpace()->getAccessor()->getHeightDecl();
+
+    if (pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl())
+    {
+      upper_x = ASTNode::createBinaryOperator(Ctx, upper_x,
+        pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl(), BO_Add,
+        Ctx.IntTy);
+    }
+
+    if (pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl())
+    {
+      upper_y = ASTNode::createBinaryOperator(Ctx, upper_y,
+        pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl(), BO_Add,
+        Ctx.IntTy);
+    }
+
+    DeclContext *DC = FunctionDecl::castToDeclContext(pKernelFunction);
+    DeclStmt    *gid_x_stmt = nullptr, *gid_y_stmt = nullptr;
+    DeclRefExpr *gid_x_ref = nullptr,  *gid_y_ref = nullptr;
+
+    for (auto itDecl = DC->decls_begin(); itDecl != DC->decls_end(); itDecl++)
+    {
+      ::clang::Decl *pDecl = *itDecl;
+
+      if (pDecl == nullptr)
+      {
+        continue;
+      }
+      else if (!isa<ValueDecl>(pDecl))
+      {
+        continue;
+      }
+
+      std::string strDeclName = dyn_cast<ValueDecl>(pDecl)->getNameAsString();
+
+      if (strDeclName == "gid_x")
+      {
+        gid_x_stmt  = ASTNode::createDeclStmt(Ctx, pDecl);
+        gid_x_ref = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
+      }
+      else if (strDeclName == "gid_y")
+      {
+        gid_y_stmt  = ASTNode::createDeclStmt(Ctx, pDecl);
+        gid_y_ref = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
+      }
+    }
+
+    ForStmt *innerLoop = ASTNode::createForStmt(Ctx, gid_x_stmt, ASTNode::createBinaryOperator(Ctx,
+      gid_x_ref, upper_x, BO_LT, Ctx.BoolTy),
+      ASTNode::createUnaryOperator(Ctx, gid_x_ref, ::clang::UO_PostInc,
+      gid_x_ref->getType()), pKernelFunction->getBody());
+
+
+    llvm::SmallVector< ::clang::Stmt*, 16 > vecInnerLoopBody;
+    vecInnerLoopBody.push_back(innerLoop);
+
+    ForStmt *outerLoop = ASTNode::createForStmt(Ctx, gid_y_stmt, ASTNode::createBinaryOperator(Ctx,
+      gid_y_ref, upper_y, BO_LT, Ctx.BoolTy),
+      ASTNode::createUnaryOperator(Ctx, gid_y_ref, ::clang::UO_PostInc,
+      gid_y_ref->getType()), ASTNode::createCompoundStmt(Ctx, vecInnerLoopBody));
+
+
+    llvm::SmallVector< ::clang::Stmt*, 16 > vecNewBody;
+    vecNewBody.push_back( outerLoop );
+
+    pKernelFunction->setBody(ASTNode::createCompoundStmt(Ctx, vecNewBody));
+  }
+
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
