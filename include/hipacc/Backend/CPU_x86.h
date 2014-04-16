@@ -114,8 +114,9 @@ namespace Backend
 
         /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
          *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.
-         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references. */
-        void ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
+         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references.
+         *  \return A vector containing the indices of all used function parameters. */
+        std::vector< unsigned int > ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
 
         /** \brief  Creates a new sub-function declaration and call expression pair.
          *  \param  strFunctionName   The name of the new sub-function.
@@ -133,9 +134,11 @@ namespace Backend
       /** \brief    Formats a function declaration for a specific kernel into a string.
        *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
        *  \param    pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.
+       *  \param    arrayFieldDecls   An array reference to the corresponding field declarations of the function parameters
+       *                              (if a function parameter has no field declaration, set a nullptr at the corresponding index).
        *  \param    bCheckUsage       Specifies, whether the function parameters shall be checked for being used.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
-      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, bool bCheckUsage = true);
+      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::ArrayRef< ::clang::FieldDecl * > arrayFieldDecls, bool bCheckUsage = true);
 
       /** \brief    Wraps a clang statement into a compound statement.
        *  \param    rContext    A reference to the currently used ASTContext.

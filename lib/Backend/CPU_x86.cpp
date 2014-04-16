@@ -88,17 +88,22 @@ void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang:
   _vecCallParams.push_back(pCallParam);
 }
 
-void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
+vector< unsigned int > CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
 {
-  for (size_t i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
+  vector< unsigned int > vecUsedParamIndices;
+
+  for (unsigned int i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
   {
     ParmVarDecl *pParamVarDecl = pRootFunctionDecl->getParamDecl(i);
 
     if (_IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
     {
       AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
+      vecUsedParamIndices.push_back(i);
     }
   }
+
+  return vecUsedParamIndices;
 }
 
 CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::CodeGenerator::KernelSubFunctionBuilder::CreateFuntionDeclarationAndCall(string strFunctionName, const ::clang::QualType &crResultType)
@@ -152,18 +157,13 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
 }
 
 
-string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, bool bCheckUsage)
+string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::ArrayRef< ::clang::FieldDecl * > arrayFieldDecls, bool bCheckUsage)
 {
-  std::string strStreamBuffer;
-  llvm::raw_string_ostream OutputStream(strStreamBuffer);
+  vector< string > vecParamStrings;
 
   HipaccKernelClass *pKernelClass = pKernel->getKernelClass();
 
-  // write kernel name and qualifiers
-  OutputStream << pFunctionDecl->getResultType().getAsString(GetPrintingPolicy()) << " " << pFunctionDecl->getNameAsString() << "(";
-
-  // write kernel parameters
-  bool bSetComma = false;
+  // Translate function parameters to declaration strings
   for (size_t i = 0; i < pFunctionDecl->getNumParams(); ++i)
   {
     ::clang::ParmVarDecl  *pParamDecl = pFunctionDecl->getParamDecl(i);
@@ -174,8 +174,7 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
       continue;
     }
 
-
-    FieldDecl       *FD = pKernel->getDeviceArgFields()[i];
+    FieldDecl       *FD = arrayFieldDecls[i];
 
     // Fetch accessor, if available
     HipaccAccessor  *pAccessor  = pKernel->getImgFromMapping(FD);
@@ -185,37 +184,29 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     }
 
 
-    // Print comma delimiters in between all arguments
-    if (bSetComma)
-    {
-      OutputStream << ", ";
-    }
-    else
-    {
-      bSetComma = true;
-    }
-
-
-    // Print argument, dependent on its type
+    // Translate argument, dependent on its type
     if (HipaccMask *pMask = pKernel->getMaskFromMapping(FD))           // check if we have a Mask or Domain
     {
-      if (! pMask->isConstant())
+      if (!pMask->isConstant())
       {
-        OutputStream << _GetImageDeclarationString(pMask->getName(), pMask, true);
+        vecParamStrings.push_back( _GetImageDeclarationString(pMask->getName(), pMask, true) );
       }
     }
     else if (pAccessor != nullptr)                                    // check if we have an Accessor
     {
-      OutputStream << _GetImageDeclarationString(Name, pAccessor->getImage(), pKernelClass->getImgAccess(FD) == READ_ONLY);
+      vecParamStrings.push_back( _GetImageDeclarationString(Name, pAccessor->getImage(), pKernelClass->getImgAccess(FD) == READ_ONLY) );
     }
     else                                                              // normal arguments
     {
+      string strParamBuffer;
+      llvm::raw_string_ostream ParamStream(strParamBuffer);
+
       QualType T = pParamDecl->getType();
       T.removeLocalConst();
       T.removeLocalRestrict();
 
       T.getAsStringInternal(Name, GetPrintingPolicy());
-      OutputStream << Name;
+      ParamStream << Name;
 
       // default arguments ...
       if (Expr *Init = pParamDecl->getInit())
@@ -224,13 +215,33 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
 
         if (!CCE || CCE->getConstructor()->isCopyConstructor())
         {
-          OutputStream << " = ";
+          ParamStream << " = ";
         }
 
-        Init->printPretty(OutputStream, 0, GetPrintingPolicy(), 0);
+        Init->printPretty(ParamStream, 0, GetPrintingPolicy(), 0);
       }
+
+      vecParamStrings.push_back( ParamStream.str() );
     }
   }
+
+
+  stringstream OutputStream;
+
+  // Write function name and qualifiers
+  OutputStream << pFunctionDecl->getResultType().getAsString(GetPrintingPolicy()) << " " << pFunctionDecl->getNameAsString() << "(";
+
+  // Write all parameters with comma delimiters
+  if (! vecParamStrings.empty())
+  {
+    OutputStream << vecParamStrings[0];
+
+    for (size_t i = static_cast<size_t>(1); i < vecParamStrings.size(); ++i)
+    {
+      OutputStream << ", " << vecParamStrings[i];
+    }
+  }
+
   OutputStream << ") ";
 
   return OutputStream.str();
@@ -301,9 +312,18 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
       KernelSubFunctionBuilder SubFuncBuilder(Ctx);
 
-      SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
+      llvm::SmallVector< ::clang::FieldDecl*, 16U > vecFieldDecls;
+
+      vector< unsigned int > vecUsedParamIndices = SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
+      for each (auto itParamIndex in vecUsedParamIndices)
+      {
+        vecFieldDecls.push_back( pKernel->getDeviceArgFields()[ itParamIndex ] );
+      }
+
       SubFuncBuilder.AddCallParameter(gid_y_ref);
       SubFuncBuilder.AddCallParameter(gid_x_ref);
+      vecFieldDecls.push_back(nullptr);
+      vecFieldDecls.push_back(nullptr);
 
       KernelSubFunctionBuilder::DeclCallPairType  DeclCallPair = SubFuncBuilder.CreateFuntionDeclarationAndCall(pKernelFunction->getNameAsString() + string("_Scalar"), pKernelFunction->getResultType());
       DeclCallPair.first->setBody(pKernelBody);
@@ -317,7 +337,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
       // Print the new kernel body sub-function
-      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, pKernel, false);
+      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, pKernel, llvm::makeArrayRef(vecFieldDecls), false);
       DeclCallPair.first->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
       rOutputStream << "\n\n";
     }
@@ -337,7 +357,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
   }
 
 
-  rOutputStream << _FormatFunctionHeader(pKernelFunction, pKernel, true);
+  rOutputStream << _FormatFunctionHeader(pKernelFunction, pKernel, pKernel->getDeviceArgFields(), true);
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
