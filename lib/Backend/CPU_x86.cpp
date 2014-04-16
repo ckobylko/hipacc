@@ -39,6 +39,166 @@ using namespace clang::hipacc;
 using namespace clang;
 using namespace std;
 
+
+// Implementation of class CPU_x86::ClangASTHelper
+::clang::BinaryOperator* CPU_x86::ClangASTHelper::CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs)
+{
+  return ASTNode::createBinaryOperator(_rCtx, pLhs, pRhs, BO_LT, _rCtx.BoolTy);
+}
+
+::clang::CompoundStmt* CPU_x86::ClangASTHelper::CreateCompoundStatement(::clang::Stmt *pStatement)
+{
+  StatementVectorType vecStatements;
+
+  vecStatements.push_back(pStatement);
+
+  return CreateCompoundStatement(vecStatements);
+}
+
+::clang::CompoundStmt* CPU_x86::ClangASTHelper::CreateCompoundStatement(const StatementVectorType &crvecStatements)
+{
+  return ASTNode::createCompoundStmt(_rCtx, crvecStatements);
+}
+
+::clang::DeclStmt* CPU_x86::ClangASTHelper::CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef)
+{
+  return ASTNode::createDeclStmt(_rCtx, pDeclRef->getDecl());
+}
+
+::clang::UnaryOperator* CPU_x86::ClangASTHelper::CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef)
+{
+  return ASTNode::createUnaryOperator(_rCtx, pDeclRef, ::clang::UO_PostInc, pDeclRef->getType());
+}
+
+::clang::DeclRefExpr* CPU_x86::ClangASTHelper::FindDeclaration(::clang::FunctionDecl *pFunction, const string &crstrDeclName)
+{
+  ::clang::DeclContext *pDeclContext = ::clang::FunctionDecl::castToDeclContext(pFunction);
+
+  for (auto itDecl = pDeclContext->decls_begin(); itDecl != pDeclContext->decls_end(); itDecl++)
+  {
+    ::clang::Decl *pDecl = *itDecl;
+
+    if ((pDecl == nullptr) || (!isa<ValueDecl>(pDecl)))
+    {
+      continue;
+    }
+
+    ::clang::ValueDecl* pValueDecl = dyn_cast<ValueDecl>(pDecl);
+
+    if (pValueDecl->getNameAsString() == crstrDeclName)
+    {
+      return ASTNode::createDeclRefExpr(_rCtx, pValueDecl);
+    }
+  }
+
+  return nullptr;
+}
+
+
+
+// Implementation of class CPU_x86::HipaccHelper
+int CPU_x86::HipaccHelper::_FindKernelParamIndex(const string &crstrParamName)
+{
+  for (unsigned int i = 0; i < _pKernelFunction->getNumParams(); ++i)
+  {
+    if (_pKernelFunction->getParamDecl(i)->getNameAsString() == crstrParamName)
+    {
+      return static_cast<int>( i );
+    }
+  }
+
+  return -1;
+}
+
+MemoryAccess CPU_x86::HipaccHelper::GetImageAccess(const string &crstrParamName)
+{
+  int iParamIndex = _FindKernelParamIndex(crstrParamName);
+
+  if (iParamIndex < 0)        // Parameter not found
+  {
+    return UNDEFINED;
+  }
+  else if (iParamIndex == 0)  // First parameter is always the output image
+  {
+    return WRITE_ONLY;
+  }
+  else                        // Parameter found
+  {
+    ::FieldDecl*  pFieldDescriptor = _pKernel->getDeviceArgFields()[iParamIndex];
+
+    if (_pKernel->getImgFromMapping(pFieldDescriptor) == nullptr)   // Parameter is not an image
+    {
+      return UNDEFINED;
+    }
+    else
+    {
+      return _pKernel->getKernelClass()->getImgAccess(pFieldDescriptor);
+    }
+  }
+}
+
+HipaccAccessor* CPU_x86::HipaccHelper::GetImageFromMapping(const string &crstrParamName)
+{
+  int iParamIndex = _FindKernelParamIndex(crstrParamName);
+
+  if (iParamIndex < 0)        // Parameter not found
+  {
+    return nullptr;
+  }
+  else if (iParamIndex == 0)  // First parameter is always the output image
+  {
+    return _pKernel->getIterationSpace()->getAccessor();
+  }
+  else                        // Parameter found
+  {
+    return _pKernel->getImgFromMapping(_pKernel->getDeviceArgFields()[iParamIndex] );
+  }
+}
+
+HipaccMask* CPU_x86::HipaccHelper::GetMaskFromMapping(const string &crstrParamName)
+{
+  int iParamIndex = _FindKernelParamIndex(crstrParamName);
+
+  if (iParamIndex < 0)        // Parameter not found
+  {
+    return nullptr;
+  }
+  else if (iParamIndex == 0)  // First parameter is always the output image not a mask
+  {
+    return nullptr;
+  }
+  else                        // Parameter found
+  {
+    return _pKernel->getMaskFromMapping(_pKernel->getDeviceArgFields()[iParamIndex]);
+  }
+}
+
+::clang::Expr* CPU_x86::HipaccHelper::GetIterationSpaceLimitX()
+{
+  ::clang::Expr *pUpperX = _pKernel->getIterationSpace()->getAccessor()->getWidthDecl();
+
+  if (::clang::DeclRefExpr *pOffsetX = _pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl())
+  {
+    pUpperX = ASTNode::createBinaryOperator(_GetASTContext(), pUpperX, pOffsetX, BO_Add, _GetASTContext().IntTy);
+  }
+
+  return pUpperX;
+}
+
+::clang::Expr* CPU_x86::HipaccHelper::GetIterationSpaceLimitY()
+{
+  ::clang::Expr *pUpperY = _pKernel->getIterationSpace()->getAccessor()->getHeightDecl();
+
+  if (::clang::DeclRefExpr *pOffsetY = _pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl())
+  {
+    pUpperY = ASTNode::createBinaryOperator(_GetASTContext(), pUpperY, pOffsetY, BO_Add, _GetASTContext().IntTy);
+  }
+
+  return pUpperY;
+}
+
+
+
 // Implementation of class CPU_x86::CodeGenerator::Descriptor
 CPU_x86::CodeGenerator::Descriptor::Descriptor()
 {
@@ -88,10 +248,8 @@ void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang:
   _vecCallParams.push_back(pCallParam);
 }
 
-vector< unsigned int > CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
+void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
 {
-  vector< unsigned int > vecUsedParamIndices;
-
   for (unsigned int i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
   {
     ParmVarDecl *pParamVarDecl = pRootFunctionDecl->getParamDecl(i);
@@ -99,11 +257,8 @@ vector< unsigned int > CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportU
     if (_IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
     {
       AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
-      vecUsedParamIndices.push_back(i);
     }
   }
-
-  return vecUsedParamIndices;
 }
 
 CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::CodeGenerator::KernelSubFunctionBuilder::CreateFuntionDeclarationAndCall(string strFunctionName, const ::clang::QualType &crResultType)
@@ -124,6 +279,9 @@ CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::Cod
 // Implementation of class CPU_x86::CodeGenerator
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
+  _InitSwitch< KnownSwitches::VectorizeKernel >(CompilerSwitchTypeEnum::VectorizeKernel);
+
+  _bVectorizeKernel = false;
 }
 
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
@@ -133,10 +291,29 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 
   switch (eSwitch)
   {
+  case CompilerSwitchTypeEnum::VectorizeKernel:
+    _bVectorizeKernel = true;
+    break;
   default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
   }
 
   return szReturnIndex;
+}
+
+
+::clang::ForStmt* CPU_x86::CodeGenerator::_CreateIterationSpaceLoop(ClangASTHelper &rAstHelper, ::clang::DeclRefExpr *pLoopCounter, ::clang::Expr *pUpperLimit, ::clang::Stmt *pLoopBody)
+{
+  ::clang::Stmt* pFinalLoopBody = pLoopBody;
+  if (! isa<::clang::CompoundStmt>(pFinalLoopBody))
+  {
+    pFinalLoopBody = rAstHelper.CreateCompoundStatement(pLoopBody);
+  }
+
+  ::clang::DeclStmt   *pInitStatement = rAstHelper.CreateDeclarationStatement(pLoopCounter);
+  ::clang::Expr       *pCondition     = rAstHelper.CreateBinaryOperatorLessThan(pLoopCounter, pUpperLimit);
+  ::clang::Expr       *pIncrement     = rAstHelper.CreatePostIncrementOperator(pLoopCounter);
+
+  return ASTNode::createForStmt(rAstHelper.GetASTContext(), pInitStatement, pCondition, pIncrement, pFinalLoopBody);
 }
 
 
@@ -157,46 +334,34 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
 }
 
 
-string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::ArrayRef< ::clang::FieldDecl * > arrayFieldDecls, bool bCheckUsage)
+string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage)
 {
   vector< string > vecParamStrings;
-
-  HipaccKernelClass *pKernelClass = pKernel->getKernelClass();
 
   // Translate function parameters to declaration strings
   for (size_t i = 0; i < pFunctionDecl->getNumParams(); ++i)
   {
     ::clang::ParmVarDecl  *pParamDecl = pFunctionDecl->getParamDecl(i);
-    std::string Name(pParamDecl->getNameAsString());
+    std::string strName(pParamDecl->getNameAsString());
 
-    if (bCheckUsage && (!pKernel->getUsed(Name)))
+    if ( bCheckUsage && (!rHipaccHelper.IsParamUsed(strName)) )
     {
       continue;
     }
 
-    FieldDecl       *FD = arrayFieldDecls[i];
-
-    // Fetch accessor, if available
-    HipaccAccessor  *pAccessor  = pKernel->getImgFromMapping(FD);
-    if (i == 0)   // first argument is always the output image
-    {
-      pAccessor = pKernel->getIterationSpace()->getAccessor();
-    }
-
-
     // Translate argument, dependent on its type
-    if (HipaccMask *pMask = pKernel->getMaskFromMapping(FD))           // check if we have a Mask or Domain
+    if (HipaccMask *pMask = rHipaccHelper.GetMaskFromMapping(strName))                // check if we have a Mask or Domain
     {
       if (!pMask->isConstant())
       {
         vecParamStrings.push_back( _GetImageDeclarationString(pMask->getName(), pMask, true) );
       }
     }
-    else if (pAccessor != nullptr)                                    // check if we have an Accessor
+    else if (HipaccAccessor *pAccessor = rHipaccHelper.GetImageFromMapping(strName))  // check if we have an Accessor
     {
-      vecParamStrings.push_back( _GetImageDeclarationString(Name, pAccessor->getImage(), pKernelClass->getImgAccess(FD) == READ_ONLY) );
+      vecParamStrings.push_back(_GetImageDeclarationString(strName, pAccessor->getImage(), rHipaccHelper.GetImageAccess(strName) == READ_ONLY));
     }
-    else                                                              // normal arguments
+    else                                                                              // normal arguments
     {
       string strParamBuffer;
       llvm::raw_string_ostream ParamStream(strParamBuffer);
@@ -205,8 +370,8 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
       T.removeLocalConst();
       T.removeLocalRestrict();
 
-      T.getAsStringInternal(Name, GetPrintingPolicy());
-      ParamStream << Name;
+      T.getAsStringInternal(strName, GetPrintingPolicy());
+      ParamStream << strName;
 
       // default arguments ...
       if (Expr *Init = pParamDecl->getInit())
@@ -247,117 +412,53 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   return OutputStream.str();
 }
 
-::clang::CompoundStmt* CPU_x86::CodeGenerator::_WrapInCompoundStatement(::clang::ASTContext &rContext, ::clang::Stmt *pStatement)
-{
-  llvm::SmallVector< ::clang::Stmt*, 16 > vecStatements;
-  vecStatements.push_back(pStatement);
-
-  return ASTNode::createCompoundStmt(rContext, vecStatements);
-}
-
-
 
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {
+  HipaccHelper    hipaccHelper(pKernelFunction, pKernel);
+
   // Add the iteration space loops
   {
-    ::clang::ASTContext &Ctx = pKernelFunction->getASTContext();
+    ClangASTHelper  ASTHelper(pKernelFunction->getASTContext());
 
-    ::clang::Expr *upper_x = pKernel->getIterationSpace()->getAccessor()->getWidthDecl();
-    ::clang::Expr *upper_y = pKernel->getIterationSpace()->getAccessor()->getHeightDecl();
-
-    if (::clang::DeclRefExpr *pOffsetX = pKernel->getIterationSpace()->getAccessor()->getOffsetXDecl())
-    {
-      upper_x = ASTNode::createBinaryOperator(Ctx, upper_x, pOffsetX, BO_Add, Ctx.IntTy);
-    }
-
-    if (::clang::DeclRefExpr *pOffsetY = pKernel->getIterationSpace()->getAccessor()->getOffsetYDecl())
-    {
-      upper_y = ASTNode::createBinaryOperator(Ctx, upper_y, pOffsetY, BO_Add, Ctx.IntTy);
-    }
-
-    DeclContext *DC = FunctionDecl::castToDeclContext(pKernelFunction);
-    DeclStmt    *gid_x_stmt = nullptr, *gid_y_stmt = nullptr;
-    DeclRefExpr *gid_x_ref = nullptr,  *gid_y_ref = nullptr;
-
-    for (auto itDecl = DC->decls_begin(); itDecl != DC->decls_end(); itDecl++)
-    {
-      ::clang::Decl *pDecl = *itDecl;
-
-      if ( (pDecl == nullptr) || (! isa<ValueDecl>(pDecl)) )
-      {
-        continue;
-      }
-
-      std::string strDeclName = dyn_cast<ValueDecl>(pDecl)->getNameAsString();
-
-      if (strDeclName == "gid_x")
-      {
-        gid_x_stmt = ASTNode::createDeclStmt(Ctx, pDecl);
-        gid_x_ref  = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
-      }
-      else if (strDeclName == "gid_y")
-      {
-        gid_y_stmt = ASTNode::createDeclStmt(Ctx, pDecl);
-        gid_y_ref  = ASTNode::createDeclRefExpr(Ctx, dyn_cast<ValueDecl>(pDecl));
-      }
-    }
+    DeclRefExpr *gid_x_ref = ASTHelper.FindDeclaration(pKernelFunction, HipaccHelper::GlobalIdX());
+    DeclRefExpr *gid_y_ref = ASTHelper.FindDeclaration(pKernelFunction, HipaccHelper::GlobalIdY());
 
 
-    const bool cbSeperateKernelBody = true;
-    if (cbSeperateKernelBody)
+    if (_bVectorizeKernel)
     {
       // Push loop body to own function
       ::clang::Stmt *pKernelBody = pKernelFunction->getBody();
 
-      KernelSubFunctionBuilder SubFuncBuilder(Ctx);
+      KernelSubFunctionBuilder SubFuncBuilder(ASTHelper.GetASTContext());
 
-      llvm::SmallVector< ::clang::FieldDecl*, 16U > vecFieldDecls;
-
-      vector< unsigned int > vecUsedParamIndices = SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
-      for each (auto itParamIndex in vecUsedParamIndices)
-      {
-        vecFieldDecls.push_back( pKernel->getDeviceArgFields()[ itParamIndex ] );
-      }
-
+      SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
       SubFuncBuilder.AddCallParameter(gid_y_ref);
       SubFuncBuilder.AddCallParameter(gid_x_ref);
-      vecFieldDecls.push_back(nullptr);
-      vecFieldDecls.push_back(nullptr);
 
       KernelSubFunctionBuilder::DeclCallPairType  DeclCallPair = SubFuncBuilder.CreateFuntionDeclarationAndCall(pKernelFunction->getNameAsString() + string("_Scalar"), pKernelFunction->getResultType());
       DeclCallPair.first->setBody(pKernelBody);
 
 
       // Create function call reference for kernel loop body
-      llvm::SmallVector< ::clang::Stmt*, 16 > vecNewKernelBody;
-      vecNewKernelBody.push_back(DeclCallPair.second);
-
-      pKernelFunction->setBody( ASTNode::createCompoundStmt(Ctx, vecNewKernelBody) );
+      pKernelFunction->setBody(ASTHelper.CreateCompoundStatement(DeclCallPair.second));
 
 
       // Print the new kernel body sub-function
-      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, pKernel, llvm::makeArrayRef(vecFieldDecls), false);
+      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, hipaccHelper, false);
       DeclCallPair.first->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
       rOutputStream << "\n\n";
     }
 
 
-    ForStmt *pInnerLoop = ASTNode::createForStmt( Ctx, gid_x_stmt, ASTNode::createBinaryOperator(Ctx, gid_x_ref, upper_x, BO_LT, Ctx.BoolTy),
-                                                  ASTNode::createUnaryOperator(Ctx, gid_x_ref, ::clang::UO_PostInc, gid_x_ref->getType()),
-                                                  pKernelFunction->getBody() );
+    ForStmt *pInnerLoop = _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, hipaccHelper.GetIterationSpaceLimitX(), pKernelFunction->getBody());
+    ForStmt *pOuterLoop = _CreateIterationSpaceLoop(ASTHelper, gid_y_ref, hipaccHelper.GetIterationSpaceLimitY(), pInnerLoop);
 
-
-    ForStmt *pOuterLoop = ASTNode::createForStmt( Ctx, gid_y_stmt, ASTNode::createBinaryOperator(Ctx, gid_y_ref, upper_y, BO_LT, Ctx.BoolTy),
-                                                  ASTNode::createUnaryOperator(Ctx, gid_y_ref, ::clang::UO_PostInc, gid_y_ref->getType()),
-                                                  _WrapInCompoundStatement(Ctx, pInnerLoop)) ;
-
-
-    pKernelFunction->setBody(_WrapInCompoundStatement(Ctx, pOuterLoop));
+    pKernelFunction->setBody( ASTHelper.CreateCompoundStatement(pOuterLoop) );
   }
 
 
-  rOutputStream << _FormatFunctionHeader(pKernelFunction, pKernel, pKernel->getDeviceArgFields(), true);
+  rOutputStream << _FormatFunctionHeader(pKernelFunction, hipaccHelper, true);
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);

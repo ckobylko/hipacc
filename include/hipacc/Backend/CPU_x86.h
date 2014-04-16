@@ -51,6 +51,144 @@ namespace Backend
     /** \brief  Contains the IDs of all supported specific compiler switches for this backend. */
     enum class CompilerSwitchTypeEnum
     {
+      VectorizeKernel
+    };
+
+
+    /** \brief  Contains all known specific compiler switches for this backend. */
+    class KnownSwitches final
+    {
+    public:
+
+      /** \brief  The switch type for the "kernel function vectorization" switch. */
+      struct VectorizeKernel final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-v"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return ""; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()         { return "Run a whole function vectorization on the kernel function"; }
+      };
+    };
+
+
+    /** \brief  Helper class which contains a few methods for easy clang AST handling. */
+    class ClangASTHelper final
+    {
+    public:
+
+      typedef ::llvm::SmallVector< ::clang::Stmt*, 16U >  StatementVectorType;  //!< Type definition for a vector of statements.
+
+    private:
+
+      ::clang::ASTContext   &_rCtx;   //!< A reference to the current AST context.
+
+
+      ClangASTHelper(const ClangASTHelper &) = delete;
+      ClangASTHelper& operator=(const ClangASTHelper &) = delete;
+
+    public:
+
+      /** \brief  Constructor.
+       *  \param  rAstContext   A reference to the current AST context. */
+      ClangASTHelper(::clang::ASTContext &rAstContext) : _rCtx(rAstContext)   {}
+
+      /** \brief  Returns a reference to the current AST context. */
+      inline ::clang::ASTContext&  GetASTContext()   { return _rCtx; }
+
+
+      /** \brief  Creates a binary operator object which represents a "less than" comparison.
+       *  \param  pLhs  A pointer to the expression object, which shall be on the left-hand-side.
+       *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
+      ::clang::BinaryOperator*  CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
+
+      /** \brief  Wraps a statement object into a compound statement object.
+       *  \param  pStatement  A pointer to the statement object, which shall be encapsulated into an compound statement. */
+      ::clang::CompoundStmt*    CreateCompoundStatement(::clang::Stmt *pStatement);
+
+      /** \brief  Constructs a compound statement object around a vector of statement objects.
+       *  \param  crvecStatements   A reference to the statement vector. */
+      ::clang::CompoundStmt*    CreateCompoundStatement(const StatementVectorType &crvecStatements);
+
+      /** \brief  Constructs a declaration statement for a specific declaration.
+       *  \param  pDeclRef  A pointer to a declaration reference expression object which points to the specific declaration. */
+      ::clang::DeclStmt*        CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef);
+
+      /** \brief  Constructs a post increment statement for a declaration reference expression object.
+       *  \param  pDeclRef  A pointer to the declaration reference expression, which shall be used in the post increment operator. */
+      ::clang::UnaryOperator*   CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
+
+
+      /** \brief    Looks up a specific declaration.
+       *  \param    pFunction       A pointer to the function declaration object whose declaration context will be searched for the specified declaration.
+       *  \param    crstrDeclName   The name of the declaration which shall be searched for.
+       *  \return   If successful, a pointer to a newly created declaration reference expression for the found declaration, and zero otherwise. */
+      ::clang::DeclRefExpr*     FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+    };
+
+
+    /** \brief  Helper class which encapsulates a HIPAcc kernel and simplifies the parameter handling. */
+    class HipaccHelper final
+    {
+    private:
+
+      ::clang::FunctionDecl *_pKernelFunction;    //!< A pointer to the translated kernel function declaration.
+      HipaccKernel          *_pKernel;            //!< A pointer to the encapsulated HIPAcc kernel object.
+
+
+      /** \brief    Looks up the index of a kernel parameter in the kernel function argument list. 
+       *  \param    crstrParamName  The name of the kernel parameter whose index shall be retrieved.
+       *  \return   If successful, the index of the kernel parameter, and <b>-1</b> otherwise. */
+      int                         _FindKernelParamIndex( const std::string &crstrParamName );
+
+      /** \brief  Returns a reference to the current clang AST context. */
+      inline ::clang::ASTContext& _GetASTContext()  { return _pKernelFunction->getASTContext(); }
+
+    public:
+
+      /** \brief  Constructor.
+       *  \param  pKernelFunction   A pointer to the translated kernel function declaration object.
+       *  \param  pKernel           A pointer to the HIPAcc kernel object which shall be encapsulated.*/
+      HipaccHelper(FunctionDecl *pKernelFunction, HipaccKernel *pKernel) : _pKernelFunction(pKernelFunction), _pKernel(pKernel)  {}
+
+      HipaccHelper(const HipaccHelper &) = delete;
+      HipaccHelper& operator=(const HipaccHelper &) = delete;
+
+
+      /** \brief  Returns the name of the horizontal global ID. */
+      inline static std::string GlobalIdX()   { return "gid_x"; }
+      /** \brief  Returns the name of the vertical global ID. */
+      inline static std::string GlobalIdY()   { return "gid_y"; }
+
+
+      /** \brief    Looks up the image access type for a specific kernel function parameter.
+       *  \param    crstrParamName  The name of the parameter to look up.
+       *  \return   The image access type if the parameter refers to a HIPAcc image, and <b>UNDEFINED</b> otherwise. */
+      MemoryAccess    GetImageAccess(const std::string &crstrParamName);
+
+      /** \brief    Returns the HIPAcc image accessor object for a specific kernel function parameter.
+       *  \param    crstrParamName  The name of the parameter to look up.
+       *  \return   The image accessor if the parameter refers to a HIPAcc image, and <b>nullptr</b> otherwise. */
+      HipaccAccessor* GetImageFromMapping(const std::string &crstrParamName);
+
+      /** \brief    Returns the HIPAcc mask object for a specific kernel function parameter.
+       *  \param    crstrParamName  The name of the parameter to look up.
+       *  \return   The mask object if the parameter refers to a HIPAcc mask, and <b>nullptr</b> otherwise. */
+      HipaccMask*     GetMaskFromMapping(const std::string &crstrParamName);
+
+
+      /** \brief  Creates an expression object which defines the upper bound of the horizontal iteration space (if an offset is specified, it will be included). */
+      ::clang::Expr* GetIterationSpaceLimitX();
+      /** \brief  Creates an expression object which defines the upper bound of the vertical iteration space (if an offset is specified, it will be included). */
+      ::clang::Expr* GetIterationSpaceLimitY();
+
+
+      /** \brief  Checks, if a kernel parameter is marked as being used by the kernel.
+       *  \param  crstrParamName  The name of the parameter in question. */
+      inline bool IsParamUsed(const std::string &crstrParamName)  { return _pKernel->getUsed(crstrParamName); }
     };
 
 
@@ -114,9 +252,8 @@ namespace Backend
 
         /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
          *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.
-         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references.
-         *  \return A vector containing the indices of all used function parameters. */
-        std::vector< unsigned int > ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
+         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references. */
+        void ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
 
         /** \brief  Creates a new sub-function declaration and call expression pair.
          *  \param  strFunctionName   The name of the new sub-function.
@@ -125,27 +262,31 @@ namespace Backend
       };
 
 
+
+      /** \brief  Create as clang statement for an iteration space "for"-loop.
+       *  \param  rAstHelper    A reference to the current AST helper object.
+       *  \param  pLoopCounter  A pointer to the declaration reference object for the loop counter variable (e.g. gid_x).
+       *  \param  pUpperLimit   A pointer to the expression object which defines the upper bound of the iteration space (this value is exclusive).
+       *  \param  pLoopBody     A pointer to the statement object which represents the loop body (if it is not a compound statement, it will be wrapped into one). */
+      static ::clang::ForStmt* _CreateIterationSpaceLoop(ClangASTHelper &rAstHelper, ::clang::DeclRefExpr *pLoopCounter, ::clang::Expr *pUpperLimit, ::clang::Stmt *pLoopBody);
+
       /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
        *  \param  strName               The name of the image buffer variable.
        *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
-       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.*/
+       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only. */
       static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
        *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
-       *  \param    pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.
-       *  \param    arrayFieldDecls   An array reference to the corresponding field declarations of the function parameters
-       *                              (if a function parameter has no field declaration, set a nullptr at the corresponding index).
+       *  \param    rHipaccHelper     A reference to the HIPAcc helper object which encapsulates the kernel.
        *  \param    bCheckUsage       Specifies, whether the function parameters shall be checked for being used.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
-      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccKernel *pKernel, llvm::ArrayRef< ::clang::FieldDecl * > arrayFieldDecls, bool bCheckUsage = true);
+      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true);
 
-      /** \brief    Wraps a clang statement into a compound statement.
-       *  \param    rContext    A reference to the currently used ASTContext.
-       *  \param    pStatement  A pointer to the clang statement, which shall be encapsulated into an compound statement
-       *  \return   The newly created compound statement, which contains the input statement as its only child. */
-      static ::clang::CompoundStmt* _WrapInCompoundStatement(::clang::ASTContext &rContext, ::clang::Stmt *pStatement);
 
+    private:
+
+      bool    _bVectorizeKernel;    //!< Specifies, whether the kernel function shall be vectorized.
 
     protected:
 
