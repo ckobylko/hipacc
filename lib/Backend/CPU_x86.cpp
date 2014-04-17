@@ -237,6 +237,23 @@ HipaccMask* CPU_x86::HipaccHelper::GetMaskFromMapping(const string &crstrParamNa
   }
 }
 
+::clang::DeclRefExpr* CPU_x86::HipaccHelper::GetImageParameterDecl(const std::string &crstrImageName, ImageParamType eParamType)
+{
+  HipaccAccessor* pAccessor = GetImageFromMapping(crstrImageName);
+  if (pAccessor == nullptr)
+  {
+    return nullptr;
+  }
+
+  switch (eParamType)
+  {
+  case ImageParamType::Width:   return pAccessor->getWidthDecl();
+  case ImageParamType::Height:  return pAccessor->getHeightDecl();
+  case ImageParamType::Stride:  return pAccessor->getStrideDecl();
+  default:                      throw RuntimeErrorException("Unknwon image parameter type!");
+  }
+}
+
 ::clang::Expr* CPU_x86::HipaccHelper::GetIterationSpaceLimitX()
 {
   ::clang::Expr *pUpperX = _pKernel->getIterationSpace()->getAccessor()->getWidthDecl();
@@ -381,7 +398,7 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 }
 
 
-string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer)
+string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer, bool bTranslate)
 {
   stringstream FormatStream;
 
@@ -390,15 +407,24 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
     FormatStream << "const ";
   }
 
-  FormatStream << pHipaccMemoryObject->getTypeStr() << " " << strName;
-  FormatStream << "[" << pHipaccMemoryObject->getSizeYStr() << "]";
-  FormatStream << "[" << pHipaccMemoryObject->getSizeXStr() << "]";
+  FormatStream << pHipaccMemoryObject->getTypeStr() << " ";
+  
+  if (bTranslate)
+  {
+    FormatStream << "*" << strName;
+  }
+  else
+  {
+    FormatStream << strName;
+    FormatStream << "[" << pHipaccMemoryObject->getSizeYStr() << "]";
+    FormatStream << "[" << pHipaccMemoryObject->getSizeXStr() << "]";
+  }
 
   return FormatStream.str();
 }
 
 
-string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage)
+string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage, bool bTranslateImageDecls)
 {
   vector< string > vecParamStrings;
 
@@ -418,12 +444,12 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     {
       if (!pMask->isConstant())
       {
-        vecParamStrings.push_back( _GetImageDeclarationString(pMask->getName(), pMask, true) );
+        vecParamStrings.push_back( _GetImageDeclarationString(pMask->getName(), pMask, true, false) );
       }
     }
     else if (HipaccAccessor *pAccessor = rHipaccHelper.GetImageFromMapping(strName))  // check if we have an Accessor
     {
-      vecParamStrings.push_back(_GetImageDeclarationString(strName, pAccessor->getImage(), rHipaccHelper.GetImageAccess(strName) == READ_ONLY));
+      vecParamStrings.push_back( _GetImageDeclarationString(strName, pAccessor->getImage(), rHipaccHelper.GetImageAccess(strName) == READ_ONLY, bTranslateImageDecls) );
     }
     else                                                                              // normal arguments
     {
@@ -477,6 +503,98 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
 }
 
 
+list< ::clang::ArraySubscriptExpr* >  CPU_x86::CodeGenerator::_FindImageAccesses(const std::string &crstrImageName, ::clang::Stmt *pStatement)
+{
+  list< ::clang::ArraySubscriptExpr* > lstImageAccesses;
+
+  if (pStatement == nullptr)
+  {
+    return lstImageAccesses;
+  }
+  else if (isa<::clang::ArraySubscriptExpr>(pStatement))
+  {
+    // Found an array subscript expression => Check if the structure corresponds to an image access
+    ::clang::ArraySubscriptExpr *pRootArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pStatement);
+
+    // Look through implicit cast expressions
+    ::clang::Expr *pLhs = pRootArraySubscript->getLHS();
+    while (isa<::clang::ImplicitCastExpr>(pLhs))
+    {
+      pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+    }
+
+    if (isa<::clang::ArraySubscriptExpr>(pLhs))
+    {
+      // At least 2-dimensional array found => Look for the declaration reference to the image
+      ::clang::ArraySubscriptExpr *pChildArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pLhs);
+
+      // Look through implicit cast expressions
+      pLhs = pChildArraySubscript->getLHS();
+      while (isa<::clang::ImplicitCastExpr>(pLhs))
+      {
+        pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+      }
+
+      if (isa<::clang::DeclRefExpr>(pLhs))
+      {
+        // Found a 2-dimensional array access => check if the array if the specified image
+        ::clang::DeclRefExpr* pArrayDeclRef = dyn_cast<::clang::DeclRefExpr>(pLhs);
+
+        if (pArrayDeclRef->getNameInfo().getAsString() == crstrImageName)
+        {
+          lstImageAccesses.push_back(pRootArraySubscript);
+        }
+      }
+    }
+  }
+
+  // Parse all children everytime (in case an image access is used as an index expression for another image access)
+  for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
+  {
+    list< ::clang::ArraySubscriptExpr* > lstImageAccessesInternal = _FindImageAccesses(crstrImageName, *itChild);
+
+    if (! lstImageAccessesInternal.empty())
+    {
+      lstImageAccesses.insert(lstImageAccesses.end(), lstImageAccessesInternal.begin(), lstImageAccessesInternal.end());
+    }
+  }
+
+  return lstImageAccesses;
+}
+
+void CPU_x86::CodeGenerator::_TranslateImageAccesses(HipaccHelper &rHipaccHelper)
+{
+  ::clang::FunctionDecl *pKernelFunction = rHipaccHelper.GetKernelFunction();
+  ClangASTHelper        ASTHelper(pKernelFunction->getASTContext());
+
+  // Parse through all kernel images
+  for (size_t i = 0; i < pKernelFunction->getNumParams(); ++i)
+  {
+    ::clang::ParmVarDecl  *pParamDecl = pKernelFunction->getParamDecl(i);
+    string                strParamName = pParamDecl->getNameAsString();
+
+    // Skip all kernel function parameters, which are unused or to not refer to an HIPAcc image
+    if ((!rHipaccHelper.IsParamUsed(strParamName)) || (rHipaccHelper.GetImageFromMapping(strParamName) == nullptr))
+    {
+      continue;
+    }
+
+    // Mark the image stride as used kernel parameter (required for the linearization of the image access)
+    ::clang::DeclRefExpr *pImageStrideDecl = rHipaccHelper.GetImageParameterDecl(strParamName, HipaccHelper::ImageParamType::Stride);
+    rHipaccHelper.MarkParamUsed(pImageStrideDecl->getNameInfo().getAsString());
+
+    // Find all access to the current image
+    list< ::clang::ArraySubscriptExpr* >  lstImageAccesses = _FindImageAccesses(strParamName, pKernelFunction->getBody());
+
+
+    for each (auto itImageAccess in lstImageAccesses)
+    {
+      // TODO: Translate the image accesses
+    }
+  }
+}
+
+
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {
   HipaccHelper    hipaccHelper(pKernelFunction, pKernel);
@@ -492,6 +610,8 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     // If vectorization is enabled, split the kernel function into the "iteration space"-part and the "pixel-wise processing"-part
     if (_bVectorizeKernel)
     {
+      _TranslateImageAccesses(hipaccHelper);
+
       // Push loop body to own function
       ::clang::Stmt *pKernelBody = pKernelFunction->getBody();
 
@@ -510,7 +630,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
       // Print the new kernel body sub-function
-      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, hipaccHelper, false);
+      rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, hipaccHelper, false, true);
       DeclCallPair.first->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
       rOutputStream << "\n\n";
     }
@@ -570,6 +690,9 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
           ::clang::VarDecl        *pImagePosDecl    = ASTHelper.CreateVariableDeclaration(pKernelFunction, strParamName + string("_CurrentPos"), qtImagePointerType, pPointerAddition);
 
           vecInnerLoopBody.push_back( ASTHelper.CreateDeclarationStatement(pImagePosDecl) );
+
+          // Replace all references to the HIPAcc image by the "current pixel" pointer
+          ASTHelper.ReplaceDeclarationReferences(pKernelFunction->getBody(), strParamName, pImagePosDecl);
         }
       }
 
@@ -586,7 +709,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
   }
 
 
-  rOutputStream << _FormatFunctionHeader(pKernelFunction, hipaccHelper, true);
+  rOutputStream << _FormatFunctionHeader(pKernelFunction, hipaccHelper, true, false);
 
   // print kernel body
   pKernelFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);

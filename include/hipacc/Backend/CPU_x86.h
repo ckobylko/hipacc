@@ -35,6 +35,7 @@
 
 #include "CodeGeneratorBaseImplT.h"
 #include "hipacc/DSL/ClassRepresentation.h"
+#include <list>
 #include <utility>
 #include <vector>
 
@@ -181,6 +182,16 @@ namespace Backend
     /** \brief  Helper class which encapsulates a HIPAcc kernel and simplifies the parameter handling. */
     class HipaccHelper final
     {
+    public:
+
+      /** \brief  Enumeration of internal parameters of HIPAcc images. */
+      enum class ImageParamType
+      {
+        Width,    //!< Refers to the width of an image.
+        Height,   //!< Refers to the height of an image.
+        Stride    //!< Refers to the stride of an image (i.e. the offset between vertically adjacent pixels).
+      };
+
     private:
 
       ::clang::FunctionDecl *_pKernelFunction;    //!< A pointer to the translated kernel function declaration.
@@ -212,6 +223,10 @@ namespace Backend
       inline static std::string GlobalIdY()   { return "gid_y"; }
 
 
+      /** \brief  Returns a pointer to the translated kernel function declaration. */
+      inline ::clang::FunctionDecl* GetKernelFunction()  { return _pKernelFunction; }
+
+
       /** \brief    Looks up the image access type for a specific kernel function parameter.
        *  \param    crstrParamName  The name of the parameter to look up.
        *  \return   The image access type if the parameter refers to a HIPAcc image, and <b>UNDEFINED</b> otherwise. */
@@ -228,6 +243,13 @@ namespace Backend
       HipaccMask*     GetMaskFromMapping(const std::string &crstrParamName);
 
 
+      /** \brief    Returns the specified internal parameter declaration of an HIPAcc image.
+       *  \param    crstrImageName  The name of the image whose parameter shall be looked up.
+       *  \param    eParamType      The type of the parameter declaration which shall be returned.
+       *  \return   If successful, the declaration reference expression for the image parameter, and <b>nullptr</b> otherwise. */
+      ::clang::DeclRefExpr* GetImageParameterDecl(const std::string &crstrImageName, ImageParamType eParamType);
+
+
       /** \brief  Creates an expression object which defines the upper bound of the horizontal iteration space (if an offset is specified, it will be included). */
       ::clang::Expr* GetIterationSpaceLimitX();
       /** \brief  Creates an expression object which defines the upper bound of the vertical iteration space (if an offset is specified, it will be included). */
@@ -236,7 +258,11 @@ namespace Backend
 
       /** \brief  Checks, if a kernel parameter is marked as being used by the kernel.
        *  \param  crstrParamName  The name of the parameter in question. */
-      inline bool IsParamUsed(const std::string &crstrParamName)  { return _pKernel->getUsed(crstrParamName); }
+      inline bool IsParamUsed(const std::string &crstrParamName)    { return _pKernel->getUsed(crstrParamName); }
+
+      /** \brief  Marks a kernel parameter as being used by the kernel.
+       *  \param  crstrParamName  The name of the parameter which shall be marked as used. */
+      inline void MarkParamUsed(const std::string &crstrParamName)  { _pKernel->setUsed(crstrParamName); }
     };
 
 
@@ -321,15 +347,28 @@ namespace Backend
       /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
        *  \param  strName               The name of the image buffer variable.
        *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
-       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only. */
-      static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
+       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.
+       *  \param  bTranslate            Specifies, whether the image declaration shall be translated to a native pixel pointer. */
+      static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false, bool bTranslate = false);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
-       *  \param    pKernelFunction   A pointer to the AST object declaring the kernel function.
-       *  \param    rHipaccHelper     A reference to the HIPAcc helper object which encapsulates the kernel.
-       *  \param    bCheckUsage       Specifies, whether the function parameters shall be checked for being used.
+       *  \param    pKernelFunction       A pointer to the AST object declaring the kernel function.
+       *  \param    rHipaccHelper         A reference to the HIPAcc helper object which encapsulates the kernel.
+       *  \param    bCheckUsage           Specifies, whether the function parameters shall be checked for being used.
+       *  \param    bTranslateImageDecls  Specifies, whether the declaration of the HIPAcc images shall be translated to native pixel pointers.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
-      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true);
+      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bTranslateImageDecls = false);
+
+
+      /** \brief  Returns a list of all array subscript expressions which describe an access of the specified HIPAcc image.
+       *  \param  crstrImageName  The name of the image whose access shall be found.
+       *  \param  pStatement      The root of the statement tree which shall be parsed for an image access. */
+      static std::list< ::clang::ArraySubscriptExpr* > _FindImageAccesses(const std::string &crstrImageName, ::clang::Stmt *pStatement);
+
+      /** \brief  Translates the 2-dimensional global image accesses inside a kernel function into local 1-dimensional image accesses.
+       *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
+      static void _TranslateImageAccesses(HipaccHelper &rHipaccHelper);
+
 
 
     private:
