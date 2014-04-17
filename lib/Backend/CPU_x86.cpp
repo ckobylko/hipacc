@@ -32,6 +32,7 @@
 
 #include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
+#include <map>
 #include <sstream>
 
 using namespace clang::hipacc::Backend;
@@ -41,9 +42,21 @@ using namespace std;
 
 
 // Implementation of class CPU_x86::ClangASTHelper
+::clang::ArraySubscriptExpr* CPU_x86::ClangASTHelper::CreateArraySubscriptExpression(::clang::DeclRefExpr *pArrayRef, ::clang::Expr *pIndexExpression, const ::clang::QualType &crReturnType, bool bIsLValue)
+{
+  ::clang::ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;
+
+  return new (GetASTContext()) ArraySubscriptExpr(pArrayRef, pIndexExpression, crReturnType, eValueKind, OK_Ordinary, SourceLocation());
+}
+
+::clang::BinaryOperator* CPU_x86::ClangASTHelper::CreateBinaryOperator(::clang::Expr *pLhs, ::clang::Expr *pRhs, ::clang::BinaryOperatorKind eOperatorKind, const ::clang::QualType &crReturnType)
+{
+  return ASTNode::createBinaryOperator(GetASTContext(), pLhs, pRhs, eOperatorKind, crReturnType);
+}
+
 ::clang::BinaryOperator* CPU_x86::ClangASTHelper::CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs)
 {
-  return ASTNode::createBinaryOperator(_rCtx, pLhs, pRhs, BO_LT, _rCtx.BoolTy);
+  return CreateBinaryOperator(pLhs, pRhs, BO_LT, GetASTContext().BoolTy);
 }
 
 ::clang::CompoundStmt* CPU_x86::ClangASTHelper::CreateCompoundStatement(::clang::Stmt *pStatement)
@@ -60,14 +73,41 @@ using namespace std;
   return ASTNode::createCompoundStmt(_rCtx, crvecStatements);
 }
 
+::clang::DeclRefExpr* CPU_x86::ClangASTHelper::CreateDeclarationReferenceExpression(::clang::ValueDecl *pValueDecl)
+{
+  return ASTNode::createDeclRefExpr(GetASTContext(), pValueDecl);
+}
+
 ::clang::DeclStmt* CPU_x86::ClangASTHelper::CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef)
 {
-  return ASTNode::createDeclStmt(_rCtx, pDeclRef->getDecl());
+  return CreateDeclarationStatement(pDeclRef->getDecl());
+}
+
+::clang::DeclStmt* CPU_x86::ClangASTHelper::CreateDeclarationStatement(::clang::ValueDecl *pValueDecl)
+{
+  return ASTNode::createDeclStmt(GetASTContext(), pValueDecl);
+}
+
+::clang::ImplicitCastExpr* CPU_x86::ClangASTHelper::CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue)
+{
+  ::clang::ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;
+
+  return ASTNode::createImplicitCastExpr(GetASTContext(), crReturnType, eCastKind, pOperandExpression, nullptr, eValueKind);
 }
 
 ::clang::UnaryOperator* CPU_x86::ClangASTHelper::CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef)
 {
   return ASTNode::createUnaryOperator(_rCtx, pDeclRef, ::clang::UO_PostInc, pDeclRef->getType());
+}
+
+::clang::VarDecl*  CPU_x86::ClangASTHelper::CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression)
+{
+  ::clang::DeclContext *pDeclContext = ::clang::FunctionDecl::castToDeclContext(pParentFunction);
+
+  ::clang::VarDecl *pVarDecl = ASTNode::createVarDecl(GetASTContext(), pDeclContext, crstrVariableName, crVariableType, pInitExpression);
+  pDeclContext->addDecl(pVarDecl);
+
+  return pVarDecl;
 }
 
 ::clang::DeclRefExpr* CPU_x86::ClangASTHelper::FindDeclaration(::clang::FunctionDecl *pFunction, const string &crstrDeclName)
@@ -92,6 +132,30 @@ using namespace std;
   }
 
   return nullptr;
+}
+
+void CPU_x86::ClangASTHelper::ReplaceDeclarationReferences(::clang::Stmt* pStatement, const string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl)
+{
+  if (pStatement == nullptr)
+  {
+    return;
+  }
+  else if (isa<::clang::DeclRefExpr>(pStatement))
+  {
+    ::clang::DeclRefExpr *pDeclRef = dyn_cast<::clang::DeclRefExpr>(pStatement);
+
+    if (pDeclRef->getNameInfo().getName().getAsString() == crstrDeclRefName)
+    {
+      pDeclRef->setDecl(pNewDecl);
+    }
+  }
+  else
+  {
+    for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
+    {
+      ReplaceDeclarationReferences(*itChild, crstrDeclRefName, pNewDecl);
+    }
+  }
 }
 
 
@@ -425,6 +489,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     DeclRefExpr *gid_y_ref = ASTHelper.FindDeclaration(pKernelFunction, HipaccHelper::GlobalIdY());
 
 
+    // If vectorization is enabled, split the kernel function into the "iteration space"-part and the "pixel-wise processing"-part
     if (_bVectorizeKernel)
     {
       // Push loop body to own function
@@ -451,9 +516,72 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     }
 
 
-    ForStmt *pInnerLoop = _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, hipaccHelper.GetIterationSpaceLimitX(), pKernelFunction->getBody());
-    ForStmt *pOuterLoop = _CreateIterationSpaceLoop(ASTHelper, gid_y_ref, hipaccHelper.GetIterationSpaceLimitY(), pInnerLoop);
+    // Create the iteration space
+    ClangASTHelper::StatementVectorType vecOuterLoopBody;
 
+    {
+      ClangASTHelper::StatementVectorType vecInnerLoopBody;
+
+      if (_bVectorizeKernel)
+      {
+        // If vectorization is enabled, redirect all image pointers for the internal kernel function to the currently processed pixel
+        for (unsigned int i = 0; i < pKernelFunction->getNumParams(); ++i)
+        {
+          ::clang::ParmVarDecl  *pParamDecl   = pKernelFunction->getParamDecl(i);
+          string                strParamName  = pParamDecl->getNameAsString();
+
+          // Skip all kernel function parameters, which are unused or to not refer to an HIPAcc image
+          if ((! hipaccHelper.IsParamUsed(strParamName)) || (hipaccHelper.GetImageFromMapping(strParamName) == nullptr))
+          {
+            continue;
+          }
+
+          // Fetch the required image access and pointer types
+          QualType qtArrayAccessType, qtImagePointerType;
+          {
+            qtArrayAccessType       = pParamDecl->getType()->getPointeeType();
+            QualType qtElementType  = qtArrayAccessType->getAsArrayTypeUnsafe()->getElementType();
+
+            if (hipaccHelper.GetImageAccess(strParamName) == READ_ONLY)
+            {
+              qtElementType.addConst();
+            }
+
+            qtImagePointerType = ASTHelper.GetPointerType(qtElementType);
+          }
+
+
+          // Create the declaration of the currently processed image line, e.g. "float *Output_CurrentLine = Output[gid_y];"
+          ::clang::DeclRefExpr *pImageLineDeclRef = nullptr;
+          {
+            ::clang::DeclRefExpr        *pImageDeclRef  = ASTHelper.CreateDeclarationReferenceExpression(pParamDecl);
+            ::clang::ArraySubscriptExpr *pArrayAccess   = ASTHelper.CreateArraySubscriptExpression(pImageDeclRef, gid_y_ref, qtArrayAccessType, false);
+            ::clang::ImplicitCastExpr   *pCastToPointer = ASTHelper.CreateImplicitCastExpression(pArrayAccess, qtImagePointerType, CK_ArrayToPointerDecay, false);
+            ::clang::VarDecl            *pImageLineDecl = ASTHelper.CreateVariableDeclaration(pKernelFunction, strParamName + string("_CurrentLine"), qtImagePointerType, pCastToPointer);
+
+            pImageLineDeclRef = ASTHelper.CreateDeclarationReferenceExpression(pImageLineDecl);
+          }
+
+          vecOuterLoopBody.push_back( ASTHelper.CreateDeclarationStatement(pImageLineDeclRef) );
+
+
+          // Create the declaration of the currently processed image pixel, e.g. "float *Output_CurrentPos = Output_CurrentLine + gid_x;"
+          ::clang::BinaryOperator *pPointerAddition = ASTHelper.CreateBinaryOperator(pImageLineDeclRef, gid_x_ref, BO_Add, qtImagePointerType);
+          ::clang::VarDecl        *pImagePosDecl    = ASTHelper.CreateVariableDeclaration(pKernelFunction, strParamName + string("_CurrentPos"), qtImagePointerType, pPointerAddition);
+
+          vecInnerLoopBody.push_back( ASTHelper.CreateDeclarationStatement(pImagePosDecl) );
+        }
+      }
+
+      // Create the horizontal iteration space loop and push it to the vertical loop body
+      vecInnerLoopBody.push_back(pKernelFunction->getBody());
+
+      ForStmt *pInnerLoop = _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, hipaccHelper.GetIterationSpaceLimitX(), ASTHelper.CreateCompoundStatement(vecInnerLoopBody));
+      vecOuterLoopBody.push_back( pInnerLoop );
+    }
+
+    // Create the vertical iteration space loop and set it as kernel function body
+    ForStmt *pOuterLoop = _CreateIterationSpaceLoop(ASTHelper, gid_y_ref, hipaccHelper.GetIterationSpaceLimitY(), ASTHelper.CreateCompoundStatement(vecOuterLoopBody));
     pKernelFunction->setBody( ASTHelper.CreateCompoundStatement(pOuterLoop) );
   }
 

@@ -36,6 +36,7 @@
 #include "CodeGeneratorBaseImplT.h"
 #include "hipacc/DSL/ClassRepresentation.h"
 #include <utility>
+#include <vector>
 
 namespace clang
 {
@@ -97,29 +98,70 @@ namespace Backend
       ClangASTHelper(::clang::ASTContext &rAstContext) : _rCtx(rAstContext)   {}
 
       /** \brief  Returns a reference to the current AST context. */
-      inline ::clang::ASTContext&  GetASTContext()   { return _rCtx; }
+      inline ::clang::ASTContext& GetASTContext()   { return _rCtx; }
 
+      /** \brief  Returns the corresponding pointer type for a qualified clang type.
+       *  \param  crPointeeType   A reference to the qualified type whose pointer type shall be returned. */
+      inline ::clang::QualType    GetPointerType(const ::clang::QualType &crPointeeType)  { return GetASTContext().getPointerType(crPointeeType); }
+
+
+      /** \brief  Creates an subscript expression.
+       *  \param  pArrayRef         A pointer to a declaration reference expression of the array.
+       *  \param  pIndexExpression  A pointer to the expression object, which returns the index of the subscript.
+       *  \param  crReturnType      The return type of the array subscript.
+       *  \param  bIsLValue         Specifies, whether the array subscript expression is used as a L-value of another expression. */
+      ::clang::ArraySubscriptExpr*  CreateArraySubscriptExpression(::clang::DeclRefExpr *pArrayRef, ::clang::Expr *pIndexExpression, const ::clang::QualType &crReturnType, bool bIsLValue = false);
+
+      /** \brief  Creates a binary operator object of a specified type.
+       *  \param  pLhs            A pointer to the expression object, which shall be on the left-hand-side.
+       *  \param  pRhs            A pointer to the expression object, which shall be on the right-hand-side.
+       *  \param  eOperatorKind   The type of the binary operator.
+       *  \param  crReturnType    The return type of the operator expression. */
+      ::clang::BinaryOperator*      CreateBinaryOperator(::clang::Expr *pLhs, ::clang::Expr *pRhs, ::clang::BinaryOperatorKind eOperatorKind, const ::clang::QualType &crReturnType);
 
       /** \brief  Creates a binary operator object which represents a "less than" comparison.
        *  \param  pLhs  A pointer to the expression object, which shall be on the left-hand-side.
        *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
-      ::clang::BinaryOperator*  CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
+      ::clang::BinaryOperator*      CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
 
       /** \brief  Wraps a statement object into a compound statement object.
        *  \param  pStatement  A pointer to the statement object, which shall be encapsulated into an compound statement. */
-      ::clang::CompoundStmt*    CreateCompoundStatement(::clang::Stmt *pStatement);
+      ::clang::CompoundStmt*        CreateCompoundStatement(::clang::Stmt *pStatement);
 
       /** \brief  Constructs a compound statement object around a vector of statement objects.
        *  \param  crvecStatements   A reference to the statement vector. */
-      ::clang::CompoundStmt*    CreateCompoundStatement(const StatementVectorType &crvecStatements);
+      ::clang::CompoundStmt*        CreateCompoundStatement(const StatementVectorType &crvecStatements);
+
+      /** \brief  Constructs a declaration reference expression which points to a specific declaration.
+       *  \param  pValueDecl  A pointer to the value declaration object. */
+      ::clang::DeclRefExpr*         CreateDeclarationReferenceExpression(::clang::ValueDecl *pValueDecl);
 
       /** \brief  Constructs a declaration statement for a specific declaration.
        *  \param  pDeclRef  A pointer to a declaration reference expression object which points to the specific declaration. */
-      ::clang::DeclStmt*        CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef);
+      ::clang::DeclStmt*            CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef);
+
+      /** \brief  Constructs a declaration statement for a specific declaration.
+       *  \param  pValueDecl  A pointer to the value declaration object. */
+      ::clang::DeclStmt*            CreateDeclarationStatement(::clang::ValueDecl *pValueDecl);
+
+      /** \brief  Creates an implicit cast expression object.
+       *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
+       *  \param  crReturnType        The qualified return type of the cast.
+       *  \param  eCastKind           The internal kind of the cast.
+       *  \param  bIsLValue           Specifies, whether the implicit cast expression is used as a L-value of another expression. */
+      ::clang::ImplicitCastExpr*    CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
       /** \brief  Constructs a post increment statement for a declaration reference expression object.
        *  \param  pDeclRef  A pointer to the declaration reference expression, which shall be used in the post increment operator. */
-      ::clang::UnaryOperator*   CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
+      ::clang::UnaryOperator*       CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
+
+      /** \brief    Creates a new variable declaration object.
+       *  \param    pParentFunction     A pointer to the function declaration object in whose context the new variable shall be declared.
+       *  \param    crstrVariableName   The name of the newly declared variable.
+       *  \param    crVariableType      The qualified type of newly declared variable.
+       *  \param    pInitExpression     A pointer to the initialization expression object for the variable declaration (i.e. the R-value of the assignment).
+       *  \remarks  The created variable declaration is automatically added to the declaration context of the specified function declaration. */
+      ::clang::VarDecl*             CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
 
 
       /** \brief    Looks up a specific declaration.
@@ -127,6 +169,12 @@ namespace Backend
        *  \param    crstrDeclName   The name of the declaration which shall be searched for.
        *  \return   If successful, a pointer to a newly created declaration reference expression for the found declaration, and zero otherwise. */
       ::clang::DeclRefExpr*     FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+
+      /** \brief  Replaces <b>all</b> instances of a declaration reference in a statement tree by a new value declaration.
+       *  \param  pStatement        A pointer to the root of the statement tree which shall be parsed for the specified declaration references.
+       *  \param  crstrDeclRefName  The name of the declaration reference which shall be replaced.
+       *  \param  pNewDecl          A pointer to the value declaration to which all reference will be updated. */
+      void ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
     };
 
 
