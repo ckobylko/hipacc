@@ -42,6 +42,38 @@ using namespace std;
 
 
 // Implementation of class CPU_x86::ClangASTHelper
+unsigned int CPU_x86::ClangASTHelper::CountNumberOfReferences(::clang::Stmt *pStatement, const string &crstrReferenceName)
+{
+  if (pStatement == nullptr)
+  {
+    return 0;
+  }
+  else if (isa<::clang::DeclRefExpr>(pStatement))
+  {
+    ::clang::DeclRefExpr *pCurrentDeclRef = dyn_cast<::clang::DeclRefExpr>(pStatement);
+
+    if (pCurrentDeclRef->getNameInfo().getAsString() == crstrReferenceName)
+    {
+      return 1;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+  else
+  {
+    unsigned int uiChildRefCount = 0;
+
+    for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
+    {
+      uiChildRefCount += CountNumberOfReferences(*itChild, crstrReferenceName);
+    }
+
+    return uiChildRefCount;
+  }
+}
+
 ::clang::ArraySubscriptExpr* CPU_x86::ClangASTHelper::CreateArraySubscriptExpression(::clang::DeclRefExpr *pArrayRef, ::clang::Expr *pIndexExpression, const ::clang::QualType &crReturnType, bool bIsLValue)
 {
   ::clang::ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;
@@ -95,6 +127,16 @@ using namespace std;
   return ASTNode::createImplicitCastExpr(GetASTContext(), crReturnType, eCastKind, pOperandExpression, nullptr, eValueKind);
 }
 
+::clang::IntegerLiteral* CPU_x86::ClangASTHelper::CreateIntegerLiteral(int32_t iValue)
+{
+  return ASTNode::createIntegerLiteral(GetASTContext(), iValue);
+}
+
+::clang::ParenExpr* CPU_x86::ClangASTHelper::CreateParenthesisExpression(::clang::Expr *pSubExpression)
+{
+  return ASTNode::createParenExpr(GetASTContext(), pSubExpression);
+}
+
 ::clang::UnaryOperator* CPU_x86::ClangASTHelper::CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef)
 {
   return ASTNode::createUnaryOperator(_rCtx, pDeclRef, ::clang::UO_PostInc, pDeclRef->getType());
@@ -127,11 +169,38 @@ using namespace std;
 
     if (pValueDecl->getNameAsString() == crstrDeclName)
     {
-      return ASTNode::createDeclRefExpr(_rCtx, pValueDecl);
+      return CreateDeclarationReferenceExpression(pValueDecl);
     }
   }
 
   return nullptr;
+}
+
+bool CPU_x86::ClangASTHelper::IsSingleBranchStatement(::clang::Stmt *pStatement)
+{
+  if (pStatement == nullptr)                                      // Empty statements have no children
+  {
+    return true;
+  }
+  else if (pStatement->child_begin() == pStatement->child_end())  // No children
+  {
+    return true;
+  }
+  else                                                            // Statement has children
+  {
+    // Check if more than one child is present
+    auto itChild = pStatement->child_begin();
+    itChild++;
+
+    if (itChild == pStatement->child_end())   // Only one child => Check if the child is a single branch
+    {
+      return IsSingleBranchStatement(*(pStatement->child_begin()));
+    }
+    else                                      // More than one child => Statement is not a single branch statement
+    {
+      return false;
+    }
+  }
 }
 
 void CPU_x86::ClangASTHelper::ReplaceDeclarationReferences(::clang::Stmt* pStatement, const string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl)
@@ -247,6 +316,12 @@ HipaccMask* CPU_x86::HipaccHelper::GetMaskFromMapping(const string &crstrParamNa
 
   switch (eParamType)
   {
+  case ImageParamType::Buffer:
+    {
+      int iParamIndex = _FindKernelParamIndex(crstrImageName);
+      ::clang::ParmVarDecl *pParamDecl = GetKernelFunction()->getParamDecl(static_cast<unsigned int>(iParamIndex));
+      return ClangASTHelper(_GetASTContext()).CreateDeclarationReferenceExpression(pParamDecl);
+    }
   case ImageParamType::Width:   return pAccessor->getWidthDecl();
   case ImageParamType::Height:  return pAccessor->getHeightDecl();
   case ImageParamType::Stride:  return pAccessor->getStrideDecl();
@@ -353,6 +428,325 @@ CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::Cod
   pairDeclAndCall.second = ASTNode::createFunctionCall( _rASTContext, pairDeclAndCall.first, _vecCallParams );
 
   return pairDeclAndCall;
+}
+
+
+// Implementation of class CPU_x86::CodeGenerator::ImageAccessTranslator
+CPU_x86::CodeGenerator::ImageAccessTranslator::ImageAccessTranslator(HipaccHelper &rHipaccHelper) : _rHipaccHelper(rHipaccHelper), _ASTHelper(_rHipaccHelper.GetKernelFunction()->getASTContext())
+{
+  ::clang::FunctionDecl *pKernelFunction = rHipaccHelper.GetKernelFunction();
+
+  _pDRGidX = _ASTHelper.FindDeclaration(pKernelFunction, _rHipaccHelper.GlobalIdX());
+  _pDRGidY = _ASTHelper.FindDeclaration(pKernelFunction, _rHipaccHelper.GlobalIdY());
+}
+
+list< ::clang::ArraySubscriptExpr* > CPU_x86::CodeGenerator::ImageAccessTranslator::_FindImageAccesses(const string &crstrImageName, ::clang::Stmt *pStatement)
+{
+  list< ::clang::ArraySubscriptExpr* > lstImageAccesses;
+
+  if (pStatement == nullptr)
+  {
+    return lstImageAccesses;
+  }
+  else if (isa<::clang::ArraySubscriptExpr>(pStatement))
+  {
+    // Found an array subscript expression => Check if the structure corresponds to an image access
+    ::clang::ArraySubscriptExpr *pRootArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pStatement);
+
+    // Look through implicit cast expressions
+    ::clang::Expr *pLhs = pRootArraySubscript->getLHS();
+    while (isa<::clang::ImplicitCastExpr>(pLhs))
+    {
+      pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+    }
+
+    if (isa<::clang::ArraySubscriptExpr>(pLhs))
+    {
+      // At least 2-dimensional array found => Look for the declaration reference to the image
+      ::clang::ArraySubscriptExpr *pChildArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pLhs);
+
+      // Look through implicit cast expressions
+      pLhs = pChildArraySubscript->getLHS();
+      while (isa<::clang::ImplicitCastExpr>(pLhs))
+      {
+        pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+      }
+
+      if (isa<::clang::DeclRefExpr>(pLhs))
+      {
+        // Found a 2-dimensional array access => check if the array if the specified image
+        ::clang::DeclRefExpr* pArrayDeclRef = dyn_cast<::clang::DeclRefExpr>(pLhs);
+
+        if (pArrayDeclRef->getNameInfo().getAsString() == crstrImageName)
+        {
+          lstImageAccesses.push_back(pRootArraySubscript);
+        }
+      }
+    }
+  }
+
+  // Parse all children everytime (in case an image access is used as an index expression for another image access)
+  for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
+  {
+    list< ::clang::ArraySubscriptExpr* > lstImageAccessesInternal = _FindImageAccesses(crstrImageName, *itChild);
+
+    if (!lstImageAccessesInternal.empty())
+    {
+      lstImageAccesses.insert(lstImageAccesses.end(), lstImageAccessesInternal.begin(), lstImageAccessesInternal.end());
+    }
+  }
+
+  return lstImageAccesses;
+}
+
+void CPU_x86::CodeGenerator::ImageAccessTranslator::_LinearizeImageAccess(const string &crstrImageName, ::clang::ArraySubscriptExpr *pImageAccessRoot)
+{
+  // Find the horizontal and vertical index expression of the 2-dimensional image access
+  ::clang::Expr *pIndexExprX = pImageAccessRoot->getRHS();
+  ::clang::Expr *pIndexExprY = pImageAccessRoot->getLHS();
+  {
+    while (!isa<::clang::ArraySubscriptExpr>(pIndexExprY))
+    {
+      pIndexExprY = dyn_cast<::clang::Expr>(*pIndexExprY->child_begin());
+    }
+
+    pIndexExprY = dyn_cast<::clang::ArraySubscriptExpr>(pIndexExprY)->getRHS();
+  }
+
+  // The image pointer have been re-routed to the current pixel => strip the reference to the global pixel ID
+  pIndexExprX = _SubtractReference(pIndexExprX, _pDRGidX);
+  pIndexExprY = _SubtractReference(pIndexExprY, _pDRGidY);
+
+
+  // Build the final 1-dimensional index expression
+  ::clang::Expr *pFinalIndexExpression = nullptr;
+  if (pIndexExprY == nullptr)     // No vertical index expression required
+  {
+    if (pIndexExprX == nullptr)     // Neither horizontal nor vertical index required => access to the current pixel
+    {
+      pFinalIndexExpression = _ASTHelper.CreateIntegerLiteral(0);
+    }
+    else                            // Only horizontal index required => Access inside the current row
+    {
+      pFinalIndexExpression = pIndexExprX;
+    }
+  }
+  else                            // Vertical index required
+  {
+    // Account for the row offset necessary for linear memory indexing
+    ::clang::DeclRefExpr *pDRImageStride = _rHipaccHelper.GetImageParameterDecl(crstrImageName, HipaccHelper::ImageParamType::Stride);
+    _rHipaccHelper.MarkParamUsed(pDRImageStride->getNameInfo().getAsString());
+
+    pIndexExprY = _ASTHelper.CreateBinaryOperator(pIndexExprY, pDRImageStride, BO_Mul, pIndexExprY->getType());
+
+
+    if (pIndexExprX == nullptr)     // Only vertical index required => Access inside the current column
+    {
+      pFinalIndexExpression = pIndexExprY;
+    }
+    else                            // Both horizontal and vertical index required => Add up both index expressions
+    {
+      pFinalIndexExpression = _ASTHelper.CreateBinaryOperator(pIndexExprY, pIndexExprX, BO_Add, pIndexExprY->getType());
+    }
+  }
+
+  // Create the final 1-dimensional array subscript expression
+  pImageAccessRoot->setLHS( _rHipaccHelper.GetImageParameterDecl(crstrImageName, HipaccHelper::ImageParamType::Buffer) );
+  pImageAccessRoot->setRHS( pFinalIndexExpression );
+}
+
+::clang::Expr* CPU_x86::CodeGenerator::ImageAccessTranslator::_SubtractReference(::clang::Expr *pExpression, ::clang::DeclRefExpr *pDRSubtrahend)
+{
+  string        strStripVarName   = pDRSubtrahend->getNameInfo().getAsString();
+  unsigned int  uiReferenceCount  = _ASTHelper.CountNumberOfReferences(pExpression, strStripVarName);
+
+  ::clang::Expr *pReturnExpr = nullptr;
+
+  if (uiReferenceCount == 1)    // One reference to stripping variable found => Try to remove it completely
+  {
+    if (_ASTHelper.IsSingleBranchStatement(pExpression))        // The expression refers only to the stripping variable => Entire expression is obsolete
+    {
+      return nullptr;
+    }
+    else if (_TryRemoveReference(pExpression, strStripVarName)) // Try to remove the stripping variable from the expression
+    {
+      pReturnExpr = pExpression;
+    }
+    else                                                        // The stripping variable could not be removed => subtract it to ensure the correct result
+    {
+      pReturnExpr = _ASTHelper.CreateBinaryOperator(pExpression, pDRSubtrahend, ::clang::BO_Sub, pExpression->getType());
+    }
+  }
+  else                          // Either none or more than one reference found => subtract the stripping variable to ensure the correct result
+  {
+    pReturnExpr = _ASTHelper.CreateBinaryOperator(pExpression, pDRSubtrahend, ::clang::BO_Sub, pExpression->getType());
+  }
+
+  return _ASTHelper.CreateParenthesisExpression(pReturnExpr);
+}
+
+bool CPU_x86::CodeGenerator::ImageAccessTranslator::_TryRemoveReference(::clang::Expr *pExpression, string strStripVarName)
+{
+  // Try to find the bottom-most operator referencing the stripping variable
+  ::clang::Expr           *pCurrentExpression = pExpression;
+  ::clang::BinaryOperator *pBottomOperator    = nullptr;
+
+  while (true)
+  {
+    if (isa<::clang::CastExpr>(pCurrentExpression))             // Current node is a cast expression => Step to the subexpression
+    {
+      pCurrentExpression = dyn_cast<::clang::CastExpr>(pCurrentExpression)->getSubExpr();
+    }
+    else if (isa<::clang::ParenExpr>(pCurrentExpression))       // Current node is a parenthesis expression => Step to the subexpression
+    {
+      pCurrentExpression = dyn_cast<::clang::ParenExpr>(pCurrentExpression)->getSubExpr();
+    }
+    else if (isa<::clang::DeclRefExpr>(pCurrentExpression))     // Current node is a declaration reference => Check for the stripping variable
+    {
+      if (dyn_cast<::clang::DeclRefExpr>(pCurrentExpression)->getNameInfo().getAsString() == strStripVarName)
+      {
+        // Found the reference to the stripping variable => Break here and remove it
+        break;
+      }
+      else  // Found a wrong declaration reference (something went wrong) => Stripping failed
+      {
+        return false;
+      }
+    }
+    else if (isa<::clang::BinaryOperator>(pCurrentExpression))  // Found a binary operator => Step into its correct branch
+    {
+      ::clang::BinaryOperator *pCurrentOperator = dyn_cast<::clang::BinaryOperator>(pCurrentExpression);
+
+      if (pCurrentOperator->getOpcode() == ::clang::BO_Add)       // Found an addition => Both branches are supported
+      {
+        if (_ASTHelper.CountNumberOfReferences(pCurrentOperator->getLHS(), strStripVarName) == 1)
+        {
+          // Found the reference in the left-hand-branch => Step into it
+          pCurrentExpression = pCurrentOperator->getLHS();
+        }
+        else if (_ASTHelper.CountNumberOfReferences(pCurrentOperator->getRHS(), strStripVarName) == 1)
+        {
+          // Found the reference in the right-hand-branch => Step into it
+          pCurrentExpression = pCurrentOperator->getRHS();
+        }
+        else  // Something went wrong => Stripping failed
+        {
+          return false;
+        }
+      }
+      else if (pCurrentOperator->getOpcode() == ::clang::BO_Sub)  // Found a substraction => Only the left-hand-branch is supported for the stripping
+      {
+        if (_ASTHelper.CountNumberOfReferences(pCurrentOperator->getLHS(), strStripVarName) == 1)
+        {
+          // Found the reference in the left-hand-branch => Step into it
+          pCurrentExpression = pCurrentOperator->getLHS();
+        }
+        else  // Reference is not in the left-hand-branch => Stripping failed
+        {
+          return false;
+        }
+      }
+      else  // The type of the binary operator is not supported => Stripping failed
+      {
+        return false;
+      }
+
+      // Set the current operator as the bottom-most operator
+      pBottomOperator = pCurrentOperator;
+    }
+    else                                                        // Found an unsupported expression => Stripping failed
+    {
+      return false;
+    }
+  }
+
+
+  if (pBottomOperator != nullptr)   // Found the bottom-most binary operator referencing the stripping variable
+  {
+    // Replace the operator branch containing the stripping variable with zero (note: this operator could be reduced, but then its parent would need to be changed)
+    ::clang::Expr *pZeroLiteral = _ASTHelper.CreateIntegerLiteral(0);
+
+    if (_ASTHelper.CountNumberOfReferences(pBottomOperator->getLHS(), strStripVarName) == 1)
+    {
+      pBottomOperator->setLHS(pZeroLiteral);
+    }
+    else if (_ASTHelper.CountNumberOfReferences(pBottomOperator->getRHS(), strStripVarName) == 1)
+    {
+      pBottomOperator->setRHS(pZeroLiteral);
+    }
+
+    return true;
+  }
+  else                              // Could not find the bottom-most reference => Stripping failed
+  {
+    return false;
+  }
+}
+
+CPU_x86::CodeGenerator::ImageAccessTranslator::ImageLinePosDeclPairType CPU_x86::CodeGenerator::ImageAccessTranslator::CreateImageLineAndPosDecl(std::string strImageName)
+{
+  ImageLinePosDeclPairType LinePosDeclPair;
+
+  ::clang::DeclRefExpr  *pImageDeclRef    = _rHipaccHelper.GetImageParameterDecl(strImageName, HipaccHelper::ImageParamType::Buffer);
+  ::clang::FunctionDecl *pKernelFunction  = _rHipaccHelper.GetKernelFunction();
+
+  // Fetch the required image access and pointer types
+  QualType qtArrayAccessType, qtImagePointerType;
+  {
+    qtArrayAccessType = pImageDeclRef->getType()->getPointeeType();
+    QualType qtElementType = qtArrayAccessType->getAsArrayTypeUnsafe()->getElementType();
+
+    if (_rHipaccHelper.GetImageAccess(strImageName) == READ_ONLY)
+    {
+      qtElementType.addConst();
+    }
+
+    qtImagePointerType = _ASTHelper.GetPointerType(qtElementType);
+  }
+
+
+  // Create the declaration of the currently processed image line, e.g. "float *Output_CurrentLine = Output[gid_y];"
+  {
+    ::clang::ArraySubscriptExpr *pArrayAccess   = _ASTHelper.CreateArraySubscriptExpression(pImageDeclRef, _pDRGidY, qtArrayAccessType, false);
+    ::clang::ImplicitCastExpr   *pCastToPointer = _ASTHelper.CreateImplicitCastExpression(pArrayAccess, qtImagePointerType, CK_ArrayToPointerDecay, false);
+    LinePosDeclPair.first                       = _ASTHelper.CreateVariableDeclaration(pKernelFunction, strImageName + string("_CurrentLine"), qtImagePointerType, pCastToPointer);
+  }
+
+  ::clang::DeclRefExpr *pImageLineDeclRef = _ASTHelper.CreateDeclarationReferenceExpression(LinePosDeclPair.first);
+
+
+  // Create the declaration of the currently processed image pixel, e.g. "float *Output_CurrentPos = Output_CurrentLine + gid_x;"
+  ::clang::BinaryOperator *pPointerAddition = _ASTHelper.CreateBinaryOperator(pImageLineDeclRef, _pDRGidX, BO_Add, qtImagePointerType);
+  LinePosDeclPair.second                    = _ASTHelper.CreateVariableDeclaration(pKernelFunction, strImageName + string("_CurrentPos"), qtImagePointerType, pPointerAddition);
+
+  return LinePosDeclPair;
+}
+
+void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageAccesses()
+{
+  ::clang::FunctionDecl *pKernelFunction = _rHipaccHelper.GetKernelFunction();
+
+  // Parse through all kernel images
+  for (size_t i = 0; i < pKernelFunction->getNumParams(); ++i)
+  {
+    ::clang::ParmVarDecl  *pParamDecl = pKernelFunction->getParamDecl(i);
+    string                strParamName = pParamDecl->getNameAsString();
+
+    // Skip all kernel function parameters, which are unused or do not refer to an HIPAcc image
+    if ((!_rHipaccHelper.IsParamUsed(strParamName)) || (_rHipaccHelper.GetImageFromMapping(strParamName) == nullptr))
+    {
+      continue;
+    }
+
+    // Find all access to the current image
+    list< ::clang::ArraySubscriptExpr* >  lstImageAccesses = _FindImageAccesses(strParamName, pKernelFunction->getBody());
+
+    // Linearize all found image accesses
+    for each (auto itImageAccess in lstImageAccesses)
+    {
+      _LinearizeImageAccess(strParamName, itImageAccess);
+    }
+  }
 }
 
 
@@ -503,101 +897,10 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
 }
 
 
-list< ::clang::ArraySubscriptExpr* >  CPU_x86::CodeGenerator::_FindImageAccesses(const std::string &crstrImageName, ::clang::Stmt *pStatement)
-{
-  list< ::clang::ArraySubscriptExpr* > lstImageAccesses;
-
-  if (pStatement == nullptr)
-  {
-    return lstImageAccesses;
-  }
-  else if (isa<::clang::ArraySubscriptExpr>(pStatement))
-  {
-    // Found an array subscript expression => Check if the structure corresponds to an image access
-    ::clang::ArraySubscriptExpr *pRootArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pStatement);
-
-    // Look through implicit cast expressions
-    ::clang::Expr *pLhs = pRootArraySubscript->getLHS();
-    while (isa<::clang::ImplicitCastExpr>(pLhs))
-    {
-      pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
-    }
-
-    if (isa<::clang::ArraySubscriptExpr>(pLhs))
-    {
-      // At least 2-dimensional array found => Look for the declaration reference to the image
-      ::clang::ArraySubscriptExpr *pChildArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pLhs);
-
-      // Look through implicit cast expressions
-      pLhs = pChildArraySubscript->getLHS();
-      while (isa<::clang::ImplicitCastExpr>(pLhs))
-      {
-        pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
-      }
-
-      if (isa<::clang::DeclRefExpr>(pLhs))
-      {
-        // Found a 2-dimensional array access => check if the array if the specified image
-        ::clang::DeclRefExpr* pArrayDeclRef = dyn_cast<::clang::DeclRefExpr>(pLhs);
-
-        if (pArrayDeclRef->getNameInfo().getAsString() == crstrImageName)
-        {
-          lstImageAccesses.push_back(pRootArraySubscript);
-        }
-      }
-    }
-  }
-
-  // Parse all children everytime (in case an image access is used as an index expression for another image access)
-  for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
-  {
-    list< ::clang::ArraySubscriptExpr* > lstImageAccessesInternal = _FindImageAccesses(crstrImageName, *itChild);
-
-    if (! lstImageAccessesInternal.empty())
-    {
-      lstImageAccesses.insert(lstImageAccesses.end(), lstImageAccessesInternal.begin(), lstImageAccessesInternal.end());
-    }
-  }
-
-  return lstImageAccesses;
-}
-
-void CPU_x86::CodeGenerator::_TranslateImageAccesses(HipaccHelper &rHipaccHelper)
-{
-  ::clang::FunctionDecl *pKernelFunction = rHipaccHelper.GetKernelFunction();
-  ClangASTHelper        ASTHelper(pKernelFunction->getASTContext());
-
-  // Parse through all kernel images
-  for (size_t i = 0; i < pKernelFunction->getNumParams(); ++i)
-  {
-    ::clang::ParmVarDecl  *pParamDecl = pKernelFunction->getParamDecl(i);
-    string                strParamName = pParamDecl->getNameAsString();
-
-    // Skip all kernel function parameters, which are unused or to not refer to an HIPAcc image
-    if ((!rHipaccHelper.IsParamUsed(strParamName)) || (rHipaccHelper.GetImageFromMapping(strParamName) == nullptr))
-    {
-      continue;
-    }
-
-    // Mark the image stride as used kernel parameter (required for the linearization of the image access)
-    ::clang::DeclRefExpr *pImageStrideDecl = rHipaccHelper.GetImageParameterDecl(strParamName, HipaccHelper::ImageParamType::Stride);
-    rHipaccHelper.MarkParamUsed(pImageStrideDecl->getNameInfo().getAsString());
-
-    // Find all access to the current image
-    list< ::clang::ArraySubscriptExpr* >  lstImageAccesses = _FindImageAccesses(strParamName, pKernelFunction->getBody());
-
-
-    for each (auto itImageAccess in lstImageAccesses)
-    {
-      // TODO: Translate the image accesses
-    }
-  }
-}
-
-
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {
-  HipaccHelper    hipaccHelper(pKernelFunction, pKernel);
+  HipaccHelper          hipaccHelper(pKernelFunction, pKernel);
+  ImageAccessTranslator ImgAccessTranslator(hipaccHelper);
 
   // Add the iteration space loops
   {
@@ -610,7 +913,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     // If vectorization is enabled, split the kernel function into the "iteration space"-part and the "pixel-wise processing"-part
     if (_bVectorizeKernel)
     {
-      _TranslateImageAccesses(hipaccHelper);
+      ImgAccessTranslator.TranslateImageAccesses();
 
       // Push loop body to own function
       ::clang::Stmt *pKernelBody = pKernelFunction->getBody();
@@ -656,43 +959,15 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
             continue;
           }
 
-          // Fetch the required image access and pointer types
-          QualType qtArrayAccessType, qtImagePointerType;
-          {
-            qtArrayAccessType       = pParamDecl->getType()->getPointeeType();
-            QualType qtElementType  = qtArrayAccessType->getAsArrayTypeUnsafe()->getElementType();
+          // Create declaration for "current line" and "current pixel" image pointers and add them to the iteration space loops
+          ImageAccessTranslator::ImageLinePosDeclPairType LinePosDeclPair = ImgAccessTranslator.CreateImageLineAndPosDecl(strParamName);
 
-            if (hipaccHelper.GetImageAccess(strParamName) == READ_ONLY)
-            {
-              qtElementType.addConst();
-            }
+          vecOuterLoopBody.push_back( ASTHelper.CreateDeclarationStatement(LinePosDeclPair.first) );
+          vecInnerLoopBody.push_back( ASTHelper.CreateDeclarationStatement(LinePosDeclPair.second) );
 
-            qtImagePointerType = ASTHelper.GetPointerType(qtElementType);
-          }
-
-
-          // Create the declaration of the currently processed image line, e.g. "float *Output_CurrentLine = Output[gid_y];"
-          ::clang::DeclRefExpr *pImageLineDeclRef = nullptr;
-          {
-            ::clang::DeclRefExpr        *pImageDeclRef  = ASTHelper.CreateDeclarationReferenceExpression(pParamDecl);
-            ::clang::ArraySubscriptExpr *pArrayAccess   = ASTHelper.CreateArraySubscriptExpression(pImageDeclRef, gid_y_ref, qtArrayAccessType, false);
-            ::clang::ImplicitCastExpr   *pCastToPointer = ASTHelper.CreateImplicitCastExpression(pArrayAccess, qtImagePointerType, CK_ArrayToPointerDecay, false);
-            ::clang::VarDecl            *pImageLineDecl = ASTHelper.CreateVariableDeclaration(pKernelFunction, strParamName + string("_CurrentLine"), qtImagePointerType, pCastToPointer);
-
-            pImageLineDeclRef = ASTHelper.CreateDeclarationReferenceExpression(pImageLineDecl);
-          }
-
-          vecOuterLoopBody.push_back( ASTHelper.CreateDeclarationStatement(pImageLineDeclRef) );
-
-
-          // Create the declaration of the currently processed image pixel, e.g. "float *Output_CurrentPos = Output_CurrentLine + gid_x;"
-          ::clang::BinaryOperator *pPointerAddition = ASTHelper.CreateBinaryOperator(pImageLineDeclRef, gid_x_ref, BO_Add, qtImagePointerType);
-          ::clang::VarDecl        *pImagePosDecl    = ASTHelper.CreateVariableDeclaration(pKernelFunction, strParamName + string("_CurrentPos"), qtImagePointerType, pPointerAddition);
-
-          vecInnerLoopBody.push_back( ASTHelper.CreateDeclarationStatement(pImagePosDecl) );
 
           // Replace all references to the HIPAcc image by the "current pixel" pointer
-          ASTHelper.ReplaceDeclarationReferences(pKernelFunction->getBody(), strParamName, pImagePosDecl);
+          ASTHelper.ReplaceDeclarationReferences(pKernelFunction->getBody(), strParamName, LinePosDeclPair.second);
         }
       }
 

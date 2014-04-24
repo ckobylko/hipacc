@@ -106,6 +106,9 @@ namespace Backend
       inline ::clang::QualType    GetPointerType(const ::clang::QualType &crPointeeType)  { return GetASTContext().getPointerType(crPointeeType); }
 
 
+      /** \name AST node creation methods */
+      //@{
+
       /** \brief  Creates an subscript expression.
        *  \param  pArrayRef         A pointer to a declaration reference expression of the array.
        *  \param  pIndexExpression  A pointer to the expression object, which returns the index of the subscript.
@@ -152,6 +155,14 @@ namespace Backend
        *  \param  bIsLValue           Specifies, whether the implicit cast expression is used as a L-value of another expression. */
       ::clang::ImplicitCastExpr*    CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
+      /** \brief  Creates an integer literal expression (i.e. a compile time constant).
+       *  \param  iValue  The value of the integer literal. */
+      ::clang::IntegerLiteral*      CreateIntegerLiteral(int32_t iValue);
+
+      /** \brief  Creates a parenthesis expression around another expression.
+       *  \param  pSubExpression  A pointer to the expression object which shall be encapsulated into a parenthesis expression. */
+      ::clang::ParenExpr*           CreateParenthesisExpression(::clang::Expr *pSubExpression);
+
       /** \brief  Constructs a post increment statement for a declaration reference expression object.
        *  \param  pDeclRef  A pointer to the declaration reference expression, which shall be used in the post increment operator. */
       ::clang::UnaryOperator*       CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
@@ -164,18 +175,31 @@ namespace Backend
        *  \remarks  The created variable declaration is automatically added to the declaration context of the specified function declaration. */
       ::clang::VarDecl*             CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
 
+      //@}
+
+    public:
+
+
+      /** \brief  Counts the number of declaration references to a specific declaration inside a statement tree.
+       *  \param  pStatement          A pointer to the root of the statement tree which shall be parsed for the specified declaration references.
+       *  \param  crstrReferenceName  The name of the declaration reference whose appearances shall be counted. */
+      static unsigned int     CountNumberOfReferences(::clang::Stmt *pStatement, const std::string &crstrReferenceName);
 
       /** \brief    Looks up a specific declaration.
        *  \param    pFunction       A pointer to the function declaration object whose declaration context will be searched for the specified declaration.
        *  \param    crstrDeclName   The name of the declaration which shall be searched for.
        *  \return   If successful, a pointer to a newly created declaration reference expression for the found declaration, and zero otherwise. */
-      ::clang::DeclRefExpr*     FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+      ::clang::DeclRefExpr*   FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+
+      /** \brief  Checks whether a statement tree has only one branch (i.e. none of its nodes has more than one child).
+       *  \param  pStatement  A pointer to the root of the statement tree. */
+      static bool             IsSingleBranchStatement(::clang::Stmt *pStatement);
 
       /** \brief  Replaces <b>all</b> instances of a declaration reference in a statement tree by a new value declaration.
        *  \param  pStatement        A pointer to the root of the statement tree which shall be parsed for the specified declaration references.
        *  \param  crstrDeclRefName  The name of the declaration reference which shall be replaced.
        *  \param  pNewDecl          A pointer to the value declaration to which all reference will be updated. */
-      void ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
+      static void             ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
     };
 
 
@@ -187,6 +211,7 @@ namespace Backend
       /** \brief  Enumeration of internal parameters of HIPAcc images. */
       enum class ImageParamType
       {
+        Buffer,   //!< Refers to the data buffer of an image.
         Width,    //!< Refers to the width of an image.
         Height,   //!< Refers to the height of an image.
         Stride    //!< Refers to the stride of an image (i.e. the offset between vertically adjacent pixels).
@@ -336,6 +361,63 @@ namespace Backend
       };
 
 
+      /** \brief  Helper class which translates declarations of and accesses to HIPAcc images. */
+      class ImageAccessTranslator
+      {
+      public:
+
+        typedef std::pair< ::clang::VarDecl*, ::clang::VarDecl* >   ImageLinePosDeclPairType;   //!< \brief   Type definition for the "current line" and "current pixel" pointer declaration pair.
+                                                                                                //!< \details The first entry is the "line" declaration and the second one is the "pixel" declaration.
+
+      private:
+
+        HipaccHelper          &_rHipaccHelper;    //!< A reference to the HIPAcc helper object which encapsulates the kernel.
+        ClangASTHelper        _ASTHelper;         //!< The AST helper object.
+        ::clang::DeclRefExpr  *_pDRGidX;          //!< A pointer to horizontal global ID declaration reference of the kernel.
+        ::clang::DeclRefExpr  *_pDRGidY;          //!< A pointer to vertical global ID declaration reference of the kernel.
+
+
+        /** \brief  Returns a list of all array subscript expressions which describe an access to the specified HIPAcc image.
+         *  \param  crstrImageName  The name of the image whose access shall be found.
+         *  \param  pStatement      The root of the statement tree which shall be parsed for an image access. */
+        static std::list< ::clang::ArraySubscriptExpr* > _FindImageAccesses(const std::string &crstrImageName, ::clang::Stmt *pStatement);
+
+        /** \brief  Translates one 2-dimensional global access to a HIPAcc image a into local 1-dimensional image access.
+         *  \param  crstrImageName    The name of the HIPAcc image which is being accessed.
+         *  \param  pImageAccessRoot  A pointer to the root expression of the image access. */
+        void _LinearizeImageAccess(const std::string &crstrImageName, ::clang::ArraySubscriptExpr *pImageAccessRoot);
+
+        /** \brief    Subtracts a variable from an expression tree.
+         *  \details  This function tries to simplify the resulting expression if possible. If the resulting expression would evaluate to
+         *            <b>zero</b>, a <b>nullptr</b> is returned.
+         *  \param    pExpression     A pointer to the root of the expression tree.
+         *  \param    pDRSubtrahend   A pointer to the declaration reference of the variable which shall be subtracted from the expression tree.
+         *  \return   The resulting modified expression tree or <b>nullptr</b>. */
+        ::clang::Expr* _SubtractReference(::clang::Expr *pExpression, ::clang::DeclRefExpr *pDRSubtrahend);
+
+        /** \brief  Tries to remove <b>exactly one</b> additive reference to a variable from a expression tree.
+         *  \param  pExpression       A pointer to the root of the expression tree.
+         *  \param  strStripVarName   The name of the variable which shall be removed from the expression tree.
+         *  \return <b>True</b>, if the reference could be removed, and <b>false</b> otherwise. */
+        bool _TryRemoveReference(::clang::Expr *pExpression, std::string strStripVarName);
+
+
+      public:
+
+        /** \brief  Constructor.
+         *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
+        ImageAccessTranslator(HipaccHelper &rHipaccHelper);
+
+
+        /** \brief  Creates variable declarations for pointers to the current line and the current pixel of an image.
+         *  \param  strImageName  The name of the image for which the "current line" and "current pixel" pointer shall be declared. */
+        ImageLinePosDeclPairType CreateImageLineAndPosDecl(std::string strImageName);
+
+        /** \brief  Translates the 2-dimensional global image accesses inside a kernel function into local 1-dimensional image accesses.
+         *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
+        void TranslateImageAccesses();
+      };
+
 
       /** \brief  Create as clang statement for an iteration space "for"-loop.
        *  \param  rAstHelper    A reference to the current AST helper object.
@@ -358,17 +440,6 @@ namespace Backend
        *  \param    bTranslateImageDecls  Specifies, whether the declaration of the HIPAcc images shall be translated to native pixel pointers.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
       std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bTranslateImageDecls = false);
-
-
-      /** \brief  Returns a list of all array subscript expressions which describe an access of the specified HIPAcc image.
-       *  \param  crstrImageName  The name of the image whose access shall be found.
-       *  \param  pStatement      The root of the statement tree which shall be parsed for an image access. */
-      static std::list< ::clang::ArraySubscriptExpr* > _FindImageAccesses(const std::string &crstrImageName, ::clang::Stmt *pStatement);
-
-      /** \brief  Translates the 2-dimensional global image accesses inside a kernel function into local 1-dimensional image accesses.
-       *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
-      static void _TranslateImageAccesses(HipaccHelper &rHipaccHelper);
-
 
 
     private:
