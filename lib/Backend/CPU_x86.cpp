@@ -32,6 +32,7 @@
 
 #include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
+#include "hipacc/Backend/Vectorizer.h"
 #include <map>
 #include <sstream>
 
@@ -936,6 +937,9 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       rOutputStream << "inline " << _FormatFunctionHeader(DeclCallPair.first, hipaccHelper, false, true);
       DeclCallPair.first->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
       rOutputStream << "\n\n";
+
+
+      Vectorization::Vectorizer().ConvertClangFunctionDecl(DeclCallPair.first);
     }
 
 
