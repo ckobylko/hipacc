@@ -97,16 +97,78 @@ namespace Vectorization
 
     public:
 
+      class TypeInfo
+      {
+      public:
+
+        typedef std::vector< size_t >    ArrayDimensionVectorType;
+
+        enum class KnownTypes
+        {
+          Bool,
+          Int8,
+          UInt8,
+          Int16,
+          UInt16,
+          Int32,
+          UInt32,
+          Int64,
+          UInt64,
+          Float,
+          Double
+        };
+
+
+      private:
+
+        KnownTypes                _eType;
+        bool                      _bIsConst;
+        bool                      _bIsPointer;
+        ArrayDimensionVectorType  _vecArrayDimensions;
+
+        static std::string _GetBoolString(bool bValue);
+        static std::string _GetTypeString(KnownTypes eType);
+
+
+      public:
+
+        inline TypeInfo() : _eType(KnownTypes::Int32), _bIsConst(false), _bIsPointer(false)   {}
+        inline TypeInfo(const TypeInfo &crRVal)   { *this = crRVal; }
+        TypeInfo& operator=(const TypeInfo &crRVal);
+
+
+        inline bool IsArray() const       { return (! _vecArrayDimensions.empty()); }
+
+        inline ArrayDimensionVectorType&        GetArrayDimensions()        { return _vecArrayDimensions; }
+        inline const ArrayDimensionVectorType&  GetArrayDimensions() const  { return _vecArrayDimensions; }
+
+        inline bool GetConst() const          { return _bIsConst; }
+        inline void SetConst(bool bIsConst)   { _bIsConst = bIsConst; }
+
+        inline bool GetPointer() const            { return _bIsPointer; }
+        inline void SetPointer(bool bIsPointer)   { _bIsPointer = bIsPointer; }
+
+        inline KnownTypes GetType() const             { return _eType; }
+        inline void       SetType(KnownTypes eType)   { _eType = eType; }
+
+
+        std::string DumpToXML(size_t szIntend);
+      };
+
       class VariableInfo
       {
       private:
 
         std::string _strName;
+        TypeInfo    _Type;
 
       public:
 
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
+
+        inline TypeInfo&        GetTypeInfo()       { return _Type; }
+        inline const TypeInfo&  GetTypeInfo() const { return _Type; }
 
         std::string DumpToXML(size_t szIntend);
       };

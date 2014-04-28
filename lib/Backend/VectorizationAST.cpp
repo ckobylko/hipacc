@@ -31,6 +31,7 @@
 //===---------------------------------------------------------------------------------===//
 
 #include "hipacc/Backend/VectorizationAST.h"
+#include <sstream>
 
 using namespace clang::hipacc::Backend::Vectorization;
 using namespace std;
@@ -39,12 +40,80 @@ using namespace std;
 #define CHECK_NULL_POINTER(ptr)   if (ptr == nullptr)   { throw InternalErrors::NullPointerException(#ptr); }
 
 
+AST::BaseClasses::TypeInfo& AST::BaseClasses::TypeInfo::operator=(const TypeInfo &crRVal)
+{
+  _bIsConst   = crRVal._bIsConst;
+  _bIsPointer = crRVal._bIsPointer;
+  _eType      = crRVal._eType;
+
+  _vecArrayDimensions.clear();
+  _vecArrayDimensions.insert(_vecArrayDimensions.end(), crRVal._vecArrayDimensions.begin(), crRVal._vecArrayDimensions.end());
+
+  return *this;
+}
+
+string AST::BaseClasses::TypeInfo::_GetBoolString(bool bValue)
+{
+  return bValue ? "true" : "false";
+}
+
+string AST::BaseClasses::TypeInfo::_GetTypeString(KnownTypes eType)
+{
+  switch (eType)
+  {
+  case KnownTypes::Bool:    return "Bool";
+  case KnownTypes::Int8:    return "Int8";
+  case KnownTypes::UInt8:   return "UInt8";
+  case KnownTypes::Int16:   return "Int16";
+  case KnownTypes::UInt16:  return "UInt16";
+  case KnownTypes::Int32:   return "Int32";
+  case KnownTypes::UInt32:  return "UInt32";
+  case KnownTypes::Int64:   return "Int64";
+  case KnownTypes::UInt64:  return "UInt64";
+  case KnownTypes::Float:   return "Float";
+  case KnownTypes::Double:  return "Double";
+  default:                  throw InternalErrorException("Unknown type!");
+  }
+}
+
+string AST::BaseClasses::TypeInfo::DumpToXML(size_t szIntend)
+{
+  stringstream XmlStream;
+
+  XmlStream << string(szIntend, ' ') << "<TypeInfo";
+
+  XmlStream << " type=\""       << _GetTypeString(_eType)          << "\"";
+  XmlStream << " is_const=\""   << _GetBoolString( GetConst() )    << "\"";
+  XmlStream << " is_pointer=\"" << _GetBoolString( GetPointer() )  << "\"";
+  XmlStream << " is_array=\""   << _GetBoolString( IsArray() )     << "\"";
+
+  if (IsArray())
+  {
+    XmlStream << " array_dim=\"";
+
+    for each (auto itDim in _vecArrayDimensions)
+    {
+      XmlStream << "[" << itDim << "]";
+    }
+    
+    XmlStream << "\"";
+  }
+
+  XmlStream << " />\n";
+
+  return XmlStream.str();
+}
+
+
+
 string AST::BaseClasses::VariableInfo::DumpToXML(size_t szIntend)
 {
   string strPadString("");
   strPadString.resize(szIntend, ' ');
 
-  string strXmlString = strPadString + string("<Variable name =\"") + GetName() + string("\">\n");
+  string strXmlString = strPadString + string("<Variable name=\"") + GetName() + string("\">\n");
+
+  strXmlString += _Type.DumpToXML(szIntend + 2);
 
   strXmlString += strPadString + string("</Variable>\n");
 

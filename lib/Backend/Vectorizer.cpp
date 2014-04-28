@@ -45,8 +45,87 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl)
 {
   AST::BaseClasses::VariableInfoPtr spVariableInfo = std::make_shared< AST::BaseClasses::VariableInfo >();
-
   spVariableInfo->SetName(pVarDecl->getNameAsString());
+
+  AST::BaseClasses::TypeInfo &rTypeInfo = spVariableInfo->GetTypeInfo();
+
+  ::clang::QualType qtVarType = pVarDecl->getType();
+
+  while (qtVarType->isArrayType())
+  {
+    const ::clang::ArrayType *pArrayType = qtVarType->getAsArrayTypeUnsafe();
+
+    if (pArrayType->isConstantArrayType())
+    {
+      const ::clang::ConstantArrayType *pConstArrayType = dyn_cast<::clang::ConstantArrayType>(pArrayType);
+
+      rTypeInfo.GetArrayDimensions().push_back( static_cast< size_t >( *(pConstArrayType->getSize().getRawData()) ) );
+    }
+    else
+    {
+      throw RuntimeErrorException("Only constant size array types allowed!");
+    }
+
+    qtVarType = pArrayType->getElementType();
+  }
+
+  if (qtVarType->isPointerType())
+  {
+    rTypeInfo.SetPointer(true);
+    qtVarType = qtVarType->getPointeeType();
+
+    if (qtVarType->isPointerType())
+    {
+      throw RuntimeErrorException("Only one level of indirection is allowed for pointer types!");
+    }
+  }
+  else
+  {
+    rTypeInfo.SetPointer(false);
+  }
+
+  rTypeInfo.SetConst(qtVarType.isConstQualified());
+
+  if (qtVarType->isScalarType())
+  {
+    qtVarType = qtVarType->getCanonicalTypeInternal();
+
+    if (qtVarType->isBuiltinType())
+    {
+      typedef ::clang::BuiltinType                    ClangTypes;
+      typedef AST::BaseClasses::TypeInfo::KnownTypes  KnownTypes;
+
+      const ::clang::BuiltinType *pBuiltInType = qtVarType->getAs<::clang::BuiltinType>();
+
+      KnownTypes eType;
+
+      switch (pBuiltInType->getKind())
+      {
+      case ClangTypes::Bool:                              eType = KnownTypes::Bool;     break;
+      case ClangTypes::Char_S: case ClangTypes::SChar:    eType = KnownTypes::Int8;     break;
+      case ClangTypes::Char_U: case ClangTypes::UChar:    eType = KnownTypes::UInt8;    break;
+      case ClangTypes::Short:                             eType = KnownTypes::Int16;    break;
+      case ClangTypes::UShort:                            eType = KnownTypes::UInt16;   break;
+      case ClangTypes::Int:                               eType = KnownTypes::Int32;    break;
+      case ClangTypes::UInt:                              eType = KnownTypes::UInt32;   break;
+      case ClangTypes::Long:                              eType = KnownTypes::Int64;    break;
+      case ClangTypes::ULong:                             eType = KnownTypes::UInt64;   break;
+      case ClangTypes::Float:                             eType = KnownTypes::Float;    break;
+      case ClangTypes::Double:                            eType = KnownTypes::Double;   break;
+      default:                                            throw RuntimeErrorException("Unsupported built-in type detected!");
+      }
+
+      rTypeInfo.SetType(eType);
+    }
+    else
+    {
+      throw RuntimeErrorException("Expected a built-in type!");
+    }
+  }
+  else
+  {
+    throw RuntimeErrorException("Only scalar types, pointers to scalar types, or arrays of scalar or pointers to scalar types allowed!");
+  }
 
   return spVariableInfo;
 }
@@ -141,9 +220,7 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 
   for (size_t i = 0; i < pFunctionDeclaration->getNumParams(); ++i)
   {
-    AST::BaseClasses::VariableInfoPtr spVariable = std::make_shared<AST::BaseClasses::VariableInfo>();
-
-    spVariable->SetName(pFunctionDeclaration->getParamDecl(i)->getNameAsString());
+    AST::BaseClasses::VariableInfoPtr spVariable = _BuildVariableInfo( pFunctionDeclaration->getParamDecl(i) );
 
     spFunctionDecl->AddParameter(spVariable);
   }
