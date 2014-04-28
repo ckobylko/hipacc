@@ -903,11 +903,7 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
       string strParamBuffer;
       llvm::raw_string_ostream ParamStream(strParamBuffer);
 
-      QualType T = pParamDecl->getType();
-      T.removeLocalConst();
-      T.removeLocalRestrict();
-
-      T.getAsStringInternal(strName, GetPrintingPolicy());
+      pParamDecl->getType().getAsStringInternal(strName, GetPrintingPolicy());
       ParamStream << strName;
 
       // default arguments ...
