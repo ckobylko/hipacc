@@ -160,11 +160,15 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
   return spConstant;
 }
 
-AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildConvertExpression(::clang::CastExpr *pCastExpr)
+AST::Expressions::ConversionPtr Vectorizer::VASTBuilder::_BuildConversionExpression(::clang::CastExpr *pCastExpr)
 {
-  // TODO: This implementation is currently looking through cast => This has to be changed for the future
+  AST::Expressions::ConversionPtr spConversion = AST::CreateNode< AST::Expressions::Conversion >();
 
-  return _BuildExpression(pCastExpr->getSubExpr());
+  // TODO: Convert the clang cast type into the corresponding VAST type
+
+  spConversion->SetSubExpression( _BuildExpression(pCastExpr->getSubExpr()) );
+
+  return spConversion;
 }
 
 AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clang::Expr *pExpression)
@@ -217,7 +221,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   }
   else if (isa<::clang::CastExpr>(pExpression))
   {
-    spReturnExpression = _BuildConvertExpression(dyn_cast<::clang::CastExpr>(pExpression));
+    spReturnExpression = _BuildConversionExpression(dyn_cast<::clang::CastExpr>(pExpression));
   }
   else if (isa<::clang::ParenExpr>(pExpression))
   {

@@ -241,6 +241,17 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::UnaryExpression::GetSubExpress
 }
 
 
+string AST::Expressions::Conversion::DumpToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString = strPadString + string("<Conversion>\n");
+  strXmlString += _DumpSubExpressionToXML(szIntend + 2);
+  strXmlString += strPadString + string("</Conversion>\n");
+
+  return strXmlString;
+}
+
 string AST::Expressions::Parenthesis::DumpToXML(size_t szIntend)
 {
   string strPadString(szIntend, ' ');

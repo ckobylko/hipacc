@@ -55,15 +55,15 @@ namespace Vectorization
     {
     private:
 
-      static AST::Expressions::BinaryOperatorPtr _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
+      static AST::Expressions::BinaryOperatorPtr  _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
 
-      static AST::Expressions::ConstantPtr _BuildConstantExpression(::clang::Expr *pExpression);
+      static AST::Expressions::ConstantPtr        _BuildConstantExpression(::clang::Expr *pExpression);
 
-      static AST::BaseClasses::ExpressionPtr _BuildConvertExpression(::clang::CastExpr *pCastExpr);
+      static AST::Expressions::ConversionPtr      _BuildConversionExpression(::clang::CastExpr *pCastExpr);
 
-      static AST::BaseClasses::ExpressionPtr _BuildExpression(::clang::Expr *pExpression);
+      static AST::BaseClasses::ExpressionPtr      _BuildExpression(::clang::Expr *pExpression);
 
-      static AST::BaseClasses::VariableInfoPtr _BuildVariableInfo(::clang::VarDecl *pVarDecl);
+      static AST::BaseClasses::VariableInfoPtr    _BuildVariableInfo(::clang::VarDecl *pVarDecl);
 
       static void _ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement);
 

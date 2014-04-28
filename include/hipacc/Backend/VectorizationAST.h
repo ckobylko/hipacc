@@ -278,6 +278,7 @@ namespace Vectorization
       class Value;
       class Constant;
       class Identifier;
+      class Conversion;
       class Parenthesis;
       class BinaryOperator;
       class ArithmeticOperator;
@@ -287,6 +288,7 @@ namespace Vectorization
       typedef std::shared_ptr< Value >                ValuePtr;
       typedef std::shared_ptr< Constant >             ConstantPtr;
       typedef std::shared_ptr< Identifier >           IdentifierPtr;
+      typedef std::shared_ptr< Conversion >           ConversionPtr;
       typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
       typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
       typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
@@ -458,7 +460,7 @@ namespace Vectorization
 
         enum class UnaryExpressionType
         {
-          ConvertExpression,
+          Conversion,
           Parenthesis,
           UnaryOperator
         };
@@ -484,7 +486,7 @@ namespace Vectorization
 
       };
 
-      class ConvertExpression final : public UnaryExpression
+      class Conversion final : public UnaryExpression
       {
       private:
 
@@ -496,10 +498,15 @@ namespace Vectorization
 
       public:
 
-        inline ConvertExpression() : BaseType(BaseType::UnaryExpressionType::ConvertExpression)   {}
+        inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion)   {}
 
         inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
         inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
       };
 
       class Parenthesis final : public UnaryExpression
