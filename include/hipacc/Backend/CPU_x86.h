@@ -369,6 +369,14 @@ namespace Backend
         typedef std::pair< ::clang::VarDecl*, ::clang::VarDecl* >   ImageLinePosDeclPairType;   //!< \brief   Type definition for the "current line" and "current pixel" pointer declaration pair.
                                                                                                 //!< \details The first entry is the "line" declaration and the second one is the "pixel" declaration.
 
+        /** \brief  The supported declaration types of HIPAcc images. */
+        enum class ImageDeclarationTypes
+        {
+          NativePointer,    //!< Specifies a native pointer to a pixel.
+          ConstantArray     //!< Specifies a 2-dimensional array of pixels with constant dimensions.
+        };
+
+
       private:
 
         HipaccHelper          &_rHipaccHelper;    //!< A reference to the HIPAcc helper object which encapsulates the kernel.
@@ -413,9 +421,16 @@ namespace Backend
          *  \param  strImageName  The name of the image for which the "current line" and "current pixel" pointer shall be declared. */
         ImageLinePosDeclPairType CreateImageLineAndPosDecl(std::string strImageName);
 
-        /** \brief  Translates the 2-dimensional global image accesses inside a kernel function into local 1-dimensional image accesses.
-         *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
-        void TranslateImageAccesses();
+        /** \brief  Translates the 2-dimensional global image accesses inside a statement tree into local 1-dimensional image accesses.
+         *  \param  pStatement    The root of the statement tree in which the image accesses shall be translated. */
+        void TranslateImageAccesses(::clang::Stmt *pStatement);
+
+        /** \brief    Translates the internal declaration types of HIPAcc images into meaningful clang types inside a function declaration header.
+         *  \param    pFunctionDecl   A pointer to the function declaration object whose image declarations shall be translated.
+         *  \param    eDeclType       The ID of the desired declaration type.
+         *  \remarks  The name of each function parameter decides whether it is treated as a HIPAcc image, so make sure that the function parameter
+         *            naming is consistent with the one in the kernel function. */
+        void TranslateImageDeclarations(::clang::FunctionDecl *pFunctionDecl, ImageDeclarationTypes eDeclType = ImageDeclarationTypes::NativePointer);
       };
 
 
@@ -429,17 +444,16 @@ namespace Backend
       /** \brief  Returns the declaration string of an image buffer parameter for the kernel function declarator.
        *  \param  strName               The name of the image buffer variable.
        *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
-       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only.
-       *  \param  bTranslate            Specifies, whether the image declaration shall be translated to a native pixel pointer. */
-      static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false, bool bTranslate = false);
+       *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only. */
+      static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
-       *  \param    pKernelFunction       A pointer to the AST object declaring the kernel function.
-       *  \param    rHipaccHelper         A reference to the HIPAcc helper object which encapsulates the kernel.
-       *  \param    bCheckUsage           Specifies, whether the function parameters shall be checked for being used.
-       *  \param    bTranslateImageDecls  Specifies, whether the declaration of the HIPAcc images shall be translated to native pixel pointers.
+       *  \param    pKernelFunction         A pointer to the AST object declaring the kernel function.
+       *  \param    rHipaccHelper           A reference to the HIPAcc helper object which encapsulates the kernel.
+       *  \param    bCheckUsage             Specifies, whether the function parameters shall be checked for being used.
+       *  \param    bPrintActualImageType   Specifies, whether the actual clang types of the HIPAcc images shall be printed into the declaration.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
-      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bTranslateImageDecls = false);
+      std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bPrintActualImageType = false);
 
 
     private:
