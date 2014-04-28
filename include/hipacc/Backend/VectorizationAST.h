@@ -279,12 +279,18 @@ namespace Vectorization
       class Value;
       class Constant;
       class Identifier;
+      class BinaryOperator;
+      class ArithmeticOperator;
       class AssignmentOperator;
+      class RelationalOperator;
 
       typedef std::shared_ptr< Value >                ValuePtr;
       typedef std::shared_ptr< Constant >             ConstantPtr;
       typedef std::shared_ptr< Identifier >           IdentifierPtr;
+      typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
+      typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
       typedef std::shared_ptr< AssignmentOperator >   AssignmentOperatorPtr;
+      typedef std::shared_ptr< RelationalOperator >   RelationalOperatorPtr;
 
 
     public:
@@ -551,6 +557,8 @@ namespace Vectorization
 
         ArithmeticOperatorType    _eOpType;
 
+        static std::string _GetOperatorTypeString(ArithmeticOperatorType eType);
+
       public:
 
         inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator)  {}
@@ -558,6 +566,12 @@ namespace Vectorization
 
         inline ArithmeticOperatorType GetOperatorType() const                           { return _eOpType; }
         inline void                   SetOperatorType(ArithmeticOperatorType eOpType)   { _eOpType = eOpType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
+
       };
 
       class AssignmentOperator final : public BinaryOperator
@@ -601,6 +615,8 @@ namespace Vectorization
 
         RelationalOperatorType  _eOpType;
 
+        static std::string _GetOperatorTypeString(RelationalOperatorType eType);
+
       public:
 
         inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator)  {}
@@ -608,6 +624,12 @@ namespace Vectorization
 
         inline RelationalOperatorType GetOperatorType() const                           { return _eOpType; }
         inline void                   SetOperatorType(RelationalOperatorType eOpType)   { _eOpType = eOpType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
+
       };
     };
 

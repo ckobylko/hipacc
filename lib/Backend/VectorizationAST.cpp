@@ -264,16 +264,78 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::BinaryOperator::GetSubExpressi
 }
 
 
+string AST::Expressions::ArithmeticOperator::_GetOperatorTypeString(ArithmeticOperatorType eType)
+{
+  switch (eType)
+  {
+  case ArithmeticOperatorType::Add:           return "Add";
+  case ArithmeticOperatorType::BitwiseAnd:    return "BitwiseAnd";
+  case ArithmeticOperatorType::BitwiseOr:     return "BitwiseOr";
+  case ArithmeticOperatorType::BitwiseXOr:    return "BitwiseXOr";
+  case ArithmeticOperatorType::Divide:        return "Divide";
+  case ArithmeticOperatorType::Modulo:        return "Modulo";
+  case ArithmeticOperatorType::Multiply:      return "Multiply";
+  case ArithmeticOperatorType::ShiftLeft:     return "ShiftLeft";
+  case ArithmeticOperatorType::ShiftRight:    return "ShiftRight";
+  case ArithmeticOperatorType::Subtract:      return "Subtract";
+  default:                                    throw InternalErrorException("Unknown arithmetic operator type!");
+  }
+}
+
+string AST::Expressions::ArithmeticOperator::DumpToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString = strPadString + string("<ArithmeticOperator ");
+  strXmlString += string("type=\"") + _GetOperatorTypeString(_eOpType) + string("\">\n");
+
+  strXmlString += _DumpSubExpressionsToXML(szIntend + 2);
+
+  strXmlString += strPadString + string("</ArithmeticOperator>\n");
+
+  return strXmlString;
+}
+
 string AST::Expressions::AssignmentOperator::DumpToXML(size_t szIntend)
 {
-  string strPadString("");
-  strPadString.resize(szIntend, ' ');
+  string strPadString(szIntend, ' ');
 
   string strXmlString = strPadString + string("<AssignmentOperator>\n");
 
   strXmlString += _DumpSubExpressionsToXML(szIntend + 2);
 
   strXmlString += strPadString + string("</AssignmentOperator>\n");
+
+  return strXmlString;
+}
+
+
+string AST::Expressions::RelationalOperator::_GetOperatorTypeString(RelationalOperatorType eType)
+{
+  switch (eType)
+  {
+  case RelationalOperatorType::Equal:         return "Equal";
+  case RelationalOperatorType::Greater:       return "Greater";
+  case RelationalOperatorType::GreaterEqual:  return "GreaterEqual";
+  case RelationalOperatorType::Less:          return "Less";
+  case RelationalOperatorType::LessEqual:     return "LessEqual";
+  case RelationalOperatorType::LogicalAnd:    return "LogicalAnd";
+  case RelationalOperatorType::LogicalOr:     return "LogicalOr";
+  case RelationalOperatorType::NotEqual:      return "NotEqual";
+  default:                                    throw InternalErrorException("Unknown relational operator type!");
+  }
+}
+
+string AST::Expressions::RelationalOperator::DumpToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString = strPadString + string("<RelationalOperator ");
+  strXmlString += string("type=\"") + _GetOperatorTypeString(_eOpType) + string("\">\n");
+
+  strXmlString += _DumpSubExpressionsToXML(szIntend + 2);
+
+  strXmlString += strPadString + string("</RelationalOperator>\n");
 
   return strXmlString;
 }

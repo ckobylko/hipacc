@@ -38,6 +38,65 @@ using namespace clang::hipacc::Backend::Vectorization;
 using namespace std;
 
 
+AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind)
+{
+  AST::Expressions::BinaryOperatorPtr spReturnOperator(nullptr);
+
+  if (eOpKind == ::clang::BO_Assign)
+  {
+    spReturnOperator = AST::CreateNode<AST::Expressions::AssignmentOperator>();
+  }
+  else if (::clang::BinaryOperator::isComparisonOp(eOpKind) || ::clang::BinaryOperator::isLogicalOp(eOpKind))
+  {
+    typedef AST::Expressions::RelationalOperator::RelationalOperatorType  OperatorType;
+
+    AST::Expressions::RelationalOperatorPtr spRelationalOp = AST::CreateNode< AST::Expressions::RelationalOperator >();
+    spReturnOperator = spRelationalOp;
+
+    switch (eOpKind)
+    {
+    case BO_EQ:     spRelationalOp->SetOperatorType(OperatorType::Equal);         break;
+    case BO_GT:     spRelationalOp->SetOperatorType(OperatorType::Greater);       break;
+    case BO_GE:     spRelationalOp->SetOperatorType(OperatorType::GreaterEqual);  break;
+    case BO_LT:     spRelationalOp->SetOperatorType(OperatorType::Less);          break;
+    case BO_LE:     spRelationalOp->SetOperatorType(OperatorType::LessEqual);     break;
+    case BO_LAnd:   spRelationalOp->SetOperatorType(OperatorType::LogicalAnd);    break;
+    case BO_LOr:    spRelationalOp->SetOperatorType(OperatorType::LogicalOr);     break;
+    case BO_NE:     spRelationalOp->SetOperatorType(OperatorType::NotEqual);      break;
+    default:        throw RuntimeErrorException("Invalid relational operator type!");
+    }
+  }
+  else
+  {
+    typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  OperatorType;
+
+    AST::Expressions::ArithmeticOperatorPtr spArithmeticOp = AST::CreateNode< AST::Expressions::ArithmeticOperator >();
+    spReturnOperator = spArithmeticOp;
+
+    switch (eOpKind)
+    {
+    case BO_Add:    spArithmeticOp->SetOperatorType(OperatorType::Add);         break;
+    case BO_And:    spArithmeticOp->SetOperatorType(OperatorType::BitwiseAnd);  break;
+    case BO_Or:     spArithmeticOp->SetOperatorType(OperatorType::BitwiseOr);   break;
+    case BO_Xor:    spArithmeticOp->SetOperatorType(OperatorType::BitwiseXOr);  break;
+    case BO_Div:    spArithmeticOp->SetOperatorType(OperatorType::Divide);      break;
+    case BO_Rem:    spArithmeticOp->SetOperatorType(OperatorType::Modulo);      break;
+    case BO_Mul:    spArithmeticOp->SetOperatorType(OperatorType::Multiply);    break;
+    case BO_Shl:    spArithmeticOp->SetOperatorType(OperatorType::ShiftLeft);   break;
+    case BO_Shr:    spArithmeticOp->SetOperatorType(OperatorType::ShiftRight);  break;
+    case BO_Sub:    spArithmeticOp->SetOperatorType(OperatorType::Subtract);    break;
+    default:        throw RuntimeErrorException("Invalid arithmetic operator type!");
+    }
+  }
+
+
+  spReturnOperator->SetLHS( _BuildExpression(pExprLHS) );
+  spReturnOperator->SetRHS( _BuildExpression(pExprRHS) );
+
+  return spReturnOperator;
+}
+
+
 AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(::clang::Expr *pExpression)
 {
   AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
@@ -101,6 +160,13 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
   return spConstant;
 }
 
+AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildConvertExpression(::clang::CastExpr *pCastExpr)
+{
+  // TODO: This implementation is currently looking through cast => This has to be changed for the future
+
+  return _BuildExpression(pCastExpr->getSubExpr());
+}
+
 AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clang::Expr *pExpression)
 {
   AST::BaseClasses::ExpressionPtr spReturnExpression(nullptr);
@@ -108,6 +174,50 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   if (isa<::clang::IntegerLiteral>(pExpression) || isa<::clang::FloatingLiteral>(pExpression) || isa<::clang::CXXBoolLiteralExpr>(pExpression))
   {
     spReturnExpression = _BuildConstantExpression(pExpression);
+  }
+  else if (isa<::clang::DeclRefExpr>(pExpression))
+  {
+    AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
+    spReturnExpression = spIdentifier;
+
+    spIdentifier->SetName( dyn_cast<::clang::DeclRefExpr>(pExpression)->getNameInfo().getAsString() );
+  }
+  else if (isa<::clang::CompoundAssignOperator>(pExpression))
+  {
+    ::clang::CompoundAssignOperator *pCompoundAssignment  = dyn_cast<::clang::CompoundAssignOperator>(pExpression);
+    ::clang::Expr                   *pExprLHS             = pCompoundAssignment->getLHS();
+    ::clang::Expr                   *pExprRHS             = pCompoundAssignment->getRHS();
+    ::clang::BinaryOperatorKind     eOpKind               = pCompoundAssignment->getOpcode();
+
+    switch (eOpKind)
+    {
+    case BO_AddAssign:  eOpKind = BO_Add;   break;
+    case BO_AndAssign:  eOpKind = BO_And;   break;
+    case BO_DivAssign:  eOpKind = BO_Div;   break;
+    case BO_MulAssign:  eOpKind = BO_Mul;   break;
+    case BO_OrAssign:   eOpKind = BO_Or;    break;
+    case BO_RemAssign:  eOpKind = BO_Rem;   break;
+    case BO_ShlAssign:  eOpKind = BO_Shl;   break;
+    case BO_ShrAssign:  eOpKind = BO_Shr;   break;
+    case BO_SubAssign:  eOpKind = BO_Sub;   break;
+    case BO_XorAssign:  eOpKind = BO_Xor;   break;
+    }
+
+    AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode<AST::Expressions::AssignmentOperator>();
+    spReturnExpression = spAssignment;
+
+    spAssignment->SetLHS( _BuildExpression(pExprLHS) );
+    spAssignment->SetRHS( _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
+  }
+  else if (isa<::clang::BinaryOperator>(pExpression))
+  {
+    ::clang::BinaryOperator *pBinOp = dyn_cast<::clang::BinaryOperator>(pExpression);
+
+    spReturnExpression = _BuildBinaryOperatorExpression( pBinOp->getLHS(), pBinOp->getRHS(), pBinOp->getOpcode() );
+  }
+  else if (isa<::clang::CastExpr>(pExpression))
+  {
+    spReturnExpression = _BuildConvertExpression(dyn_cast<::clang::CastExpr>(pExpression));
   }
 
   return spReturnExpression;
@@ -269,8 +379,9 @@ void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::Comp
     {
       ::clang::Expr *pExpression = dyn_cast<::clang::Expr>(pChildStatement);
 
-//      spChild = _BuildExpression(pExpression);
-continue;  // TODO: Remove this
+      spChild = _BuildExpression(pExpression);
+
+if (! spChild) continue;  // TODO: Remove this
     }
     else
     {
