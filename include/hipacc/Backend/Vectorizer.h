@@ -55,6 +55,8 @@ namespace Vectorization
     {
     private:
 
+      static AST::Expressions::ConstantPtr _BuildConstantExpression(::clang::Expr *pExpression);
+
       static AST::BaseClasses::ExpressionPtr _BuildExpression(::clang::Expr *pExpression);
 
       static AST::BaseClasses::VariableInfoPtr _BuildVariableInfo(::clang::VarDecl *pVarDecl);

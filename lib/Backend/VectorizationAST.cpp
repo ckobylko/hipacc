@@ -57,7 +57,7 @@ string AST::BaseClasses::TypeInfo::_GetBoolString(bool bValue)
   return bValue ? "true" : "false";
 }
 
-string AST::BaseClasses::TypeInfo::_GetTypeString(KnownTypes eType)
+string AST::BaseClasses::TypeInfo::GetTypeString(KnownTypes eType)
 {
   switch (eType)
   {
@@ -82,10 +82,10 @@ string AST::BaseClasses::TypeInfo::DumpToXML(size_t szIntend)
 
   XmlStream << string(szIntend, ' ') << "<TypeInfo";
 
-  XmlStream << " type=\""       << _GetTypeString(_eType)          << "\"";
-  XmlStream << " is_const=\""   << _GetBoolString( GetConst() )    << "\"";
-  XmlStream << " is_pointer=\"" << _GetBoolString( GetPointer() )  << "\"";
-  XmlStream << " is_array=\""   << _GetBoolString( IsArray() )     << "\"";
+  XmlStream << " type=\""       << GetTypeString( _eType )        << "\"";
+  XmlStream << " is_const=\""   << _GetBoolString( GetConst() )   << "\"";
+  XmlStream << " is_pointer=\"" << _GetBoolString( GetPointer() ) << "\"";
+  XmlStream << " is_array=\""   << _GetBoolString( IsArray() )    << "\"";
 
   if (IsArray())
   {
@@ -158,18 +158,37 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::Value::GetSubExpression(IndexT
 
 string AST::Expressions::Constant::DumpToXML(size_t szIntend)
 {
-  string strXmlString;
-  strXmlString.resize(szIntend, ' ');
+  string strXmlString(szIntend, ' ');
 
-  strXmlString += string("<Constant value=\"") + GetAsString() + string("\" />\n");
+  strXmlString += string("<Constant type=\"") + BaseClasses::TypeInfo::GetTypeString(_eType) + string("\" ");
+  strXmlString += string("value=\"") + GetAsString() + string("\" />\n");
 
   return strXmlString;
 }
 
+string AST::Expressions::Constant::GetAsString() const
+{
+  stringstream OutputStream;
+
+  switch (_eType)
+  {
+  case KnownTypes::Bool:
+    OutputStream << ( (_unionValues.ui64IntegralValue == static_cast< uint64_t >(0)) ? "false" : "true" );
+    break;
+  case KnownTypes::Float: case KnownTypes::Double:
+    OutputStream << _unionValues.dFloatingPointValue;
+    break;
+  default:
+    OutputStream << _unionValues.ui64IntegralValue;
+  }
+
+  return OutputStream.str();
+}
+
+
 string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
 {
-  string strXmlString;
-  strXmlString.resize(szIntend, ' ');
+  string strXmlString(szIntend, ' ');
 
   strXmlString += string("<Identifier name=\"") + GetAsString() + string("\" />\n");
 

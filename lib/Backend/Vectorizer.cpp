@@ -31,15 +31,86 @@
 //===-----------------------------------------------------------------------------------===//
 
 #include "hipacc/Backend/Vectorizer.h"
+#include <cstdint>
 #include <fstream>
 #include <string>
 using namespace clang::hipacc::Backend::Vectorization;
 using namespace std;
 
 
+AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(::clang::Expr *pExpression)
+{
+  AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
+
+  if (isa<::clang::IntegerLiteral>(pExpression))
+  {
+    ::clang::IntegerLiteral *pIntLiteral  = dyn_cast<::clang::IntegerLiteral>(pExpression);
+    llvm::APInt             llvmIntValue  = pIntLiteral->getValue();
+
+    bool          bSigned     = pIntLiteral->getType()->isSignedIntegerType();
+    unsigned int  uiBitWidth  = llvmIntValue.getBitWidth();
+
+    uint64_t ui64Value = *llvmIntValue.getRawData();
+
+    if (uiBitWidth <= 8)
+    {
+      if (bSigned)  spConstant->SetValue( static_cast<int8_t >(ui64Value) );
+      else          spConstant->SetValue( static_cast<uint8_t>(ui64Value) );
+    }
+    else if (uiBitWidth <= 16)
+    {
+      if (bSigned)  spConstant->SetValue( static_cast<int16_t >(ui64Value) );
+      else          spConstant->SetValue( static_cast<uint16_t>(ui64Value) );
+    }
+    else if (uiBitWidth <= 32)
+    {
+      if (bSigned)  spConstant->SetValue( static_cast<int32_t >(ui64Value) );
+      else          spConstant->SetValue( static_cast<uint32_t>(ui64Value) );
+    }
+    else
+    {
+      if (bSigned)  spConstant->SetValue( static_cast<int64_t >(ui64Value) );
+      else          spConstant->SetValue( static_cast<uint64_t>(ui64Value) );
+    }
+  }
+  else if (isa<::clang::FloatingLiteral>(pExpression))
+  {
+    llvm::APFloat llvmFloatValue = dyn_cast<::clang::FloatingLiteral>(pExpression)->getValue();
+
+    if ( (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEhalf)) ||
+         (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEsingle)) )
+    {
+      spConstant->SetValue( llvmFloatValue.convertToFloat() );
+    }
+    else
+    {
+      spConstant->SetValue( llvmFloatValue.convertToDouble() );
+    }
+  }
+  else if (isa<::clang::CXXBoolLiteralExpr>(pExpression))
+  {
+    bool bValue = dyn_cast<::clang::CXXBoolLiteralExpr>(pExpression)->getValue();
+
+    spConstant->SetValue(bValue);
+  }
+  else
+  {
+    throw InternalErrorException("Unknown literal expression!");
+  }
+
+  return spConstant;
+}
+
 AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clang::Expr *pExpression)
 {
-  return nullptr;
+  AST::BaseClasses::ExpressionPtr spReturnExpression(nullptr);
+
+  if (isa<::clang::IntegerLiteral>(pExpression) || isa<::clang::FloatingLiteral>(pExpression) || isa<::clang::CXXBoolLiteralExpr>(pExpression))
+  {
+    spReturnExpression = _BuildConstantExpression(pExpression);
+  }
+
+  return spReturnExpression;
 }
 
 AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl)

@@ -35,6 +35,7 @@
 
 #include "llvm/Support/Casting.h"
 #include "BackendExceptions.h"
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -127,8 +128,6 @@ namespace Vectorization
         ArrayDimensionVectorType  _vecArrayDimensions;
 
         static std::string _GetBoolString(bool bValue);
-        static std::string _GetTypeString(KnownTypes eType);
-
 
       public:
 
@@ -151,8 +150,10 @@ namespace Vectorization
         inline KnownTypes GetType() const             { return _eType; }
         inline void       SetType(KnownTypes eType)   { _eType = eType; }
 
-
         std::string DumpToXML(size_t szIntend);
+
+
+        static std::string GetTypeString(KnownTypes eType);
       };
 
       class VariableInfo
@@ -326,11 +327,83 @@ namespace Vectorization
 
         typedef Value  BaseType;
 
+        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
+
+        union
+        {
+          std::uint64_t ui64IntegralValue;
+          double        dFloatingPointValue;
+        } _unionValues;
+
+        KnownTypes    _eType;
+
       public:
 
         inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
 
-        virtual std::string GetAsString() const final override { return ""; } // TODO: Unfinished
+        inline BaseClasses::TypeInfo::KnownTypes  GetValueType() const    { return _eType; }
+
+
+        template <typename ValueType> inline ValueType GetValue() const
+        {
+          static_assert(std::is_arithmetic< ValueType >::value, "Expected a numeric value type!");
+
+          switch (_eType)
+          {
+          case KnownTypes::Float: case KnownTypes::Double:
+            return static_cast< ValueType >( _unionValues.dFloatingPointValue );
+          default:
+            return static_cast< ValueType >( _unionValues.ui64IntegralValue );
+          }
+        }
+
+        template <>                   inline bool      GetValue<bool>() const
+        {
+          switch (_eType)
+          {
+          case KnownTypes::Float: case KnownTypes::Double:
+            return ( _unionValues.dFloatingPointValue != 0. );
+          default:
+            return ( _unionValues.ui64IntegralValue   != static_cast< std::uint64_t >( 0 ) );
+          }
+        }
+
+
+        template <typename ValueType> inline void SetValue(ValueType TValue)
+        {
+          static_assert(std::is_arithmetic< ValueType >::value, "Expected a numeric value type!");
+
+          if (std::is_integral<ValueType>::value)
+          {
+            _unionValues.ui64IntegralValue  = static_cast< std::uint64_t >( TValue );
+
+            bool bSigned = std::numeric_limits< ValueType >::is_signed;
+
+            switch (sizeof(ValueType))
+            {
+            case 1:   _eType = bSigned ? KnownTypes::Int8  : KnownTypes::UInt8;   break;
+            case 2:   _eType = bSigned ? KnownTypes::Int16 : KnownTypes::UInt16;  break;
+            case 4:   _eType = bSigned ? KnownTypes::Int32 : KnownTypes::UInt32;  break;
+            default:  _eType = bSigned ? KnownTypes::Int64 : KnownTypes::UInt64;  break;
+            }
+          }
+          else
+          {
+            _unionValues.dFloatingPointValue = static_cast< double >( TValue );
+
+            _eType = (sizeof(ValueType) == 4) ? KnownTypes::Float : KnownTypes::Double;
+          }
+        }
+
+        template<>                    inline void SetValue<bool>(bool TValue)
+        {
+          _unionValues.ui64IntegralValue  = static_cast< std::uint64_t >( TValue ? 1 : 0 );
+          _eType                          = KnownTypes::Bool;
+        }
+
+
+
+        virtual std::string GetAsString() const final override;
 
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
