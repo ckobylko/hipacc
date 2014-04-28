@@ -346,8 +346,9 @@ namespace Backend
 
 
         /** \brief  Adds a new parameter to the list of sub-function arguments.
-         *  \param  pCallParam  A declaration reference expression for the new argument. */
-        void AddCallParameter(::clang::DeclRefExpr *pCallParam);
+         *  \param  pCallParam        A declaration reference expression for the new argument.
+         *  \param  bForceConstDecl   Specifies, whether the sub-function argument has to be declared as <b>const</b>. */
+        void AddCallParameter(::clang::DeclRefExpr *pCallParam, bool bForceConstDecl = false);
 
         /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
          *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.

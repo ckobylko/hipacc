@@ -398,10 +398,18 @@ bool CPU_x86::CodeGenerator::KernelSubFunctionBuilder::_IsVariableUsed(const str
   return false;
 }
 
-void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang::DeclRefExpr *pCallParam)
+void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang::DeclRefExpr *pCallParam, bool bForceConstDecl)
 {
-  _vecArgumentTypes.push_back(pCallParam->getDecl()->getType());
-  _vecArgumentNames.push_back(pCallParam->getDecl()->getNameAsString());
+  ::clang::ValueDecl  *pValueDecl = pCallParam->getDecl();
+  ::clang::QualType   qtParamType = pValueDecl->getType();
+
+  if (bForceConstDecl)
+  {
+    qtParamType.addConst();
+  }
+
+  _vecArgumentTypes.push_back(qtParamType);
+  _vecArgumentNames.push_back(pValueDecl->getNameAsString());
   _vecCallParams.push_back(pCallParam);
 }
 
@@ -970,8 +978,8 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       KernelSubFunctionBuilder SubFuncBuilder(ASTHelper.GetASTContext());
 
       SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
-      SubFuncBuilder.AddCallParameter(gid_y_ref);
-      SubFuncBuilder.AddCallParameter(gid_x_ref);
+      SubFuncBuilder.AddCallParameter(gid_y_ref, true);
+      SubFuncBuilder.AddCallParameter(gid_x_ref, true);
 
       KernelSubFunctionBuilder::DeclCallPairType  DeclCallPair = SubFuncBuilder.CreateFuntionDeclarationAndCall(pKernelFunction->getNameAsString() + string("_Scalar"), pKernelFunction->getResultType());
       ImgAccessTranslator.TranslateImageDeclarations(DeclCallPair.first, ImageAccessTranslator::ImageDeclarationTypes::NativePointer);
