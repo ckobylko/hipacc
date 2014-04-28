@@ -245,8 +245,8 @@ namespace Vectorization
         enum class ExpressionType
         {
           BinaryOperator,
-          Value,
-          UnaryOperator
+          UnaryExpression,
+          Value
         };
 
 
@@ -265,7 +265,6 @@ namespace Vectorization
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) = 0;
         virtual IndexType       GetSubExpressionCount() const = 0;
-
       };
 
     };
@@ -279,6 +278,7 @@ namespace Vectorization
       class Value;
       class Constant;
       class Identifier;
+      class Parenthesis;
       class BinaryOperator;
       class ArithmeticOperator;
       class AssignmentOperator;
@@ -287,6 +287,7 @@ namespace Vectorization
       typedef std::shared_ptr< Value >                ValuePtr;
       typedef std::shared_ptr< Constant >             ConstantPtr;
       typedef std::shared_ptr< Identifier >           IdentifierPtr;
+      typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
       typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
       typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
       typedef std::shared_ptr< AssignmentOperator >   AssignmentOperatorPtr;
@@ -446,11 +447,82 @@ namespace Vectorization
       };
 
 
-      class UnaryOperator final : public BaseClasses::Expression
+      class UnaryExpression : public BaseClasses::Expression
+      {
+      protected:
+
+        typedef BaseClasses::Expression   BaseType;
+        typedef BaseType::IndexType       IndexType;
+
+      public:
+
+        enum class UnaryExpressionType
+        {
+          ConvertExpression,
+          Parenthesis,
+          UnaryOperator
+        };
+
+      private:
+
+        const UnaryExpressionType   _ceUnaryExprType;
+        BaseClasses::ExpressionPtr  _spSubExpression;
+
+      protected:
+
+        std::string _DumpSubExpressionToXML(size_t szIntend);
+
+      public:
+
+        inline UnaryExpression(UnaryExpressionType eType) : BaseType(BaseType::ExpressionType::UnaryExpression), _ceUnaryExprType(eType), _spSubExpression(nullptr)  {}
+
+        inline BaseClasses::ExpressionPtr   GetSubExpression()    { return _spSubExpression; }
+        void                                SetSubExpression(BaseClasses::ExpressionPtr spSubExpr);
+
+        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
+
+      };
+
+      class ConvertExpression final : public UnaryExpression
       {
       private:
 
-        typedef BaseClasses::Expression   BaseType;
+        typedef UnaryExpression           BaseType;
+        typedef BaseType::IndexType       IndexType;
+
+
+        BaseClasses::TypeInfo   _ConvertType;
+
+      public:
+
+        inline ConvertExpression() : BaseType(BaseType::UnaryExpressionType::ConvertExpression)   {}
+
+        inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
+        inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
+      };
+
+      class Parenthesis final : public UnaryExpression
+      {
+      private:
+
+        typedef UnaryExpression   BaseType;
+
+      public:
+
+        inline Parenthesis() : BaseType(BaseType::UnaryExpressionType::Parenthesis)   {}
+
+
+      public:
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
+      };
+
+      class UnaryOperator final : public UnaryExpression
+      {
+      private:
+
+        typedef UnaryExpression           BaseType;
         typedef BaseType::IndexType       IndexType;
 
 
@@ -460,7 +532,6 @@ namespace Vectorization
         {
           AddressOf,
           BitwiseNot,
-          Dereference,
           LogicalNot,
           Minus,
           Plus,
@@ -476,7 +547,7 @@ namespace Vectorization
 
       public:
 
-        inline UnaryOperator() : BaseType(BaseType::ExpressionType::UnaryOperator)  {}
+        inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator)  {}
 
 
         inline UnaryOperatorType  GetOperatorType() const                     { return _eOpType; }

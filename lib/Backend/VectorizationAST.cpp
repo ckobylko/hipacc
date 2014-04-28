@@ -196,10 +196,66 @@ string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
 }
 
 
+
+string AST::Expressions::UnaryExpression::_DumpSubExpressionToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString = strPadString + string("<SubExpression>\n");
+
+  if (GetSubExpression())
+  {
+    strXmlString += GetSubExpression()->DumpToXML(szIntend + 2);
+  }
+
+  strXmlString += strPadString + string("</SubExpression>\n");
+
+  return strXmlString;
+}
+
+void AST::Expressions::UnaryExpression::SetSubExpression(BaseClasses::ExpressionPtr spSubExpr)
+{
+  if (_spSubExpression)
+  {
+    _RemoveParentFromChild(_spSubExpression);
+  }
+
+  _spSubExpression = spSubExpr;
+
+  if (_spSubExpression)
+  {
+    _SetParentToChild(_spSubExpression);
+  }
+}
+
+AST::BaseClasses::ExpressionPtr AST::Expressions::UnaryExpression::GetSubExpression(IndexType SubExprIndex)
+{
+  if (SubExprIndex == static_cast<IndexType>(0))
+  {
+    return GetSubExpression();
+  }
+  else
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+
+string AST::Expressions::Parenthesis::DumpToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString  = strPadString + string("<Parenthesis>\n");
+  strXmlString        += _DumpSubExpressionToXML(szIntend + 2);
+  strXmlString        += strPadString + string("</Parenthesis>\n");
+
+  return strXmlString;
+}
+
+
 string AST::Expressions::BinaryOperator::_DumpSubExpressionsToXML(size_t szIntend)
 {
-  string strPadString("");
-  strPadString.resize(szIntend, ' ');
+  string strPadString(szIntend, ' ');
 
   string strXmlString = strPadString + string("<LHS>\n");
 

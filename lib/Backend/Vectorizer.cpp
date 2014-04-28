@@ -219,6 +219,13 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   {
     spReturnExpression = _BuildConvertExpression(dyn_cast<::clang::CastExpr>(pExpression));
   }
+  else if (isa<::clang::ParenExpr>(pExpression))
+  {
+    AST::Expressions::ParenthesisPtr  spParenthesis = AST::CreateNode< AST::Expressions::Parenthesis >();
+    spReturnExpression = spParenthesis;
+
+    spParenthesis->SetSubExpression( _BuildExpression(dyn_cast<::clang::ParenExpr>(pExpression)->getSubExpr()) );
+  }
 
   return spReturnExpression;
 }
