@@ -230,6 +230,16 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 
     spParenthesis->SetSubExpression( _BuildExpression(dyn_cast<::clang::ParenExpr>(pExpression)->getSubExpr()) );
   }
+  else if (isa<::clang::ArraySubscriptExpr>(pExpression))
+  {
+    ::clang::ArraySubscriptExpr *pArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pExpression);
+
+    AST::Expressions::MemoryAccessPtr spMemoryAccess = AST::CreateNode< AST::Expressions::MemoryAccess >();
+    spReturnExpression = spMemoryAccess;
+
+    spMemoryAccess->SetMemoryReference( _BuildExpression(pArraySubscript->getLHS()) );
+    spMemoryAccess->SetIndexExpression( _BuildExpression(pArraySubscript->getRHS()) );
+  }
 
   return spReturnExpression;
 }

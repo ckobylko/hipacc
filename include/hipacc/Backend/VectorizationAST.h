@@ -278,6 +278,7 @@ namespace Vectorization
       class Value;
       class Constant;
       class Identifier;
+      class MemoryAccess;
       class Conversion;
       class Parenthesis;
       class BinaryOperator;
@@ -288,6 +289,7 @@ namespace Vectorization
       typedef std::shared_ptr< Value >                ValuePtr;
       typedef std::shared_ptr< Constant >             ConstantPtr;
       typedef std::shared_ptr< Identifier >           IdentifierPtr;
+      typedef std::shared_ptr< MemoryAccess >         MemoryAccessPtr;
       typedef std::shared_ptr< Conversion >           ConversionPtr;
       typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
       typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
@@ -300,7 +302,7 @@ namespace Vectorization
 
       class Value : public BaseClasses::Expression
       {
-      private:
+      protected:
 
         typedef BaseClasses::Expression   BaseType;
         typedef BaseType::IndexType       IndexType;
@@ -322,12 +324,10 @@ namespace Vectorization
 
         inline  Value(ValueType eValueType) : BaseType(BaseType::ExpressionType::Value), _ceValueType(eValueType)   {}
 
-        virtual std::string GetAsString() const = 0;
-
       public:
 
-        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
-        virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(0); }
+        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) override;
+        virtual IndexType                   GetSubExpressionCount() const override  { return static_cast< IndexType >(0); }
       };
 
       class Constant final : public Value
@@ -412,7 +412,7 @@ namespace Vectorization
 
 
 
-        virtual std::string GetAsString() const final override;
+        std::string GetAsString() const;
 
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
@@ -432,7 +432,7 @@ namespace Vectorization
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
 
-        virtual std::string GetAsString() const final override { return GetName(); }
+        std::string GetAsString() const   { return GetName(); }
 
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
@@ -441,11 +441,30 @@ namespace Vectorization
       {
       private:
 
-        typedef Value  BaseType;
+        typedef Value                         BaseType;
+        typedef BaseType::IndexType           IndexType;
+        typedef BaseClasses::ExpressionPtr    ExpressionPtr;
+
+        ExpressionPtr   _spMemoryRef;
+        ExpressionPtr   _spIndexExpr;
 
       public:
 
-        inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess)  {}
+        inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
+
+
+        inline ExpressionPtr  GetIndexExpression() const    { return _spIndexExpr; }
+        void                  SetIndexExpression(ExpressionPtr spIndexExpression);
+
+        inline ExpressionPtr  GetMemoryReference() const    { return _spMemoryRef; }
+        void                  SetMemoryReference(ExpressionPtr spMemoryReference);
+
+
+        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
+
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
       };
 
 

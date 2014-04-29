@@ -175,11 +175,17 @@ string AST::Expressions::Constant::GetAsString() const
   case KnownTypes::Bool:
     OutputStream << ( (_unionValues.ui64IntegralValue == static_cast< uint64_t >(0)) ? "false" : "true" );
     break;
-  case KnownTypes::Float: case KnownTypes::Double:
-    OutputStream << _unionValues.dFloatingPointValue;
-    break;
-  default:
-    OutputStream << _unionValues.ui64IntegralValue;
+  case KnownTypes::Int8:    OutputStream << static_cast< int8_t   >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::UInt8:   OutputStream << static_cast< uint8_t  >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::Int16:   OutputStream << static_cast< int16_t  >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::UInt16:  OutputStream << static_cast< uint16_t >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::Int32:   OutputStream << static_cast< int32_t  >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::UInt32:  OutputStream << static_cast< uint32_t >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::Int64:   OutputStream << static_cast< int64_t  >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::UInt64:  OutputStream << static_cast< uint64_t >( _unionValues.ui64IntegralValue );    break;
+  case KnownTypes::Float:   OutputStream << static_cast< float  >( _unionValues.dFloatingPointValue );    break;
+  case KnownTypes::Double:  OutputStream << static_cast< double >( _unionValues.dFloatingPointValue );    break;
+  default:                  throw InternalErrorException("Unexpected constant data type!");
   }
 
   return OutputStream.str();
@@ -193,6 +199,69 @@ string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
   strXmlString += string("<Identifier name=\"") + GetAsString() + string("\" />\n");
 
   return strXmlString;
+}
+
+
+void AST::Expressions::MemoryAccess::SetIndexExpression(ExpressionPtr spIndexExpression)
+{
+  if (_spIndexExpr)
+  {
+    _RemoveParentFromChild(_spIndexExpr);
+  }
+
+  _spIndexExpr = spIndexExpression;
+
+  if (_spIndexExpr)
+  {
+    _SetParentToChild(_spIndexExpr);
+  }
+}
+
+void AST::Expressions::MemoryAccess::SetMemoryReference(ExpressionPtr spMemoryReference)
+{
+  if (_spMemoryRef)
+  {
+    _RemoveParentFromChild(_spMemoryRef);
+  }
+
+  _spMemoryRef = spMemoryReference;
+
+  if (_spMemoryRef)
+  {
+    _SetParentToChild(_spMemoryRef);
+  }
+}
+
+AST::BaseClasses::ExpressionPtr AST::Expressions::MemoryAccess::GetSubExpression(IndexType SubExprIndex)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   return GetMemoryReference();
+  case 1:   return GetIndexExpression();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+string AST::Expressions::MemoryAccess::DumpToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString = strPadString + string("<MemoryRef>\n");
+  if (GetMemoryReference())
+  {
+    strXmlString += GetMemoryReference()->DumpToXML(szIntend + 2);
+  }
+  strXmlString += strPadString + string("</MemoryRef>\n");
+
+  strXmlString += strPadString + string("<Index>\n");
+  if (GetIndexExpression())
+  {
+    strXmlString += GetIndexExpression()->DumpToXML(szIntend + 2);
+  }
+  strXmlString += strPadString + string("</Index>\n");
+
+  return strXmlString;
+
 }
 
 
