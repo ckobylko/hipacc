@@ -64,6 +64,18 @@ namespace Vectorization
 
       inline ChildIndexOutOfRange() : BaseType("The index for the child node is out of range!")  {}
     };
+
+
+    class NonDereferencableType : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException  BaseType;   //!< The base type of this class.
+
+    public:
+
+      inline NonDereferencableType() : BaseType("The specified type cannot be dereferenced!")  {}
+    };
   };
 
 
@@ -116,7 +128,8 @@ namespace Vectorization
           Int64,
           UInt64,
           Float,
-          Double
+          Double,
+          Unknown
         };
 
 
@@ -131,12 +144,13 @@ namespace Vectorization
 
       public:
 
-        inline TypeInfo() : _eType(KnownTypes::Int32), _bIsConst(false), _bIsPointer(false)   {}
+        inline TypeInfo() : _eType(KnownTypes::Unknown), _bIsConst(false), _bIsPointer(false)   {}
         inline TypeInfo(const TypeInfo &crRVal)   { *this = crRVal; }
         TypeInfo& operator=(const TypeInfo &crRVal);
 
 
-        inline bool IsArray() const       { return (! _vecArrayDimensions.empty()); }
+        TypeInfo CreateDereferencedType();
+
 
         inline ArrayDimensionVectorType&        GetArrayDimensions()        { return _vecArrayDimensions; }
         inline const ArrayDimensionVectorType&  GetArrayDimensions() const  { return _vecArrayDimensions; }
@@ -150,10 +164,20 @@ namespace Vectorization
         inline KnownTypes GetType() const             { return _eType; }
         inline void       SetType(KnownTypes eType)   { _eType = eType; }
 
+        inline bool IsArray() const       { return (!_vecArrayDimensions.empty()); }
+
+
         std::string DumpToXML(size_t szIntend);
 
 
-        static std::string GetTypeString(KnownTypes eType);
+      public:
+
+        static TypeInfo     CreateSizedIntegerType(size_t szTypeSize, bool bSigned);
+
+        static size_t       GetTypeSize(KnownTypes eType);
+        static std::string  GetTypeString(KnownTypes eType);
+
+        static bool         IsSigned(KnownTypes eType);
       };
 
       class VariableInfo
@@ -216,8 +240,11 @@ namespace Vectorization
 
         inline NodeType GetNodeType() const    { return _ceNodeType; }
 
-        NodePtr GetParent();
-        inline NodePtr GetThis()  { return _wpThis.lock(); }
+        NodePtr       GetParent();
+        const NodePtr GetParent() const;
+
+        inline NodePtr        GetThis()         { return _wpThis.lock(); }
+        inline const NodePtr  GetThis() const   { return _wpThis.lock(); }
 
 
         template <class NodeClass>
@@ -254,6 +281,11 @@ namespace Vectorization
 
         const ExpressionType    _ceExprType;
 
+      protected:
+
+        std::string _DumpResultTypeToXML(size_t szIntend);
+
+
       public:
 
         inline Expression(ExpressionType eExprType) : BaseType(Node::NodeType::Expression), _ceExprType(eExprType)  {}
@@ -262,6 +294,8 @@ namespace Vectorization
 
         virtual NodePtr   GetChild(IndexType ChildIndex) final override   { return GetSubExpression(ChildIndex); }
         virtual IndexType GetChildCount() const final override            { return GetSubExpressionCount(); }
+
+        virtual TypeInfo  GetResultType() const = 0;
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) = 0;
         virtual IndexType       GetSubExpressionCount() const = 0;
@@ -414,6 +448,8 @@ namespace Vectorization
 
         std::string GetAsString() const;
 
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
 
@@ -434,6 +470,11 @@ namespace Vectorization
 
         std::string GetAsString() const   { return GetName(); }
 
+        BaseClasses::VariableInfoPtr LookupVariableInfo() const;
+
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
 
@@ -453,12 +494,16 @@ namespace Vectorization
         inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
 
 
-        inline ExpressionPtr  GetIndexExpression() const    { return _spIndexExpr; }
-        void                  SetIndexExpression(ExpressionPtr spIndexExpression);
+        inline ExpressionPtr        GetIndexExpression()          { return _spIndexExpr; }
+        inline const ExpressionPtr  GetIndexExpression() const    { return _spIndexExpr; }
+        void                        SetIndexExpression(ExpressionPtr spIndexExpression);
 
-        inline ExpressionPtr  GetMemoryReference() const    { return _spMemoryRef; }
-        void                  SetMemoryReference(ExpressionPtr spMemoryReference);
+        inline ExpressionPtr        GetMemoryReference()          { return _spMemoryRef; }
+        inline const ExpressionPtr  GetMemoryReference() const    { return _spMemoryRef; }
+        void                        SetMemoryReference(ExpressionPtr spMemoryReference);
 
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
@@ -497,8 +542,9 @@ namespace Vectorization
 
         inline UnaryExpression(UnaryExpressionType eType) : BaseType(BaseType::ExpressionType::UnaryExpression), _ceUnaryExprType(eType), _spSubExpression(nullptr)  {}
 
-        inline BaseClasses::ExpressionPtr   GetSubExpression()    { return _spSubExpression; }
-        void                                SetSubExpression(BaseClasses::ExpressionPtr spSubExpr);
+        inline BaseClasses::ExpressionPtr         GetSubExpression()          { return _spSubExpression; }
+        inline const BaseClasses::ExpressionPtr   GetSubExpression() const    { return _spSubExpression; }
+        void                                      SetSubExpression(BaseClasses::ExpressionPtr spSubExpr);
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
@@ -522,8 +568,9 @@ namespace Vectorization
         inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
         inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
 
-
       public:
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetConvertType(); }
 
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
@@ -540,6 +587,8 @@ namespace Vectorization
 
 
       public:
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual std::string DumpToXML(size_t szIntend) final override;
       };
@@ -613,8 +662,10 @@ namespace Vectorization
         inline BinaryOperator(BinaryOperatorType eBinOpType) : BaseType(BaseType::ExpressionType::BinaryOperator), _ceBinOpType(eBinOpType)   {}
 
 
-        inline ExpressionPtr  GetLHS()  { return _spLHS; }
-        inline ExpressionPtr  GetRHS()  { return _spRHS; }
+        inline ExpressionPtr        GetLHS()        { return _spLHS; }
+        inline const ExpressionPtr  GetLHS() const  { return _spLHS; }
+        inline ExpressionPtr        GetRHS()        { return _spRHS; }
+        inline const ExpressionPtr  GetRHS() const  { return _spRHS; }
 
         void SetLHS(ExpressionPtr spNewLHS);
         void SetRHS(ExpressionPtr spNewRHS);
@@ -631,7 +682,9 @@ namespace Vectorization
       {
       private:
 
-        typedef BinaryOperator   BaseType;
+        typedef BinaryOperator          BaseType;
+        typedef BaseClasses::TypeInfo   TypeInfo;
+        typedef TypeInfo::KnownTypes    KnownTypes;
 
       public:
 
@@ -656,6 +709,9 @@ namespace Vectorization
 
         static std::string _GetOperatorTypeString(ArithmeticOperatorType eType);
 
+        static KnownTypes _GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS);
+
+
       public:
 
         inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator)  {}
@@ -667,6 +723,8 @@ namespace Vectorization
 
       public:
 
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+
         virtual std::string DumpToXML(size_t szIntend) final override;
 
       };
@@ -675,7 +733,7 @@ namespace Vectorization
       {
       private:
 
-        typedef BinaryOperator   BaseType;
+        typedef BinaryOperator    BaseType;
 
       public:
 
@@ -683,6 +741,8 @@ namespace Vectorization
 
 
       public:
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual std::string DumpToXML(size_t szIntend) final override;
 
@@ -724,6 +784,8 @@ namespace Vectorization
 
 
       public:
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual std::string DumpToXML(size_t szIntend) final override;
 
@@ -796,6 +858,8 @@ namespace Vectorization
 
       inline std::string  GetName() const               { return _strName; }
       inline void         SetName(std::string strName)  { _strName = strName; }
+
+      BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName);
 
     public:
 

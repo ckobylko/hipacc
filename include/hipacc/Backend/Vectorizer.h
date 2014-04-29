@@ -67,6 +67,8 @@ namespace Vectorization
 
       static void _ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement);
 
+      static void _ConvertTypeInfo(AST::BaseClasses::TypeInfo &rTypeInfo, ::clang::QualType qtSourceType);
+
     public:
 
       static AST::FunctionDeclarationPtr BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);

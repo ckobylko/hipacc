@@ -31,6 +31,7 @@
 //===---------------------------------------------------------------------------------===//
 
 #include "hipacc/Backend/VectorizationAST.h"
+#include <algorithm>
 #include <sstream>
 
 using namespace clang::hipacc::Backend::Vectorization;
@@ -57,6 +58,68 @@ string AST::BaseClasses::TypeInfo::_GetBoolString(bool bValue)
   return bValue ? "true" : "false";
 }
 
+AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateDereferencedType()
+{
+  TypeInfo ReturnType(*this);
+
+  if (ReturnType.IsArray())
+  {
+    ReturnType.GetArrayDimensions().erase( ReturnType.GetArrayDimensions().begin() );
+  }
+  else if (ReturnType.GetPointer())
+  {
+    ReturnType.SetPointer(false);
+  }
+  else
+  {
+    throw ASTExceptions::NonDereferencableType();
+  }
+
+  return ReturnType;
+}
+
+AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateSizedIntegerType(size_t szTypeSize, bool bSigned)
+{
+  TypeInfo ReturnType;
+
+  ReturnType.SetConst(false);
+  ReturnType.SetPointer(false);
+
+  KnownTypes eType = KnownTypes::Unknown;
+
+  switch (szTypeSize)
+  {
+  case sizeof( int8_t  ):   eType = bSigned ? KnownTypes::Int8  : KnownTypes::UInt8;    break;
+  case sizeof( int16_t ):   eType = bSigned ? KnownTypes::Int16 : KnownTypes::UInt16;   break;
+  case sizeof( int32_t ):   eType = bSigned ? KnownTypes::Int32 : KnownTypes::UInt32;   break;
+  case sizeof( int64_t ):   eType = bSigned ? KnownTypes::Int64 : KnownTypes::UInt64;   break;
+  }
+
+  ReturnType.SetType(eType);
+
+  return ReturnType;
+}
+
+size_t AST::BaseClasses::TypeInfo::GetTypeSize(KnownTypes eType)
+{
+  switch (eType)
+  {
+  case KnownTypes::Bool:    return static_cast< size_t >( 1 );
+  case KnownTypes::Int8:    return sizeof( int8_t );
+  case KnownTypes::UInt8:   return sizeof( uint8_t );
+  case KnownTypes::Int16:   return sizeof( int16_t );
+  case KnownTypes::UInt16:  return sizeof( uint16_t );
+  case KnownTypes::Int32:   return sizeof( int32_t );
+  case KnownTypes::UInt32:  return sizeof( uint32_t );
+  case KnownTypes::Int64:   return sizeof( int64_t );
+  case KnownTypes::UInt64:  return sizeof( uint64_t );
+  case KnownTypes::Float:   return sizeof( float );
+  case KnownTypes::Double:  return sizeof( double );
+  case KnownTypes::Unknown: return static_cast< size_t >( 0 );
+  default:                  throw InternalErrorException("Unknown type!"); 
+  }
+}
+
 string AST::BaseClasses::TypeInfo::GetTypeString(KnownTypes eType)
 {
   switch (eType)
@@ -72,9 +135,31 @@ string AST::BaseClasses::TypeInfo::GetTypeString(KnownTypes eType)
   case KnownTypes::UInt64:  return "UInt64";
   case KnownTypes::Float:   return "Float";
   case KnownTypes::Double:  return "Double";
+  case KnownTypes::Unknown: return "Unknown";
   default:                  throw InternalErrorException("Unknown type!");
   }
 }
+
+bool AST::BaseClasses::TypeInfo::IsSigned(KnownTypes eType)
+{
+  switch (eType)
+  {
+  case KnownTypes::Int8:
+  case KnownTypes::Int16:
+  case KnownTypes::Int32:
+  case KnownTypes::Int64:
+  case KnownTypes::Float:
+  case KnownTypes::Double:  return true;
+  case KnownTypes::Bool:
+  case KnownTypes::UInt8:
+  case KnownTypes::UInt16:
+  case KnownTypes::UInt32:
+  case KnownTypes::UInt64:
+  case KnownTypes::Unknown: return false;
+  default:                  throw InternalErrorException("Unknown type!");
+  }
+}
+
 
 string AST::BaseClasses::TypeInfo::DumpToXML(size_t szIntend)
 {
@@ -149,6 +234,19 @@ void AST::BaseClasses::Node::_SetParentToChild(NodePtr spChild)
 }
 
 
+string AST::BaseClasses::Expression::_DumpResultTypeToXML(size_t szIntend)
+{
+  string strPadString(szIntend, ' ');
+
+  string strXmlString  = strPadString + string("<ResultType>\n");
+  strXmlString        += GetResultType().DumpToXML(szIntend + 2);
+  strXmlString        += strPadString + string("</ResultType>\n");
+
+  return strXmlString;
+}
+
+
+
 
 AST::BaseClasses::ExpressionPtr AST::Expressions::Value::GetSubExpression(IndexType SubExprIndex)
 {
@@ -191,6 +289,31 @@ string AST::Expressions::Constant::GetAsString() const
   return OutputStream.str();
 }
 
+AST::BaseClasses::TypeInfo AST::Expressions::Constant::GetResultType() const
+{
+  BaseClasses::TypeInfo ResultType;
+
+  ResultType.SetConst(true);
+  ResultType.SetPointer(false);
+  ResultType.SetType(GetValueType());
+
+  return ResultType;
+}
+
+
+AST::BaseClasses::TypeInfo AST::Expressions::Identifier::GetResultType() const
+{
+  BaseClasses::VariableInfoPtr spVariableInfo = LookupVariableInfo();
+
+  if (spVariableInfo)
+  {
+    return spVariableInfo->GetTypeInfo();
+  }
+  else
+  {
+    return BaseClasses::TypeInfo();
+  }
+}
 
 string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
 {
@@ -199,6 +322,25 @@ string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
   strXmlString += string("<Identifier name=\"") + GetAsString() + string("\" />\n");
 
   return strXmlString;
+}
+
+AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableInfo() const
+{
+  BaseClasses::NodePtr spParent = GetThis();
+
+  while (spParent)
+  {
+    if (spParent->GetNodeType() == BaseClasses::Node::NodeType::FunctionDeclaration)
+    {
+      return spParent->CastToType< FunctionDeclaration >()->GetVariableInfo( GetName() );
+    }
+    else
+    {
+      spParent = spParent->GetParent();
+    }
+  }
+
+  return nullptr;
 }
 
 
@@ -246,22 +388,39 @@ string AST::Expressions::MemoryAccess::DumpToXML(size_t szIntend)
 {
   string strPadString(szIntend, ' ');
 
-  string strXmlString = strPadString + string("<MemoryRef>\n");
+  string strXmlString  = strPadString + string("<MemoryAccess>\n");
+  strXmlString        += _DumpResultTypeToXML(szIntend + 2);
+
+  strXmlString += strPadString + string("  <MemoryRef>\n");
   if (GetMemoryReference())
   {
-    strXmlString += GetMemoryReference()->DumpToXML(szIntend + 2);
+    strXmlString += GetMemoryReference()->DumpToXML(szIntend + 4);
   }
-  strXmlString += strPadString + string("</MemoryRef>\n");
+  strXmlString += strPadString + string("  </MemoryRef>\n");
 
-  strXmlString += strPadString + string("<Index>\n");
+  strXmlString += strPadString + string("  <Index>\n");
   if (GetIndexExpression())
   {
-    strXmlString += GetIndexExpression()->DumpToXML(szIntend + 2);
+    strXmlString += GetIndexExpression()->DumpToXML(szIntend + 4);
   }
-  strXmlString += strPadString + string("</Index>\n");
+  strXmlString += strPadString + string("  </Index>\n");
+
+  strXmlString += strPadString + string("</MemoryAccess>\n");
 
   return strXmlString;
 
+}
+
+AST::BaseClasses::TypeInfo AST::Expressions::MemoryAccess::GetResultType() const
+{
+  if (GetMemoryReference())
+  {
+    return GetMemoryReference()->GetResultType().CreateDereferencedType();
+  }
+  else
+  {
+    return BaseClasses::TypeInfo();
+  }
 }
 
 
@@ -270,7 +429,8 @@ string AST::Expressions::UnaryExpression::_DumpSubExpressionToXML(size_t szInten
 {
   string strPadString(szIntend, ' ');
 
-  string strXmlString = strPadString + string("<SubExpression>\n");
+  string strXmlString  =_DumpResultTypeToXML(szIntend);
+  strXmlString        += strPadString + string("<SubExpression>\n");
 
   if (GetSubExpression())
   {
@@ -321,6 +481,18 @@ string AST::Expressions::Conversion::DumpToXML(size_t szIntend)
   return strXmlString;
 }
 
+AST::BaseClasses::TypeInfo AST::Expressions::Parenthesis::GetResultType() const
+{
+  if (GetSubExpression())
+  {
+    return GetSubExpression()->GetResultType();
+  }
+  else
+  {
+    return BaseClasses::TypeInfo();
+  }
+}
+
 string AST::Expressions::Parenthesis::DumpToXML(size_t szIntend)
 {
   string strPadString(szIntend, ' ');
@@ -337,7 +509,8 @@ string AST::Expressions::BinaryOperator::_DumpSubExpressionsToXML(size_t szInten
 {
   string strPadString(szIntend, ' ');
 
-  string strXmlString = strPadString + string("<LHS>\n");
+  string strXmlString  = _DumpResultTypeToXML(szIntend);
+  strXmlString        += strPadString + string("<LHS>\n");
 
   if (GetLHS())
   {
@@ -418,6 +591,30 @@ string AST::Expressions::ArithmeticOperator::_GetOperatorTypeString(ArithmeticOp
   }
 }
 
+AST::BaseClasses::TypeInfo::KnownTypes AST::Expressions::ArithmeticOperator::_GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS)
+{
+  if      ((eTypeLHS == KnownTypes::Unknown) || (eTypeRHS == KnownTypes::Unknown))
+  {
+    return KnownTypes::Unknown;
+  }
+  else if ((eTypeLHS == KnownTypes::Double)  || (eTypeRHS == KnownTypes::Double))
+  {
+    return KnownTypes::Double;
+  }
+  else if ((eTypeLHS == KnownTypes::Float)   || (eTypeRHS == KnownTypes::Float))
+  {
+    return KnownTypes::Float;
+  }
+  else
+  {
+    // We have an integer type => Promote to the larger type and keep the sign
+    size_t  szTypeSize  = std::max( TypeInfo::GetTypeSize(eTypeLHS), TypeInfo::GetTypeSize(eTypeRHS) );
+    bool    bSigned     = TypeInfo::IsSigned(eTypeLHS) | TypeInfo::IsSigned(eTypeRHS);
+
+    return TypeInfo::CreateSizedIntegerType(szTypeSize, bSigned).GetType();
+  }
+}
+
 string AST::Expressions::ArithmeticOperator::DumpToXML(size_t szIntend)
 {
   string strPadString(szIntend, ' ');
@@ -432,6 +629,59 @@ string AST::Expressions::ArithmeticOperator::DumpToXML(size_t szIntend)
   return strXmlString;
 }
 
+AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType() const
+{
+  if ( GetLHS() && GetRHS() )     // Check if both children are set
+  {
+    TypeInfo TypeLHS = GetLHS()->GetResultType();
+    TypeInfo TypeRHS = GetRHS()->GetResultType();
+
+    if ( (TypeLHS.GetType() == KnownTypes::Unknown) || (TypeRHS.GetType() == KnownTypes::Unknown) )
+    {
+      // Cannot do arithmetic with unknown types => Return type is unknown
+      return TypeInfo();
+    }
+    else if (TypeRHS.GetPointer() || TypeRHS.IsArray())
+    {
+      // Expected single value for right operand => Unknown type
+      return TypeInfo();
+    }
+    else if (TypeLHS.IsArray())
+    {
+      // Array arithmetic is forbidden => Unknown type
+      return TypeInfo();
+    }
+    else if (TypeLHS.GetPointer())
+    {
+      // Pointer arithmetic is only allowed for the "Add" and "Subtract" operator
+      if ( (GetOperatorType() == ArithmeticOperatorType::Add) || (GetOperatorType() == ArithmeticOperatorType::Subtract) )
+      {
+        return TypeLHS;
+      }
+      else
+      {
+        return TypeInfo();
+      }
+    }
+    else
+    {
+      // Both operands are single values => Return the promoted type
+      TypeInfo ReturnType;
+
+      ReturnType.SetConst(true);
+      ReturnType.SetPointer(false);
+      ReturnType.SetType( _GetPromotedType(TypeLHS.GetType(), TypeRHS.GetType()) );
+
+      return ReturnType;
+    }
+  }
+  else                            // Incomplete statement => Return type cannot be created
+  {
+    return TypeInfo();
+  }
+}
+
+
 string AST::Expressions::AssignmentOperator::DumpToXML(size_t szIntend)
 {
   string strPadString(szIntend, ' ');
@@ -443,6 +693,25 @@ string AST::Expressions::AssignmentOperator::DumpToXML(size_t szIntend)
   strXmlString += strPadString + string("</AssignmentOperator>\n");
 
   return strXmlString;
+}
+
+AST::BaseClasses::TypeInfo AST::Expressions::AssignmentOperator::GetResultType() const
+{
+  if (GetLHS())
+  {
+    BaseClasses::TypeInfo ResultType(GetLHS()->GetResultType());
+
+    if ( (! ResultType.GetPointer()) && (! ResultType.IsArray()) )
+    {
+      ResultType.SetConst(true);
+    }
+
+    return ResultType;
+  }
+  else
+  {
+    return BaseClasses::TypeInfo();
+  }
 }
 
 
@@ -474,6 +743,17 @@ string AST::Expressions::RelationalOperator::DumpToXML(size_t szIntend)
   strXmlString += strPadString + string("</RelationalOperator>\n");
 
   return strXmlString;
+}
+
+AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType() const
+{
+  BaseClasses::TypeInfo ResultType;
+
+  ResultType.SetConst(true);
+  ResultType.SetPointer(false);
+  ResultType.SetType(BaseClasses::TypeInfo::KnownTypes::Bool);
+
+  return ResultType;
 }
 
 
@@ -590,6 +870,21 @@ AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildInde
     throw ASTExceptions::ChildIndexOutOfRange();
   }
 }
+
+AST::BaseClasses::VariableInfoPtr  AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName)
+{
+  auto itVariableEntry = _mapKnownVariables.find(strVariableName);
+
+  if (itVariableEntry != _mapKnownVariables.end())
+  {
+    return itVariableEntry->second;
+  }
+  else
+  {
+    return nullptr;
+  }
+}
+
 
 string AST::FunctionDeclaration::DumpToXML(size_t szIntend)
 {
