@@ -99,8 +99,6 @@ AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperato
 
 AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(::clang::Expr *pExpression)
 {
-  AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
-
   if (isa<::clang::IntegerLiteral>(pExpression))
   {
     ::clang::IntegerLiteral *pIntLiteral  = dyn_cast<::clang::IntegerLiteral>(pExpression);
@@ -113,23 +111,23 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
 
     if (uiBitWidth <= 8)
     {
-      if (bSigned)  spConstant->SetValue( static_cast<int8_t >(ui64Value) );
-      else          spConstant->SetValue( static_cast<uint8_t>(ui64Value) );
+      if (bSigned)  return _CreateConstant( static_cast<int8_t >(ui64Value) );
+      else          return _CreateConstant( static_cast<uint8_t>(ui64Value) );
     }
     else if (uiBitWidth <= 16)
     {
-      if (bSigned)  spConstant->SetValue( static_cast<int16_t >(ui64Value) );
-      else          spConstant->SetValue( static_cast<uint16_t>(ui64Value) );
+      if (bSigned)  return _CreateConstant( static_cast<int16_t >(ui64Value) );
+      else          return _CreateConstant( static_cast<uint16_t>(ui64Value) );
     }
     else if (uiBitWidth <= 32)
     {
-      if (bSigned)  spConstant->SetValue( static_cast<int32_t >(ui64Value) );
-      else          spConstant->SetValue( static_cast<uint32_t>(ui64Value) );
+      if (bSigned)  return _CreateConstant( static_cast<int32_t >(ui64Value) );
+      else          return _CreateConstant( static_cast<uint32_t>(ui64Value) );
     }
     else
     {
-      if (bSigned)  spConstant->SetValue( static_cast<int64_t >(ui64Value) );
-      else          spConstant->SetValue( static_cast<uint64_t>(ui64Value) );
+      if (bSigned)  return _CreateConstant( static_cast<int64_t >(ui64Value) );
+      else          return _CreateConstant( static_cast<uint64_t>(ui64Value) );
     }
   }
   else if (isa<::clang::FloatingLiteral>(pExpression))
@@ -139,25 +137,21 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
     if ( (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEhalf)) ||
          (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEsingle)) )
     {
-      spConstant->SetValue( llvmFloatValue.convertToFloat() );
+      return _CreateConstant( llvmFloatValue.convertToFloat() );
     }
     else
     {
-      spConstant->SetValue( llvmFloatValue.convertToDouble() );
+      return _CreateConstant( llvmFloatValue.convertToDouble() );
     }
   }
   else if (isa<::clang::CXXBoolLiteralExpr>(pExpression))
   {
-    bool bValue = dyn_cast<::clang::CXXBoolLiteralExpr>(pExpression)->getValue();
-
-    spConstant->SetValue(bValue);
+    return _CreateConstant( dyn_cast<::clang::CXXBoolLiteralExpr>(pExpression)->getValue() );
   }
   else
   {
     throw InternalErrorException("Unknown literal expression!");
   }
-
-  return spConstant;
 }
 
 AST::Expressions::ConversionPtr Vectorizer::VASTBuilder::_BuildConversionExpression(::clang::CastExpr *pCastExpr)
@@ -242,8 +236,56 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
     spMemoryAccess->SetMemoryReference( _BuildExpression(pArraySubscript->getLHS()) );
     spMemoryAccess->SetIndexExpression( _BuildExpression(pArraySubscript->getRHS()) );
   }
+  else if (isa<::clang::UnaryOperator>(pExpression))
+  {
+    ::clang::UnaryOperator      *pUnaryOp = dyn_cast<::clang::UnaryOperator>(pExpression);
+    ::clang::Expr               *pSubExpr = pUnaryOp->getSubExpr();
+    ::clang::UnaryOperatorKind  eOpCode   = pUnaryOp->getOpcode();
+
+    if (eOpCode == ::clang::UO_Deref)
+    {
+      AST::Expressions::MemoryAccessPtr spMemoryAccess = AST::CreateNode< AST::Expressions::MemoryAccess >();
+      spReturnExpression = spMemoryAccess;
+
+      spMemoryAccess->SetMemoryReference( _BuildExpression(pSubExpr) );
+      spMemoryAccess->SetIndexExpression( _CreateConstant< int32_t >( 0 ) );
+    }
+    else
+    {
+      spReturnExpression = _BuildUnaryOperatorExpression(pSubExpr, eOpCode);
+    }
+  }
+  else
+  {
+    throw ASTExceptions::UnknownExpressionClass( pExpression->getStmtClassName() );
+  }
 
   return spReturnExpression;
+}
+
+AST::Expressions::UnaryOperatorPtr Vectorizer::VASTBuilder::_BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind)
+{
+  typedef AST::Expressions::UnaryOperator::UnaryOperatorType OperatorType;
+
+  AST::Expressions::UnaryOperatorPtr spReturnOperator = AST::CreateNode< AST::Expressions::UnaryOperator >();
+
+  switch (eOpKind)
+  {
+  case UO_AddrOf:   spReturnOperator->SetOperatorType(OperatorType::AddressOf);       break;
+  case UO_Not:      spReturnOperator->SetOperatorType(OperatorType::BitwiseNot);      break;
+  case UO_LNot:     spReturnOperator->SetOperatorType(OperatorType::LogicalNot);      break;
+  case UO_Minus:    spReturnOperator->SetOperatorType(OperatorType::Minus);           break;
+  case UO_Plus:     spReturnOperator->SetOperatorType(OperatorType::Plus);            break;
+  case UO_PostDec:  spReturnOperator->SetOperatorType(OperatorType::PostDecrement);   break;
+  case UO_PostInc:  spReturnOperator->SetOperatorType(OperatorType::PostIncrement);   break;
+  case UO_PreDec:   spReturnOperator->SetOperatorType(OperatorType::PreDecrement);    break;
+  case UO_PreInc:   spReturnOperator->SetOperatorType(OperatorType::PreIncrement);    break;
+  default:          throw RuntimeErrorException("Invalid unary operator type!");
+  }
+
+  spReturnOperator->SetSubExpression( _BuildExpression(pSubExpr) );
+
+  return spReturnOperator;
 }
 
 AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl)
@@ -322,16 +364,16 @@ void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::Comp
     }
     else if (isa<::clang::Expr>(pChildStatement))
     {
-      ::clang::Expr *pExpression = dyn_cast<::clang::Expr>(pChildStatement);
+      spChild = _BuildExpression( dyn_cast<::clang::Expr>(pChildStatement) );
 
-      spChild = _BuildExpression(pExpression);
-
-if (! spChild) continue;  // TODO: Remove this
+      if (! spChild)
+      {
+        throw InternalErrors::NullPointerException("spChild");
+      }
     }
     else
     {
-//      throw RuntimeErrorException(string("Unknown statement type \"") + string(pChildStatement->getStmtClassName()) + string("\" !"));
-continue;  // TODO: Remove this
+      throw ASTExceptions::UnknownStatementClass( pChildStatement->getStmtClassName() );
     }
 
     spScope->AddChild(spChild);

@@ -55,6 +55,17 @@ namespace Vectorization
     {
     private:
 
+      template <typename ValueType>
+      inline static AST::Expressions::ConstantPtr _CreateConstant(ValueType TValue)
+      {
+        AST::Expressions::ConstantPtr spConstant = AST::CreateNode< AST::Expressions::Constant >();
+
+        spConstant->SetValue( TValue );
+
+        return spConstant;
+      }
+
+
       static AST::Expressions::BinaryOperatorPtr  _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
 
       static AST::Expressions::ConstantPtr        _BuildConstantExpression(::clang::Expr *pExpression);
@@ -62,6 +73,8 @@ namespace Vectorization
       static AST::Expressions::ConversionPtr      _BuildConversionExpression(::clang::CastExpr *pCastExpr);
 
       static AST::BaseClasses::ExpressionPtr      _BuildExpression(::clang::Expr *pExpression);
+
+      static AST::Expressions::UnaryOperatorPtr   _BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind);
 
       static AST::BaseClasses::VariableInfoPtr    _BuildVariableInfo(::clang::VarDecl *pVarDecl);
 

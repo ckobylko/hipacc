@@ -130,7 +130,7 @@ AST::BaseClasses::TypeInfo& AST::BaseClasses::TypeInfo::operator=(const TypeInfo
   return *this;
 }
 
-AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateDereferencedType()
+AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateDereferencedType() const
 {
   TypeInfo ReturnType(*this);
 
@@ -145,6 +145,22 @@ AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateDereferencedType()
   else
   {
     throw ASTExceptions::NonDereferencableType();
+  }
+
+  return ReturnType;
+}
+
+AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreatePointerType() const
+{
+  TypeInfo ReturnType(*this);
+
+  if (ReturnType.IsSingleValue())
+  {
+    ReturnType.SetPointer(true);
+  }
+  else
+  {
+    throw RuntimeErrorException("Only single value types have a corresponding pointer type!");
   }
 
   return ReturnType;
@@ -470,6 +486,60 @@ AST::BaseClasses::TypeInfo AST::Expressions::Parenthesis::GetResultType() const
 }
 
 
+// Implementation of class AST::Expressions::UnaryOperator
+string AST::Expressions::UnaryOperator::_GetOperatorTypeString(UnaryOperatorType eType)
+{
+  switch (eType)
+  {
+  case UnaryOperatorType::AddressOf:        return "AddressOf";
+  case UnaryOperatorType::BitwiseNot:       return "BitwiseNot";
+  case UnaryOperatorType::LogicalNot:       return "LogicalNot";
+  case UnaryOperatorType::Minus:            return "Minus";
+  case UnaryOperatorType::Plus:             return "Plus";
+  case UnaryOperatorType::PostDecrement:    return "PostDecrement";
+  case UnaryOperatorType::PostIncrement:    return "PostIncrement";
+  case UnaryOperatorType::PreDecrement:     return "PreDecrement";
+  case UnaryOperatorType::PreIncrement:     return "PreIncrement";
+  default:                                  throw InternalErrorException("Unknown unary operator type!");
+  }
+}
+
+string AST::Expressions::UnaryOperator::DumpToXML(size_t szIntend)
+{
+  XMLSupport::AttributesMapType mapAttributes;
+  mapAttributes["type"] = _GetOperatorTypeString( GetOperatorType() );
+  return XMLSupport::CreateXmlTag(szIntend, "UnaryOperator", _DumpSubExpressionToXML(szIntend + 2), mapAttributes);
+}
+
+AST::BaseClasses::TypeInfo AST::Expressions::UnaryOperator::GetResultType() const
+{
+  if (! GetSubExpression())
+  {
+    return BaseClasses::TypeInfo(BaseClasses::TypeInfo::KnownTypes::Unknown);
+  }
+
+  if (GetOperatorType() == UnaryOperatorType::AddressOf)
+  {
+    return GetSubExpression()->GetResultType().CreatePointerType();
+  }
+  else if (GetOperatorType() == UnaryOperatorType::LogicalNot)
+  {
+    return BaseClasses::TypeInfo(BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
+  }
+  else
+  {
+    BaseClasses::TypeInfo ReturnType = GetSubExpression()->GetResultType();
+
+    if (! ReturnType.GetPointer())
+    {
+      ReturnType.SetConst(true);
+    }
+
+    return ReturnType;
+  }
+}
+
+
 // Implementation of class AST::Expressions::BinaryOperator
 string AST::Expressions::BinaryOperator::_DumpSubExpressionsToXML(size_t szIntend)
 {
@@ -556,7 +626,7 @@ AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType()
       // Cannot do arithmetic with unknown types => Return type is unknown
       return TypeInfo();
     }
-    else if (TypeRHS.GetPointer() || TypeRHS.IsArray())
+    else if (! TypeRHS.IsSingleValue())
     {
       // Expected single value for right operand => Unknown type
       return TypeInfo();
@@ -651,13 +721,7 @@ string AST::Expressions::RelationalOperator::DumpToXML(size_t szIntend)
 
 AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType() const
 {
-  BaseClasses::TypeInfo ResultType;
-
-  ResultType.SetConst(true);
-  ResultType.SetPointer(false);
-  ResultType.SetType(BaseClasses::TypeInfo::KnownTypes::Bool);
-
-  return ResultType;
+  return BaseClasses::TypeInfo( BaseClasses::TypeInfo::KnownTypes::Bool, true, false );
 }
 
 

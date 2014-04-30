@@ -76,6 +76,28 @@ namespace Vectorization
 
       inline NonDereferencableType() : BaseType("The specified type cannot be dereferenced!")  {}
     };
+
+    class UnknownExpressionClass : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException  BaseType;   //!< The base type of this class.
+
+    public:
+
+      inline UnknownExpressionClass(std::string strExprClassName) : BaseType( std::string( "The expression class \"") + strExprClassName + std::string("\" is unknown!") )  {}
+    };
+
+    class UnknownStatementClass : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException  BaseType;   //!< The base type of this class.
+
+    public:
+
+      inline UnknownStatementClass(std::string strStmtClassName) : BaseType(std::string("The statement class \"") + strStmtClassName + std::string("\" is unknown!"))  {}
+    };
   };
 
 
@@ -143,12 +165,19 @@ namespace Vectorization
 
       public:
 
-        inline TypeInfo() : _eType(KnownTypes::Unknown), _bIsConst(false), _bIsPointer(false)   {}
+        inline TypeInfo(KnownTypes eType = KnownTypes::Unknown, bool bIsConst = false, bool bIsPointer = false)
+        {
+          _eType      = eType;
+          _bIsConst   = bIsConst;
+          _bIsPointer = bIsPointer;
+        }
+
         inline TypeInfo(const TypeInfo &crRVal)   { *this = crRVal; }
         TypeInfo& operator=(const TypeInfo &crRVal);
 
 
-        TypeInfo CreateDereferencedType();
+        TypeInfo CreateDereferencedType() const;
+        TypeInfo CreatePointerType() const;
 
 
         inline ArrayDimensionVectorType&        GetArrayDimensions()        { return _vecArrayDimensions; }
@@ -163,7 +192,9 @@ namespace Vectorization
         inline KnownTypes GetType() const             { return _eType; }
         inline void       SetType(KnownTypes eType)   { _eType = eType; }
 
-        inline bool IsArray() const       { return (!_vecArrayDimensions.empty()); }
+        inline bool IsArray() const           { return (!_vecArrayDimensions.empty()); }
+        inline bool IsDereferencable() const  { return (IsArray() || GetPointer()); }
+        inline bool IsSingleValue() const     { return (! IsDereferencable()); }
 
 
         std::string DumpToXML(size_t szIntend);
@@ -329,6 +360,7 @@ namespace Vectorization
       class MemoryAccess;
       class Conversion;
       class Parenthesis;
+      class UnaryOperator;
       class BinaryOperator;
       class ArithmeticOperator;
       class AssignmentOperator;
@@ -340,6 +372,7 @@ namespace Vectorization
       typedef std::shared_ptr< MemoryAccess >         MemoryAccessPtr;
       typedef std::shared_ptr< Conversion >           ConversionPtr;
       typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
+      typedef std::shared_ptr< UnaryOperator >        UnaryOperatorPtr;
       typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
       typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
       typedef std::shared_ptr< AssignmentOperator >   AssignmentOperatorPtr;
@@ -632,6 +665,9 @@ namespace Vectorization
 
         UnaryOperatorType    _eOpType;
 
+        static std::string _GetOperatorTypeString(UnaryOperatorType eType);
+
+
       public:
 
         inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator)  {}
@@ -639,7 +675,15 @@ namespace Vectorization
 
         inline UnaryOperatorType  GetOperatorType() const                     { return _eOpType; }
         inline void               SetOperatorType(UnaryOperatorType eOpType)  { _eOpType = eOpType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(size_t szIntend) final override;
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
       };
+
 
       class BinaryOperator : public BaseClasses::Expression
       {
