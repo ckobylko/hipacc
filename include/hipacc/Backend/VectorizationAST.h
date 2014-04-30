@@ -197,7 +197,7 @@ namespace Vectorization
         inline bool IsSingleValue() const     { return (! IsDereferencable()); }
 
 
-        std::string DumpToXML(size_t szIntend);
+        std::string DumpToXML(const size_t cszIntend) const;
 
 
       public:
@@ -225,7 +225,7 @@ namespace Vectorization
         inline TypeInfo&        GetTypeInfo()       { return _Type; }
         inline const TypeInfo&  GetTypeInfo() const { return _Type; }
 
-        std::string DumpToXML(size_t szIntend);
+        std::string DumpToXML(const size_t cszIntend) const;
       };
 
       class Node
@@ -278,7 +278,7 @@ namespace Vectorization
           _SetParentToChild(rDestinationPtr);
         }
 
-        void _SetParentToChild(NodePtr spChild);
+        void _SetParentToChild(NodePtr spChild) const;
 
 
       public:
@@ -302,7 +302,7 @@ namespace Vectorization
         virtual IndexType   GetChildCount() const = 0;
 
 
-        virtual std::string DumpToXML(size_t szIntend) = 0;
+        virtual std::string DumpToXML(const size_t cszIntend) const = 0;
       };
 
       class Expression : public Node
@@ -328,7 +328,7 @@ namespace Vectorization
 
       protected:
 
-        std::string _DumpResultTypeToXML(size_t szIntend);
+        std::string _DumpResultTypeToXML(const size_t cszIntend) const;
 
 
       public:
@@ -497,7 +497,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
       };
 
       class Identifier final : public Value
@@ -520,7 +520,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
       };
 
       class MemoryAccess final : public Value
@@ -554,7 +554,7 @@ namespace Vectorization
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
 
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
       };
 
 
@@ -581,7 +581,7 @@ namespace Vectorization
 
       protected:
 
-        std::string _DumpSubExpressionToXML(size_t szIntend);
+        std::string _DumpSubExpressionToXML(const size_t cszIntend) const;
 
       public:
 
@@ -617,7 +617,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetConvertType(); }
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
       };
 
       class Parenthesis final : public UnaryExpression
@@ -635,7 +635,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
       };
 
       class UnaryOperator final : public UnaryExpression
@@ -679,7 +679,7 @@ namespace Vectorization
 
       public:
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
       };
@@ -711,7 +711,7 @@ namespace Vectorization
 
       protected:
 
-        std::string _DumpSubExpressionsToXML(size_t szIntend);
+        std::string _DumpSubExpressionsToXML(const size_t cszIntend) const;
 
       public:
 
@@ -781,7 +781,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
       };
 
@@ -800,7 +800,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
       };
 
@@ -843,7 +843,7 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual std::string DumpToXML(size_t szIntend) final override;
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
       };
     };
@@ -878,7 +878,7 @@ namespace Vectorization
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(_Children.size()); }
 
 
-      virtual std::string DumpToXML(size_t szIntend) final override;
+      virtual std::string DumpToXML(const size_t cszIntend) const final override;
     };
 
 
@@ -910,7 +910,8 @@ namespace Vectorization
       void AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
       void AddVariable(BaseClasses::VariableInfoPtr spVariableInfo);
 
-      ScopePtr GetBody();
+      ScopePtr        GetBody();
+      const ScopePtr  GetBody() const;
 
       inline std::string  GetName() const               { return _strName; }
       inline void         SetName(std::string strName)  { _strName = strName; }
@@ -923,7 +924,7 @@ namespace Vectorization
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(1); }
 
 
-      virtual std::string DumpToXML(size_t szIntend) final override;
+      virtual std::string DumpToXML(const size_t cszIntend) const final override;
     };
 
 

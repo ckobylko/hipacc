@@ -188,7 +188,7 @@ AST::BaseClasses::TypeInfo AST::BaseClasses::TypeInfo::CreateSizedIntegerType(si
   return ReturnType;
 }
 
-string AST::BaseClasses::TypeInfo::DumpToXML(size_t szIntend)
+string AST::BaseClasses::TypeInfo::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
@@ -209,7 +209,7 @@ string AST::BaseClasses::TypeInfo::DumpToXML(size_t szIntend)
     mapAttributes["array_dim"] = strDim;
   }
 
-  return XMLSupport::CreateXmlTag(szIntend, "TypeInfo", mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "TypeInfo", mapAttributes);
 }
 
 size_t AST::BaseClasses::TypeInfo::GetTypeSize(KnownTypes eType)
@@ -274,13 +274,13 @@ bool AST::BaseClasses::TypeInfo::IsSigned(KnownTypes eType)
 
 
 // Implementation of class AST::BaseClasses::VariableInfo
-string AST::BaseClasses::VariableInfo::DumpToXML(size_t szIntend)
+string AST::BaseClasses::VariableInfo::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["name"] = GetName();
 
-  return XMLSupport::CreateXmlTag(szIntend, "Variable", _Type.DumpToXML(szIntend + 2), mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "Variable", _Type.DumpToXML(cszIntend + 2), mapAttributes);
 }
 
 
@@ -290,7 +290,7 @@ string AST::BaseClasses::Node::_DumpChildToXml(const NodePtr spChild, const size
   return spChild ? spChild->DumpToXML(cszIntend) : "";
 }
 
-void AST::BaseClasses::Node::_SetParentToChild(NodePtr spChild)
+void AST::BaseClasses::Node::_SetParentToChild(NodePtr spChild) const
 {
   if (spChild)
   {
@@ -305,9 +305,9 @@ AST::BaseClasses::NodePtr AST::BaseClasses::Node::GetParent()
 
 
 // Implementation of class AST::BaseClasses::Expression
-string AST::BaseClasses::Expression::_DumpResultTypeToXML(size_t szIntend)
+string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(szIntend, "ResultType", GetResultType().DumpToXML(szIntend + 2));
+  return XMLSupport::CreateXmlTag(cszIntend, "ResultType", GetResultType().DumpToXML(cszIntend + 2));
 }
 
 
@@ -324,14 +324,14 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::Value::GetSubExpression(IndexT
 
 
 // Implementation of class AST::Expressions::Constant
-string AST::Expressions::Constant::DumpToXML(size_t szIntend)
+string AST::Expressions::Constant::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["type"]   = BaseClasses::TypeInfo::GetTypeString(_eType);
   mapAttributes["value"]  = GetAsString();
 
-  return XMLSupport::CreateXmlTag(szIntend, "Constant", mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "Constant", mapAttributes);
 }
 
 string AST::Expressions::Constant::GetAsString() const
@@ -366,13 +366,13 @@ AST::BaseClasses::TypeInfo AST::Expressions::Constant::GetResultType() const
 
 
 // Implementation of class AST::Expressions::Identifier
-string AST::Expressions::Identifier::DumpToXML(size_t szIntend)
+string AST::Expressions::Identifier::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["name"] = GetName();
 
-  return XMLSupport::CreateXmlTag(szIntend, "Identifier", mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "Identifier", mapAttributes);
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::Identifier::GetResultType() const
@@ -410,13 +410,13 @@ AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableIn
 
 
 // Implementation of class AST::Expressions::MemoryAccess
-string AST::Expressions::MemoryAccess::DumpToXML(size_t szIntend)
+string AST::Expressions::MemoryAccess::DumpToXML(const size_t cszIntend) const
 {
-  string strXmlString  = _DumpResultTypeToXML(szIntend + 2);
-  strXmlString        += XMLSupport::CreateXmlTag( szIntend + 2, "MemoryRef", _DumpChildToXml(GetMemoryReference(), szIntend + 4) );
-  strXmlString        += XMLSupport::CreateXmlTag( szIntend + 2, "Index",     _DumpChildToXml(GetIndexExpression(), szIntend + 4) );
+  string strXmlString  = _DumpResultTypeToXML(cszIntend + 2);
+  strXmlString        += XMLSupport::CreateXmlTag( cszIntend + 2, "MemoryRef", _DumpChildToXml(GetMemoryReference(), cszIntend + 4) );
+  strXmlString        += XMLSupport::CreateXmlTag( cszIntend + 2, "Index",     _DumpChildToXml(GetIndexExpression(), cszIntend + 4) );
 
-  return XMLSupport::CreateXmlTag(szIntend, "MemoryAccess", strXmlString);
+  return XMLSupport::CreateXmlTag(cszIntend, "MemoryAccess", strXmlString);
 }
 
 AST::BaseClasses::ExpressionPtr AST::Expressions::MemoryAccess::GetSubExpression(IndexType SubExprIndex)
@@ -443,10 +443,10 @@ AST::BaseClasses::TypeInfo AST::Expressions::MemoryAccess::GetResultType() const
 
 
 // Implementation of class AST::Expressions::UnaryExpression
-string AST::Expressions::UnaryExpression::_DumpSubExpressionToXML(size_t szIntend)
+string AST::Expressions::UnaryExpression::_DumpSubExpressionToXML(const size_t cszIntend) const
 {
-  string strXmlString  = _DumpResultTypeToXML(szIntend);
-  strXmlString        += XMLSupport::CreateXmlTag( szIntend, "SubExpression", _DumpChildToXml(GetSubExpression(), szIntend + 2) );
+  string strXmlString  = _DumpResultTypeToXML(cszIntend);
+  strXmlString        += XMLSupport::CreateXmlTag( cszIntend, "SubExpression", _DumpChildToXml(GetSubExpression(), cszIntend + 2) );
   return strXmlString;
 }
 
@@ -461,16 +461,16 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::UnaryExpression::GetSubExpress
 
 
 // Implementation of class AST::Expressions::Conversion
-string AST::Expressions::Conversion::DumpToXML(size_t szIntend)
+string AST::Expressions::Conversion::DumpToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(szIntend, "Conversion", _DumpSubExpressionToXML(szIntend + 2));
+  return XMLSupport::CreateXmlTag(cszIntend, "Conversion", _DumpSubExpressionToXML(cszIntend + 2));
 }
 
 
 // Implementation of class AST::Expressions::Parenthesis
-string AST::Expressions::Parenthesis::DumpToXML(size_t szIntend)
+string AST::Expressions::Parenthesis::DumpToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(szIntend, "Parenthesis", _DumpSubExpressionToXML(szIntend + 2));
+  return XMLSupport::CreateXmlTag(cszIntend, "Parenthesis", _DumpSubExpressionToXML(cszIntend + 2));
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::Parenthesis::GetResultType() const
@@ -504,11 +504,11 @@ string AST::Expressions::UnaryOperator::_GetOperatorTypeString(UnaryOperatorType
   }
 }
 
-string AST::Expressions::UnaryOperator::DumpToXML(size_t szIntend)
+string AST::Expressions::UnaryOperator::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
   mapAttributes["type"] = _GetOperatorTypeString( GetOperatorType() );
-  return XMLSupport::CreateXmlTag(szIntend, "UnaryOperator", _DumpSubExpressionToXML(szIntend + 2), mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "UnaryOperator", _DumpSubExpressionToXML(cszIntend + 2), mapAttributes);
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::UnaryOperator::GetResultType() const
@@ -541,12 +541,12 @@ AST::BaseClasses::TypeInfo AST::Expressions::UnaryOperator::GetResultType() cons
 
 
 // Implementation of class AST::Expressions::BinaryOperator
-string AST::Expressions::BinaryOperator::_DumpSubExpressionsToXML(size_t szIntend)
+string AST::Expressions::BinaryOperator::_DumpSubExpressionsToXML(const size_t cszIntend) const
 {
-  string strXmlString = _DumpResultTypeToXML(szIntend);
+  string strXmlString = _DumpResultTypeToXML(cszIntend);
 
-  strXmlString += XMLSupport::CreateXmlTag( szIntend, "LHS", _DumpChildToXml(GetLHS(), szIntend + 2) );
-  strXmlString += XMLSupport::CreateXmlTag( szIntend, "RHS", _DumpChildToXml(GetRHS(), szIntend + 2) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend, "LHS", _DumpChildToXml(GetLHS(), cszIntend + 2) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend, "RHS", _DumpChildToXml(GetRHS(), cszIntend + 2) );
 
   return strXmlString;
 }
@@ -605,13 +605,13 @@ AST::BaseClasses::TypeInfo::KnownTypes AST::Expressions::ArithmeticOperator::_Ge
   }
 }
 
-string AST::Expressions::ArithmeticOperator::DumpToXML(size_t szIntend)
+string AST::Expressions::ArithmeticOperator::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["type"] = _GetOperatorTypeString(_eOpType);
 
-  return XMLSupport::CreateXmlTag(szIntend, "ArithmeticOperator", _DumpSubExpressionsToXML(szIntend + 2), mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "ArithmeticOperator", _DumpSubExpressionsToXML(cszIntend + 2), mapAttributes);
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType() const
@@ -668,9 +668,9 @@ AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType()
 
 
 // Implementation of class AST::Expressions::AssignmentOperator
-string AST::Expressions::AssignmentOperator::DumpToXML(size_t szIntend)
+string AST::Expressions::AssignmentOperator::DumpToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(szIntend, "AssignmentOperator", _DumpSubExpressionsToXML(szIntend + 2));
+  return XMLSupport::CreateXmlTag( cszIntend, "AssignmentOperator", _DumpSubExpressionsToXML(cszIntend + 2) );
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::AssignmentOperator::GetResultType() const
@@ -710,13 +710,13 @@ string AST::Expressions::RelationalOperator::_GetOperatorTypeString(RelationalOp
   }
 }
 
-string AST::Expressions::RelationalOperator::DumpToXML(size_t szIntend)
+string AST::Expressions::RelationalOperator::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["type"] = _GetOperatorTypeString(_eOpType);
 
-  return XMLSupport::CreateXmlTag(szIntend, "RelationalOperator", _DumpSubExpressionsToXML(szIntend + 2), mapAttributes);
+  return XMLSupport::CreateXmlTag( cszIntend, "RelationalOperator", _DumpSubExpressionsToXML(cszIntend + 2), mapAttributes );
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType() const
@@ -763,16 +763,16 @@ void AST::Scope::AddVariable(BaseClasses::VariableInfoPtr spVariableInfo)
   }
 }
 
-string AST::Scope::DumpToXML(size_t szIntend)
+string AST::Scope::DumpToXML(const size_t cszIntend) const
 {
   string strXmlString("");
 
   for each (auto itNode in _Children)
   {
-    strXmlString += itNode->DumpToXML(szIntend + 2);
+    strXmlString += itNode->DumpToXML(cszIntend + 2);
   }
 
-  return XMLSupport::CreateXmlTag(szIntend, "Scope", strXmlString);
+  return XMLSupport::CreateXmlTag(cszIntend, "Scope", strXmlString);
 }
 
 AST::BaseClasses::NodePtr AST::Scope::GetChild(IndexType ChildIndex)
@@ -816,7 +816,7 @@ void AST::FunctionDeclaration::AddVariable(BaseClasses::VariableInfoPtr spVariab
   _mapKnownVariables[spVariableInfo->GetName()] = spVariableInfo;
 }
 
-string AST::FunctionDeclaration::DumpToXML(size_t szIntend)
+string AST::FunctionDeclaration::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
@@ -830,10 +830,10 @@ string AST::FunctionDeclaration::DumpToXML(size_t szIntend)
 
     for each (auto itVariable in _mapKnownVariables)
     {
-      strXmlVariables += itVariable.second->DumpToXML(szIntend + 4);
+      strXmlVariables += itVariable.second->DumpToXML(cszIntend + 4);
     }
 
-    strXmlString += XMLSupport::CreateXmlTag(szIntend + 2, "KnownVariables", strXmlVariables);
+    strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "KnownVariables", strXmlVariables);
   }
 
   // Dump parameters
@@ -842,16 +842,16 @@ string AST::FunctionDeclaration::DumpToXML(size_t szIntend)
 
     for each (auto itParameter in _Parameters)
     {
-      strXmlParams += itParameter->DumpToXML(szIntend + 4);
+      strXmlParams += itParameter->DumpToXML(cszIntend + 4);
     }
 
-    strXmlString += XMLSupport::CreateXmlTag(szIntend + 2, "Parameters", strXmlParams);
+    strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "Parameters", strXmlParams);
   }
 
   // Dump body
-  strXmlString += XMLSupport::CreateXmlTag( szIntend + 2, "Body", _DumpChildToXml(GetBody(), szIntend + 4) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Body", _DumpChildToXml(GetBody(), cszIntend + 4) );
 
-  return XMLSupport::CreateXmlTag(szIntend, "FunctionDeclaration", strXmlString, mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "FunctionDeclaration", strXmlString, mapAttributes);
 }
 
 AST::ScopePtr AST::FunctionDeclaration::GetBody()
@@ -862,6 +862,18 @@ AST::ScopePtr AST::FunctionDeclaration::GetBody()
   }
 
   return _spBody;
+}
+
+const AST::ScopePtr AST::FunctionDeclaration::GetBody() const
+{
+  if (_spBody)
+  {
+    return _spBody;
+  }
+  else
+  {
+    throw InternalErrors::NullPointerException("_spBody");
+  }
 }
 
 AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildIndex)
