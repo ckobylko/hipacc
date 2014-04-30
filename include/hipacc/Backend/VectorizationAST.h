@@ -140,7 +140,6 @@ namespace Vectorization
         bool                      _bIsPointer;
         ArrayDimensionVectorType  _vecArrayDimensions;
 
-        static std::string _GetBoolString(bool bValue);
 
       public:
 
@@ -232,7 +231,22 @@ namespace Vectorization
         inline Node(NodeType eType) : _ceNodeType(eType)    {}
 
 
-        void _RemoveParentFromChild(NodePtr spChild);
+        static std::string _DumpChildToXml(const NodePtr spChild, const size_t cszIntend);
+
+        template < typename NodeClassPtr >
+        inline void _SetChildPtr(NodeClassPtr &rDestinationPtr, const NodeClassPtr &crSourcePtr)
+        {
+          // If the child is set, remove its parent pointer
+          if (rDestinationPtr)
+          {
+            rDestinationPtr->_SetParent(nullptr);
+          }
+
+          // Set the child pointer and set the current node as its parent
+          rDestinationPtr = crSourcePtr;
+          _SetParentToChild(rDestinationPtr);
+        }
+
         void _SetParentToChild(NodePtr spChild);
 
 
@@ -468,8 +482,6 @@ namespace Vectorization
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
 
-        std::string GetAsString() const   { return GetName(); }
-
         BaseClasses::VariableInfoPtr LookupVariableInfo() const;
 
 
@@ -494,13 +506,13 @@ namespace Vectorization
         inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
 
 
-        inline ExpressionPtr        GetIndexExpression()          { return _spIndexExpr; }
-        inline const ExpressionPtr  GetIndexExpression() const    { return _spIndexExpr; }
-        void                        SetIndexExpression(ExpressionPtr spIndexExpression);
+        inline ExpressionPtr        GetIndexExpression()                                  { return _spIndexExpr; }
+        inline const ExpressionPtr  GetIndexExpression() const                            { return _spIndexExpr; }
+        inline void                 SetIndexExpression(ExpressionPtr spIndexExpression)   { _SetChildPtr(_spIndexExpr, spIndexExpression); }
 
-        inline ExpressionPtr        GetMemoryReference()          { return _spMemoryRef; }
-        inline const ExpressionPtr  GetMemoryReference() const    { return _spMemoryRef; }
-        void                        SetMemoryReference(ExpressionPtr spMemoryReference);
+        inline ExpressionPtr        GetMemoryReference()                                  { return _spMemoryRef; }
+        inline const ExpressionPtr  GetMemoryReference() const                            { return _spMemoryRef; }
+        inline void                 SetMemoryReference(ExpressionPtr spMemoryReference)   { _SetChildPtr(_spMemoryRef, spMemoryReference); }
 
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
@@ -542,9 +554,9 @@ namespace Vectorization
 
         inline UnaryExpression(UnaryExpressionType eType) : BaseType(BaseType::ExpressionType::UnaryExpression), _ceUnaryExprType(eType), _spSubExpression(nullptr)  {}
 
-        inline BaseClasses::ExpressionPtr         GetSubExpression()          { return _spSubExpression; }
-        inline const BaseClasses::ExpressionPtr   GetSubExpression() const    { return _spSubExpression; }
-        void                                      SetSubExpression(BaseClasses::ExpressionPtr spSubExpr);
+        inline BaseClasses::ExpressionPtr         GetSubExpression()                                      { return _spSubExpression; }
+        inline const BaseClasses::ExpressionPtr   GetSubExpression() const                                { return _spSubExpression; }
+        inline void                               SetSubExpression(BaseClasses::ExpressionPtr spSubExpr)  { _SetChildPtr(_spSubExpression, spSubExpr); }
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
@@ -662,13 +674,13 @@ namespace Vectorization
         inline BinaryOperator(BinaryOperatorType eBinOpType) : BaseType(BaseType::ExpressionType::BinaryOperator), _ceBinOpType(eBinOpType)   {}
 
 
-        inline ExpressionPtr        GetLHS()        { return _spLHS; }
-        inline const ExpressionPtr  GetLHS() const  { return _spLHS; }
-        inline ExpressionPtr        GetRHS()        { return _spRHS; }
-        inline const ExpressionPtr  GetRHS() const  { return _spRHS; }
+        inline ExpressionPtr        GetLHS()                        { return _spLHS; }
+        inline const ExpressionPtr  GetLHS() const                  { return _spLHS; }
+        inline void                 SetLHS(ExpressionPtr spNewLHS)  { _SetChildPtr(_spLHS, spNewLHS); }
 
-        void SetLHS(ExpressionPtr spNewLHS);
-        void SetRHS(ExpressionPtr spNewRHS);
+        inline ExpressionPtr        GetRHS()                        { return _spRHS; }
+        inline const ExpressionPtr  GetRHS() const                  { return _spRHS; }
+        inline void                 SetRHS(ExpressionPtr spNewRHS)  { _SetChildPtr(_spRHS, spNewRHS); }
 
 
       public:
