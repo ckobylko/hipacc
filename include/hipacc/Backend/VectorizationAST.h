@@ -240,8 +240,9 @@ namespace Vectorization
 
         enum class NodeType
         {
-          FunctionDeclaration,
+          ControlFlowStatement,
           Expression,
+          FunctionDeclaration,
           Scope,
           Value
         };
@@ -305,6 +306,30 @@ namespace Vectorization
         virtual std::string DumpToXML(const size_t cszIntend) const = 0;
       };
 
+      class ControlFlowStatement : public Node
+      {
+      protected:
+
+        typedef Node                  BaseType;
+        typedef BaseType::IndexType   IndexType;
+
+      public:
+
+        enum class ControlFlowType
+        {
+          Loop
+        };
+        
+      private:
+
+        const ControlFlowType    _ceControlFlowType;
+
+      public:
+
+        inline ControlFlowStatement(ControlFlowType eCtlFlowType) : BaseType(Node::NodeType::ControlFlowStatement), _ceControlFlowType(eCtlFlowType)  {}
+
+      };
+
       class Expression : public Node
       {
       protected:
@@ -345,7 +370,73 @@ namespace Vectorization
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) = 0;
         virtual IndexType       GetSubExpressionCount() const = 0;
       };
+    };
 
+
+    class ControlFlow final
+    {
+      // Forward declarations and type definitions
+    public:
+
+      class Loop;
+
+      typedef std::shared_ptr< Loop >   LoopPtr;
+
+    public:
+
+      class Loop final : public BaseClasses::ControlFlowStatement
+      {
+      private:
+
+        typedef BaseClasses::ControlFlowStatement   BaseType;
+        typedef BaseType::IndexType                 IndexType;
+
+      public:
+        
+        enum class LoopType
+        {
+          TopControlled,
+          BottomControlled
+        };
+
+      private:
+
+        LoopType                    _eLoopType;
+        BaseClasses::ExpressionPtr  _spConditionExpr;
+        BaseClasses::ExpressionPtr  _spIncrementExpr;
+        ScopePtr                    _spBody;
+
+
+        static std::string _GetLoopTypeString(LoopType eType);
+
+
+      public:
+
+        inline Loop() : BaseType(BaseType::ControlFlowType::Loop)   {}
+
+
+        ScopePtr        GetBody();
+        const ScopePtr  GetBody() const;
+
+        inline BaseClasses::ExpressionPtr         GetCondition()                                        { return _spConditionExpr; }
+        inline const BaseClasses::ExpressionPtr   GetCondition() const                                  { return _spConditionExpr; }
+        inline void                               SetCondition(BaseClasses::ExpressionPtr spCondition)  { _SetChildPtr(_spConditionExpr, spCondition); }
+
+        inline BaseClasses::ExpressionPtr         GetIncrement()                                        { return _spIncrementExpr; }
+        inline const BaseClasses::ExpressionPtr   GetIncrement() const                                  { return _spIncrementExpr; }
+        inline void                               SetIncrement(BaseClasses::ExpressionPtr spIncrement)  { _SetChildPtr(_spIncrementExpr, spIncrement); }
+
+        inline LoopType GetLoopType() const           { return _eLoopType; }
+        inline void     SetLoopType(LoopType eType)   { _eLoopType = eType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
+        virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 3 ); }
+      };
     };
 
 

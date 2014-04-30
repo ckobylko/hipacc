@@ -313,6 +313,66 @@ string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend
 
 
 /***********************/
+/***   ControlFlow   ***/
+/***********************/
+
+// Implementation of class AST::ControlFlow::Loop
+string AST::ControlFlow::Loop::_GetLoopTypeString(LoopType eType)
+{
+  switch (eType)
+  {
+  case LoopType::TopControlled:     return "TopControlled";
+  case LoopType::BottomControlled:  return "BottomControlled";
+  default:                          throw InternalErrorException("Unknown loop type!");
+  }
+}
+
+string AST::ControlFlow::Loop::DumpToXML(const size_t cszIntend) const
+{
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["type"] = _GetLoopTypeString(GetLoopType());
+
+  string strXmlString("");
+
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Condition", _DumpChildToXml(GetCondition(), cszIntend + 4) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Increment", _DumpChildToXml(GetIncrement(), cszIntend + 4) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Body",      _DumpChildToXml(GetBody(), cszIntend + 4) );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "Loop", strXmlString, mapAttributes);
+}
+
+AST::ScopePtr AST::ControlFlow::Loop::GetBody()
+{
+  if (! _spBody)
+  {
+    _SetChildPtr(_spBody, AST::CreateNode<AST::Scope>());
+  }
+
+  return _spBody;
+}
+
+const AST::ScopePtr AST::ControlFlow::Loop::GetBody() const
+{
+  CHECK_NULL_POINTER(_spBody);
+
+  return _spBody;
+}
+
+AST::BaseClasses::NodePtr  AST::ControlFlow::Loop::GetChild(IndexType ChildIndex)
+{
+  switch (ChildIndex)
+  {
+  case 0:   return GetCondition();
+  case 1:   return GetIncrement();
+  case 2:   return GetBody();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+
+
+/***********************/
 /***   Expressions   ***/
 /***********************/
 
@@ -866,14 +926,9 @@ AST::ScopePtr AST::FunctionDeclaration::GetBody()
 
 const AST::ScopePtr AST::FunctionDeclaration::GetBody() const
 {
-  if (_spBody)
-  {
-    return _spBody;
-  }
-  else
-  {
-    throw InternalErrors::NullPointerException("_spBody");
-  }
+  CHECK_NULL_POINTER(_spBody);
+
+  return _spBody;
 }
 
 AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildIndex)
