@@ -74,6 +74,10 @@ namespace Vectorization
 
       static AST::BaseClasses::ExpressionPtr      _BuildExpression(::clang::Expr *pExpression);
 
+      static void                                 _BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope);
+
+      static AST::BaseClasses::NodePtr            _BuildStatement(::clang::Stmt *pStatement, AST::ScopePtr spEnclosingScope);
+
       static AST::Expressions::UnaryOperatorPtr   _BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind);
 
       static AST::BaseClasses::VariableInfoPtr    _BuildVariableInfo(::clang::VarDecl *pVarDecl);

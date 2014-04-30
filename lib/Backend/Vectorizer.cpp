@@ -263,6 +263,170 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   return spReturnExpression;
 }
 
+void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope)
+{
+  AST::ControlFlow::LoopPtr spLoop = AST::CreateNode< AST::ControlFlow::Loop >();
+
+  ::clang::Stmt   *pLoopBody  = nullptr;
+  ::clang::Expr   *pCondition = nullptr;
+
+  if (isa<::clang::ForStmt>(pLoopStatement))
+  {
+    spLoop->SetLoopType(AST::ControlFlow::Loop::LoopType::TopControlled);
+
+    ::clang::ForStmt *pForLoop = dyn_cast<::clang::ForStmt>(pLoopStatement);
+
+    // If we have an init statement, create a container scope around the loop and add the init statement
+    if (pForLoop->getInit())
+    {
+      AST::ScopePtr spLoopHolderScope = AST::CreateNode< AST::Scope >();
+      spEnclosingScope->AddChild(spLoopHolderScope);
+
+      AST::BaseClasses::NodePtr spInitStatement = _BuildStatement(pForLoop->getInit(), spLoopHolderScope);
+      if (spInitStatement)
+      {
+        spLoopHolderScope->AddChild(spInitStatement);
+      }
+
+      spLoopHolderScope->AddChild(spLoop);
+    }
+    else
+    {
+      spEnclosingScope->AddChild(spLoop);
+    }
+
+    // Build increment expression if it is present
+    if (pForLoop->getInc())
+    {
+      spLoop->SetIncrement( _BuildExpression(pForLoop->getInc()) );
+    }
+
+    pCondition  = pForLoop->getCond();
+    pLoopBody   = pForLoop->getBody();
+  }
+  else
+  {
+    spEnclosingScope->AddChild(spLoop);
+
+    if (isa<::clang::DoStmt>(pLoopStatement))
+    {
+      spLoop->SetLoopType(AST::ControlFlow::Loop::LoopType::BottomControlled);
+
+      ::clang::DoStmt *pDoWhileLoop = dyn_cast<::clang::DoStmt>(pLoopStatement);
+      pCondition  = pDoWhileLoop->getCond();
+      pLoopBody   = pDoWhileLoop->getBody();
+    }
+    else if (isa<::clang::WhileStmt>(pLoopStatement))
+    {
+      spLoop->SetLoopType(AST::ControlFlow::Loop::LoopType::TopControlled);
+
+      ::clang::WhileStmt *pWhileLoop = dyn_cast<::clang::WhileStmt>(pLoopStatement);
+      pCondition  = pWhileLoop->getCond();
+      pLoopBody   = pWhileLoop->getBody();
+    }
+    else
+    {
+      throw ASTExceptions::UnknownStatementClass(pLoopStatement->getStmtClassName());
+    }
+  }
+
+
+  // Build condition expression
+  spLoop->SetCondition( _BuildExpression(pCondition) );
+
+  // Build loop body if it is present
+  AST::ScopePtr spLoopBody = spLoop->GetBody();  // Must be called in every case, so that the loop body node is created
+  if (pLoopBody != nullptr)
+  {
+    if (isa<::clang::CompoundStmt>(pLoopBody))
+    {
+      _ConvertScope(spLoopBody, dyn_cast<::clang::CompoundStmt>(pLoopBody));
+    }
+    else
+    {
+      AST::BaseClasses::NodePtr spChild = _BuildStatement(pLoopBody, spLoopBody);
+      if (spChild)
+      {
+        spLoopBody->AddChild(spChild);
+      }
+    }
+  }
+}
+
+AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt *pStatement, AST::ScopePtr spEnclosingScope)
+{
+  AST::BaseClasses::NodePtr spStatement(nullptr);
+
+  if (isa<::clang::CompoundStmt>(pStatement))
+  {
+    ::clang::CompoundStmt *pCurrentCompound = dyn_cast<::clang::CompoundStmt>(pStatement);
+
+    AST::ScopePtr spChildScope = AST::CreateNode<AST::Scope>();
+    spStatement = spChildScope;
+
+    _ConvertScope(spChildScope, pCurrentCompound);
+  }
+  else if (isa<::clang::DeclStmt>(pStatement))
+  {
+    ::clang::DeclStmt     *pDeclStatement = dyn_cast<::clang::DeclStmt>(pStatement);
+    ::clang::DeclGroupRef  DeclGroup      = pDeclStatement->getDeclGroup();
+
+    for (auto itDecl = DeclGroup.begin(); itDecl != DeclGroup.end(); itDecl++)
+    {
+      ::clang::Decl *pDecl = *itDecl;
+      if (pDecl == nullptr)
+      {
+        continue;
+      }
+      else if (! isa<::clang::VarDecl>(pDecl))
+      {
+        continue;
+      }
+
+      ::clang::VarDecl  *pVarDecl = dyn_cast<::clang::VarDecl>(pDecl);
+      spEnclosingScope->AddVariable( _BuildVariableInfo(pVarDecl) );
+
+      ::clang::Expr     *pInitExpr = pVarDecl->getInit();
+      if (pInitExpr == nullptr)
+      {
+        continue;
+      }
+
+      AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
+
+      AST::Expressions::IdentifierPtr spVariable = AST::CreateNode< AST::Expressions::Identifier >();
+      spVariable->SetName(pVarDecl->getNameAsString());
+
+      spAssignment->SetLHS(spVariable);
+      spAssignment->SetRHS(_BuildExpression(pInitExpr));
+
+      spEnclosingScope->AddChild(spAssignment);
+    }
+
+    spStatement = nullptr;
+  }
+  else if (isa<::clang::Expr>(pStatement))
+  {
+    AST::BaseClasses::ExpressionPtr spExpression = _BuildExpression(dyn_cast<::clang::Expr>(pStatement));
+    if (!spExpression)
+    {
+      throw InternalErrors::NullPointerException("spStatement");
+    }
+
+    spStatement = spExpression;
+  }
+  else if ( isa<::clang::DoStmt>(pStatement) || isa<::clang::ForStmt>(pStatement) || isa<::clang::WhileStmt>(pStatement) )
+  {
+    _BuildLoop(pStatement, spEnclosingScope);
+  }
+  else
+  {
+    throw ASTExceptions::UnknownStatementClass(pStatement->getStmtClassName());
+  }
+
+  return spStatement;
+}
+
 AST::Expressions::UnaryOperatorPtr Vectorizer::VASTBuilder::_BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind)
 {
   typedef AST::Expressions::UnaryOperator::UnaryOperatorType OperatorType;
@@ -308,75 +472,11 @@ void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::Comp
       continue;
     }
 
-    AST::BaseClasses::NodePtr spChild(nullptr);
-
-    if (isa<::clang::CompoundStmt>(pChildStatement))
+    AST::BaseClasses::NodePtr spChild = _BuildStatement(pChildStatement, spScope);
+    if (spChild)
     {
-      ::clang::CompoundStmt *pCurrentCompound = dyn_cast<::clang::CompoundStmt>(pChildStatement);
-
-      AST::ScopePtr spChildScope = AST::CreateNode<AST::Scope>();
-      spChild = spChildScope;
-
-      _ConvertScope(spChildScope, pCurrentCompound);
+      spScope->AddChild(spChild);
     }
-    else if (isa<::clang::DeclStmt>(pChildStatement))
-    {
-      ::clang::DeclStmt     *pDeclStatement = dyn_cast<::clang::DeclStmt>(pChildStatement);
-      ::clang::DeclGroupRef  DeclGroup      = pDeclStatement->getDeclGroup();
-
-      for (auto itDecl = DeclGroup.begin(); itDecl != DeclGroup.end(); itDecl++)
-      {
-        ::clang::Decl *pDecl = *itDecl;
-        if (pDecl == nullptr)
-        {
-          continue;
-        }
-        else if (!isa<::clang::VarDecl>(pDecl))
-        {
-          continue;
-        }
-
-        ::clang::VarDecl  *pVarDecl   = dyn_cast<::clang::VarDecl>(pDecl);
-
-        AST::BaseClasses::VariableInfoPtr spVariableInfo = _BuildVariableInfo(pVarDecl);
-        spScope->AddVariable(spVariableInfo);
-
-
-        ::clang::Expr     *pInitExpr  = pVarDecl->getInit();
-
-        if (pInitExpr == nullptr)
-        {
-          continue;
-        }
-
-        AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
-
-        AST::Expressions::IdentifierPtr spVariable = AST::CreateNode< AST::Expressions::Identifier >();
-        spVariable->SetName(pVarDecl->getNameAsString());
-
-        spAssignment->SetLHS(spVariable);
-        spAssignment->SetRHS(_BuildExpression(pInitExpr));
-
-        spScope->AddChild(spAssignment);
-      }
-
-      continue;
-    }
-    else if (isa<::clang::Expr>(pChildStatement))
-    {
-      spChild = _BuildExpression( dyn_cast<::clang::Expr>(pChildStatement) );
-
-      if (! spChild)
-      {
-        throw InternalErrors::NullPointerException("spChild");
-      }
-    }
-    else
-    {
-      throw ASTExceptions::UnknownStatementClass( pChildStatement->getStmtClassName() );
-    }
-
-    spScope->AddChild(spChild);
   }
 }
 
