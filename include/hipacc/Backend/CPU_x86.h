@@ -332,10 +332,12 @@ namespace Backend
         KernelSubFunctionBuilder& operator=(const KernelSubFunctionBuilder &) = delete;
 
 
+      public:
+
         /** \brief  Helper function, which checks whether a specific variable name is being used in a statement tree.
          *  \param  crstrVariableName   A constant reference to the name of variable, whose usage shall be checked.
          *  \param  pStatement          A pointer to the root of the statement tree, which shall be parsed. */
-        static bool _IsVariableUsed(const std::string &crstrVariableName, ::clang::Stmt *pStatement);
+        static bool IsVariableUsed(const std::string &crstrVariableName, ::clang::Stmt *pStatement);
 
 
       public:
@@ -350,15 +352,15 @@ namespace Backend
          *  \param  bForceConstDecl   Specifies, whether the sub-function argument has to be declared as <b>const</b>. */
         void AddCallParameter(::clang::DeclRefExpr *pCallParam, bool bForceConstDecl = false);
 
-        /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
-         *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.
-         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references. */
-        void ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
-
         /** \brief  Creates a new sub-function declaration and call expression pair.
          *  \param  strFunctionName   The name of the new sub-function.
          *  \param  crResultType      The qualified result type of the new sub-function. */
         DeclCallPairType  CreateFuntionDeclarationAndCall(std::string strFunctionName, const ::clang::QualType &crResultType);
+
+        /** \brief  Imports all parameters from a function declaration, which are being used in a specific statement tree.
+         *  \param  pRootFunctionDecl   A pointer to the declaration object for the function whose parameters shall be imported.
+         *  \param  pSubFunctionBody    A pointer to the statement tree, which shall be parsed for the parameter references. */
+        void ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody);
       };
 
 

@@ -367,37 +367,6 @@ CPU_x86::CodeGenerator::Descriptor::Descriptor()
 
 
 // Implementation of class CPU_x86::CodeGenerator::KernelSubFunctionBuilder
-bool CPU_x86::CodeGenerator::KernelSubFunctionBuilder::_IsVariableUsed(const string &crstrVariableName, ::clang::Stmt *pStatement)
-{
-  if (pStatement == nullptr)
-  {
-    // Break for invalid statements
-    return false;
-  }
-  else if (isa<DeclRefExpr>(pStatement))
-  {
-    // Found a declaration reference expression => Check if it refers to specified variable
-    if (dyn_cast<DeclRefExpr>(pStatement)->getNameInfo().getAsString() == crstrVariableName)
-    {
-      return true;
-    }
-  }
-  else
-  {
-    // Check all child statements for references to the specified variable
-    for (auto itChild = pStatement->child_begin(); itChild != pStatement->child_end(); itChild++)
-    {
-      if (_IsVariableUsed(crstrVariableName, *itChild))
-      {
-        return true;
-      }
-    }
-
-  }
-
-  return false;
-}
-
 void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang::DeclRefExpr *pCallParam, bool bForceConstDecl)
 {
   ::clang::ValueDecl  *pValueDecl = pCallParam->getDecl();
@@ -413,19 +382,6 @@ void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::AddCallParameter(::clang:
   _vecCallParams.push_back(pCallParam);
 }
 
-void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
-{
-  for (unsigned int i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
-  {
-    ParmVarDecl *pParamVarDecl = pRootFunctionDecl->getParamDecl(i);
-
-    if (_IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
-    {
-      AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
-    }
-  }
-}
-
 CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::CodeGenerator::KernelSubFunctionBuilder::CreateFuntionDeclarationAndCall(string strFunctionName, const ::clang::QualType &crResultType)
 {
   DeclCallPairType pairDeclAndCall;
@@ -437,6 +393,24 @@ CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::Cod
   pairDeclAndCall.second = ASTNode::createFunctionCall( _rASTContext, pairDeclAndCall.first, _vecCallParams );
 
   return pairDeclAndCall;
+}
+
+void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::clang::FunctionDecl *pRootFunctionDecl, ::clang::Stmt *pSubFunctionBody)
+{
+  for (unsigned int i = 0; i < pRootFunctionDecl->getNumParams(); ++i)
+  {
+    ParmVarDecl *pParamVarDecl = pRootFunctionDecl->getParamDecl(i);
+
+    if (IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
+    {
+      AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
+    }
+  }
+}
+
+bool CPU_x86::CodeGenerator::KernelSubFunctionBuilder::IsVariableUsed(const string &crstrVariableName, ::clang::Stmt *pStatement)
+{
+  return (ClangASTHelper::CountNumberOfReferences(pStatement, crstrVariableName) > 0);
 }
 
 
@@ -978,8 +952,17 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       KernelSubFunctionBuilder SubFuncBuilder(ASTHelper.GetASTContext());
 
       SubFuncBuilder.ImportUsedParameters(pKernelFunction, pKernelBody);
-      SubFuncBuilder.AddCallParameter(gid_y_ref, true);
-      SubFuncBuilder.AddCallParameter(gid_x_ref, true);
+
+      if ( SubFuncBuilder.IsVariableUsed(HipaccHelper::GlobalIdY(), pKernelBody) )
+      {
+        SubFuncBuilder.AddCallParameter(gid_y_ref, true);
+      }
+
+      if ( SubFuncBuilder.IsVariableUsed(HipaccHelper::GlobalIdX(), pKernelBody) )
+      {
+        SubFuncBuilder.AddCallParameter(gid_x_ref, true);
+      }
+
 
       KernelSubFunctionBuilder::DeclCallPairType  DeclCallPair = SubFuncBuilder.CreateFuntionDeclarationAndCall(pKernelFunction->getNameAsString() + string("_Scalar"), pKernelFunction->getResultType());
       ImgAccessTranslator.TranslateImageDeclarations(DeclCallPair.first, ImageAccessTranslator::ImageDeclarationTypes::NativePointer);
