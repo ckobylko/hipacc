@@ -65,6 +65,15 @@ namespace Vectorization
         return spConstant;
       }
 
+      inline static AST::BaseClasses::TypeInfo _ConvertTypeInfo(::clang::QualType qtSourceType)
+      {
+        AST::BaseClasses::TypeInfo ReturnType;
+
+        _ConvertTypeInfo(ReturnType, qtSourceType);
+
+        return ReturnType;
+      }
+
 
       static AST::Expressions::BinaryOperatorPtr  _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
 

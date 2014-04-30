@@ -785,6 +785,51 @@ AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType()
 }
 
 
+// Implementation of class AST::Expressions::FunctionCall
+void AST::Expressions::FunctionCall::AddCallParameter(ExpressionPtr spCallParam)
+{
+  CHECK_NULL_POINTER(spCallParam);
+
+  _SetParentToChild(spCallParam);
+  _vecCallParams.push_back(spCallParam);
+}
+
+string AST::Expressions::FunctionCall::DumpToXML(const size_t cszIntend) const
+{
+  // Dump return type
+  string strXmlString = XMLSupport::CreateXmlTag(cszIntend + 2, "ReturnType", GetReturnType().DumpToXML(cszIntend + 4));
+
+  // Dump call parameters
+  for (IndexType i = 0; i < GetCallParameterCount(); ++i)
+  {
+    XMLSupport::AttributesMapType mapParamAttributes;
+
+    mapParamAttributes["index"] = XMLSupport::ToString(static_cast<unsigned int>(i));
+
+    ExpressionPtr spParam = GetCallParameter(i);
+    strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "Param", spParam->DumpToXML(cszIntend + 4), mapParamAttributes);
+  }
+
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["name"] = GetName();
+
+  return XMLSupport::CreateXmlTag(cszIntend, "FunctionCall", strXmlString, mapAttributes);
+}
+
+AST::BaseClasses::ExpressionPtr AST::Expressions::FunctionCall::GetCallParameter(IndexType CallParamIndex) const
+{
+  if (CallParamIndex >= GetSubExpressionCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+  else
+  {
+    return _vecCallParams[ CallParamIndex ];
+  }
+}
+
+
 
 /*************************/
 /***   Other classes   ***/

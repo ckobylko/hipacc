@@ -342,6 +342,7 @@ namespace Vectorization
         enum class ExpressionType
         {
           BinaryOperator,
+          FunctionCall,
           UnaryExpression,
           Value
         };
@@ -456,6 +457,7 @@ namespace Vectorization
       class ArithmeticOperator;
       class AssignmentOperator;
       class RelationalOperator;
+      class FunctionCall;
 
       typedef std::shared_ptr< Value >                ValuePtr;
       typedef std::shared_ptr< Constant >             ConstantPtr;
@@ -468,6 +470,7 @@ namespace Vectorization
       typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
       typedef std::shared_ptr< AssignmentOperator >   AssignmentOperatorPtr;
       typedef std::shared_ptr< RelationalOperator >   RelationalOperatorPtr;
+      typedef std::shared_ptr< FunctionCall >         FunctionCallPtr;
 
 
     public:
@@ -936,6 +939,48 @@ namespace Vectorization
 
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
+      };
+
+
+      class FunctionCall : public BaseClasses::Expression
+      {
+      private:
+
+        typedef BaseClasses::Expression     BaseType;
+        typedef BaseType::IndexType         IndexType;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+
+      private:
+
+        std::string                     _strName;
+        BaseClasses::TypeInfo           _ReturnType;
+        std::vector< ExpressionPtr >    _vecCallParams;
+
+      public:
+
+        inline FunctionCall() : BaseType(BaseType::ExpressionType::FunctionCall)    {}
+
+
+        void          AddCallParameter(ExpressionPtr spCallParam);
+        ExpressionPtr GetCallParameter(IndexType CallParamIndex) const;
+
+        inline IndexType GetCallParameterCount() const    { return static_cast< IndexType >(_vecCallParams.size()); }
+
+        inline std::string  GetName() const                   { return _strName; }
+        inline void         SetName(std::string strNewName)   { _strName = strNewName; }
+
+        inline BaseClasses::TypeInfo GetReturnType() const                            { return _ReturnType; }
+        inline void                  SetReturnType(BaseClasses::TypeInfo ReturnType)  { _ReturnType = ReturnType; }
+
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetReturnType(); }
+
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex)      { return GetCallParameter(SubExprIndex); }
+        virtual IndexType       GetSubExpressionCount() const final override  { return GetCallParameterCount(); }
       };
     };
 

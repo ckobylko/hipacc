@@ -255,6 +255,48 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
       spReturnExpression = _BuildUnaryOperatorExpression(pSubExpr, eOpCode);
     }
   }
+  else if (isa<::clang::CallExpr>(pExpression))
+  {
+    ::clang::CallExpr *pCallExpr  = dyn_cast<::clang::CallExpr>(pExpression);
+
+    AST::Expressions::FunctionCallPtr spFunctionCall = AST::CreateNode< AST::Expressions::FunctionCall >();
+    spReturnExpression = spFunctionCall;
+
+    // Set the function name
+    {
+      ::clang::FunctionDecl *pCalleeDecl = pCallExpr->getDirectCallee();
+      if (pCalleeDecl == nullptr)
+      {
+        throw InternalErrors::NullPointerException("pCalleeDecl");
+      }
+
+      spFunctionCall->SetName(pCalleeDecl->getNameAsString());
+    }
+
+    // Set the return type
+    {
+      AST::BaseClasses::TypeInfo  ReturnType = _ConvertTypeInfo(pCallExpr->getCallReturnType());
+      if (ReturnType.IsSingleValue())
+      {
+        ReturnType.SetConst(true);
+      }
+
+      spFunctionCall->SetReturnType(ReturnType);
+    }
+
+
+    // Build the call parameter expressions
+    for (unsigned int i = 0; i < pCallExpr->getNumArgs(); ++i)
+    {
+      ::clang::Expr *pArg = pCallExpr->getArg(i);
+      if (pArg == nullptr)
+      {
+        throw InternalErrors::NullPointerException("pArg");
+      }
+
+      spFunctionCall->AddCallParameter( _BuildExpression(pArg) );
+    }
+  }
   else
   {
     throw ASTExceptions::UnknownExpressionClass( pExpression->getStmtClassName() );
