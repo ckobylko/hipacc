@@ -927,6 +927,18 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   return OutputStream.str();
 }
 
+void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
+{
+  Vectorization::Vectorizer Vectorizer;
+
+  Vectorization::AST::FunctionDeclarationPtr spVecFunction = Vectorizer.ConvertClangFunctionDecl(pSubFunction);
+
+  spVecFunction->SetName( rHipaccHelper.GetKernelFunction()->getNameAsString() + string("_Vectorized") );
+
+  Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_1.xml");
+}
+
+
 
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {
@@ -979,7 +991,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       rOutputStream << "\n\n";
 
 
-      Vectorization::Vectorizer().ConvertClangFunctionDecl(DeclCallPair.first);
+      _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper);
     }
 
 

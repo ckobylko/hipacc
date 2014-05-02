@@ -458,6 +458,11 @@ namespace Backend
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
       std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bPrintActualImageType = false);
 
+      /** \brief  Vectorizes a kernel sub-function.
+       *  \param  pSubFunction    A pointer to the function which shall be vectorized.
+       *  \param  rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel. */
+      void _VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper);
+
 
     private:
 
