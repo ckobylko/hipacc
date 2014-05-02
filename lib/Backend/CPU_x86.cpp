@@ -929,13 +929,25 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
 
 void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
 {
-  Vectorization::Vectorizer Vectorizer;
+  try
+  {
+    Vectorization::Vectorizer Vectorizer;
 
-  Vectorization::AST::FunctionDeclarationPtr spVecFunction = Vectorizer.ConvertClangFunctionDecl(pSubFunction);
+    Vectorization::AST::FunctionDeclarationPtr spVecFunction = Vectorizer.ConvertClangFunctionDecl(pSubFunction);
 
-  spVecFunction->SetName( rHipaccHelper.GetKernelFunction()->getNameAsString() + string("_Vectorized") );
+    spVecFunction->SetName( rHipaccHelper.GetKernelFunction()->getNameAsString() + string("_Vectorized") );
 
-  Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_1.xml");
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_1.xml");
+
+
+    Vectorizer.RemoveUnnecessaryConversions(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_2.xml");
+  }
+  catch (std::exception &e)
+  {
+    llvm::errs() << "\n\nERROR: " << e.what() << "\n\n";
+    exit(EXIT_FAILURE);
+  }
 }
 
 
