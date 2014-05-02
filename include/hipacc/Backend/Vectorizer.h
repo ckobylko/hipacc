@@ -203,7 +203,18 @@ namespace Vectorization
         inline void Execute(AST::Expressions::AssignmentOperatorPtr spAssignment)   { lstAssignments.push_back(spAssignment); }
       };
 
-      class FindConditionalAssignments final
+      class FindBranchingInternalAssignments final
+      {
+      public:
+
+        typedef AST::ControlFlow::BranchingStatement      TargetType;
+
+        std::map< AST::Expressions::AssignmentOperatorPtr, std::list< AST::BaseClasses::ExpressionPtr > >  mapConditionalAssignments;
+
+        void Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt);
+      };
+
+      class FindLoopInternalAssignments final
       {
       public:
 

@@ -695,7 +695,51 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 }
 
 
-void Vectorizer::Transformations::FindConditionalAssignments::Execute(AST::ControlFlow::LoopPtr spLoop)
+void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt)
+{
+  list< AST::BaseClasses::ExpressionPtr > lstConditions;
+
+  // Find all assignments in every conditional branch => each branch depends on its condition as well as on the conditions of the preceding branches
+  for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < spBranchingStmt->GetConditionalBranchesCount(); ++iBranchIdx)
+  {
+    AST::ControlFlow::ConditionalBranchPtr spBranch = spBranchingStmt->GetConditionalBranch(iBranchIdx);
+    if (! spBranch)
+    {
+      throw InternalErrors::NullPointerException("spBranch");
+    }
+
+    lstConditions.push_back(spBranch->GetCondition());
+
+    Transformations::FindAssignments AssignmentFinder;
+
+    _RunVASTTransformation(spBranch->GetBody(), AssignmentFinder);
+
+    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    {
+      for each (auto itCondition in lstConditions)
+      {
+        mapConditionalAssignments[itAssignment].push_back(itCondition);
+      }
+    }
+  }
+
+  // Find the assignments in the default branch => this branch depends on the conditions of ALL conditional branches
+  {
+    Transformations::FindAssignments AssignmentFinder;
+
+    _RunVASTTransformation(spBranchingStmt->GetDefaultBranch(), AssignmentFinder);
+
+    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    {
+      for each (auto itCondition in lstConditions)
+      {
+        mapConditionalAssignments[itAssignment].push_back(itCondition);
+      }
+    }
+  }
+}
+
+void Vectorizer::Transformations::FindLoopInternalAssignments::Execute(AST::ControlFlow::LoopPtr spLoop)
 {
   Transformations::FindAssignments AssignmentFinder;
 
@@ -800,7 +844,7 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions:
 
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
-VASTBuilder().Import(pFunctionDeclaration);
+//VASTBuilder().Import(pFunctionDeclaration);
 
   return VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
 }
@@ -847,13 +891,30 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
     }
   }
 
-  // Find all conditional assignments (an assignment based on a vectorized condition must be vectorized too)
+  // Find all loop internal assignments (the vectorization of these assignments also depends on the loop condition)
   {
-    Transformations::FindConditionalAssignments CondAssignmentFinder;
+    Transformations::FindLoopInternalAssignments LoopAssignmentFinder;
 
-    _RunVASTTransformation(spFunction, CondAssignmentFinder);
+    _RunVASTTransformation(spFunction, LoopAssignmentFinder);
 
-    for each (auto itCondAssignment in CondAssignmentFinder.mapConditionalAssignments)
+    for each (auto itCondAssignment in LoopAssignmentFinder.mapConditionalAssignments)
+    {
+      AST::BaseClasses::VariableInfoPtr spVariableInfo = _GetAssigneeInfo(itCondAssignment.first);
+
+      for each (auto itCondition in itCondAssignment.second)
+      {
+        mapVariableDependencies[spVariableInfo].push_back(itCondition);
+      }
+    }
+  }
+
+  // Find all assignments inside all conditional branching statement (the vectorization of these assignments also depends on the branching condition cascade)
+  {
+    Transformations::FindBranchingInternalAssignments BranchAssignmentFinder;
+
+    _RunVASTTransformation(spFunction, BranchAssignmentFinder);
+
+    for each (auto itCondAssignment in BranchAssignmentFinder.mapConditionalAssignments)
     {
       AST::BaseClasses::VariableInfoPtr spVariableInfo = _GetAssigneeInfo(itCondAssignment.first);
 
