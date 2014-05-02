@@ -197,7 +197,12 @@ namespace Vectorization
         inline bool IsSingleValue() const     { return (! IsDereferencable()); }
 
 
+        bool IsEqual(const TypeInfo &crRVal, bool bIgnoreConstQualifier);
+
         std::string DumpToXML(const size_t cszIntend) const;
+
+
+        inline bool operator==(const TypeInfo &crRVal)    { return IsEqual(crRVal, false); }
 
 
       public:
@@ -294,14 +299,14 @@ namespace Vectorization
 
 
         template <class NodeClass>
-        inline NodeClass* CastToType()
+        inline std::shared_ptr< NodeClass > CastToType()
         {
           if (! IsType<NodeClass>())
           {
             throw RuntimeErrorException("Invalid node cast type!");
           }
 
-          return dynamic_cast<NodeClass*>(this);
+          return std::dynamic_pointer_cast< NodeClass >( GetThis() );
         }
 
         template <class NodeClass>
@@ -386,6 +391,7 @@ namespace Vectorization
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) = 0;
         virtual IndexType       GetSubExpressionCount() const = 0;
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) = 0;
       };
     };
 
@@ -495,8 +501,9 @@ namespace Vectorization
       {
       protected:
 
-        typedef BaseClasses::Expression   BaseType;
-        typedef BaseType::IndexType       IndexType;
+        typedef BaseClasses::Expression     BaseType;
+        typedef BaseType::IndexType         IndexType;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
       public:
 
@@ -517,8 +524,9 @@ namespace Vectorization
 
       public:
 
-        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) override;
-        virtual IndexType                   GetSubExpressionCount() const override  { return static_cast< IndexType >(0); }
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) override                           { throw ASTExceptions::ChildIndexOutOfRange(); }
+        virtual IndexType       GetSubExpressionCount() const override                                      { return static_cast< IndexType >(0); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) override  { throw ASTExceptions::ChildIndexOutOfRange(); }
       };
 
       class Constant final : public Value
@@ -537,12 +545,38 @@ namespace Vectorization
 
         KnownTypes    _eType;
 
+
+        template < typename SourceValueType >
+        inline void _ChangeType(KnownTypes eNewType)
+        {
+          SourceValueType TValue = GetValue< SourceValueType >();
+
+          switch (eNewType)
+          {
+          case KnownTypes::Bool:    SetValue( TValue != static_cast< SourceValueType >( 0 ) );  break;
+          case KnownTypes::Int8:    SetValue( static_cast< std::int8_t   >( TValue ) );         break;
+          case KnownTypes::UInt8:   SetValue( static_cast< std::uint8_t  >( TValue ) );         break;
+          case KnownTypes::Int16:   SetValue( static_cast< std::int16_t  >( TValue ) );         break;
+          case KnownTypes::UInt16:  SetValue( static_cast< std::uint16_t >( TValue ) );         break;
+          case KnownTypes::Int32:   SetValue( static_cast< std::int32_t  >( TValue ) );         break;
+          case KnownTypes::UInt32:  SetValue( static_cast< std::uint32_t >( TValue ) );         break;
+          case KnownTypes::Int64:   SetValue( static_cast< std::int64_t  >( TValue ) );         break;
+          case KnownTypes::UInt64:  SetValue( static_cast< std::uint64_t >( TValue ) );         break;
+          case KnownTypes::Float:   SetValue( static_cast< float         >( TValue ) );         break;
+          case KnownTypes::Double:  SetValue( static_cast< double        >( TValue ) );         break;
+          default:                  throw RuntimeErrorException(std::string("Invalid constant type: ") + BaseClasses::TypeInfo::GetTypeString(eNewType));
+          }
+        }
+
+
       public:
 
         inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
 
         inline BaseClasses::TypeInfo::KnownTypes  GetValueType() const    { return _eType; }
 
+
+        void  ChangeType(KnownTypes eNewType);
 
         template <typename ValueType> inline ValueType GetValue() const
         {
@@ -660,8 +694,9 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
-        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
-        virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType       GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
 
 
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
@@ -703,7 +738,7 @@ namespace Vectorization
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
-
+        virtual void                        SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr) final override;
       };
 
       class Conversion final : public UnaryExpression
@@ -841,7 +876,7 @@ namespace Vectorization
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
-
+        virtual void                        SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr) final override;
       };
 
       class ArithmeticOperator final : public BinaryOperator
@@ -979,6 +1014,7 @@ namespace Vectorization
 
         void          AddCallParameter(ExpressionPtr spCallParam);
         ExpressionPtr GetCallParameter(IndexType CallParamIndex) const;
+        void          SetCallParameter(IndexType CallParamIndex, ExpressionPtr spCallParam);
 
         inline IndexType GetCallParameterCount() const    { return static_cast< IndexType >(_vecCallParams.size()); }
 
@@ -995,8 +1031,9 @@ namespace Vectorization
 
         virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetReturnType(); }
 
-        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex)      { return GetCallParameter(SubExprIndex); }
-        virtual IndexType       GetSubExpressionCount() const final override  { return GetCallParameterCount(); }
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex)                                          { return GetCallParameter(SubExprIndex); }
+        virtual IndexType       GetSubExpressionCount() const final override                                      { return GetCallParameterCount(); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override  { SetCallParameter(SubExprIndex, spSubExpr); }
       };
     };
 

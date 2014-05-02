@@ -166,6 +166,10 @@ namespace Vectorization
 
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
+    void RemoveUnnecessaryConversions(AST::BaseClasses::ExpressionPtr spRootExpression);
+
+    void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode);
+
 
     static void DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, std::string strXmlFilename);
   };

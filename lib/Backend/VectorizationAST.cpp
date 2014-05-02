@@ -252,6 +252,46 @@ string AST::BaseClasses::TypeInfo::GetTypeString(KnownTypes eType)
   }
 }
 
+bool AST::BaseClasses::TypeInfo::IsEqual(const TypeInfo &crRVal, bool bIgnoreConstQualifier)
+{
+  // Check array dimensions
+  const size_t cszArrayDimCount = GetArrayDimensions().size();
+  if (cszArrayDimCount != crRVal.GetArrayDimensions().size())
+  {
+    return false;
+  }
+
+  for (size_t szDim = static_cast<size_t>(0); szDim < cszArrayDimCount; ++szDim)
+  {
+    if (GetArrayDimensions()[szDim] != crRVal.GetArrayDimensions()[szDim])
+    {
+      return false;
+    }
+  }
+
+  // Check pointer declaration
+  if (GetPointer() != crRVal.GetPointer())
+  {
+    return false;
+  }
+
+  // Check element type
+  if (GetType() != crRVal.GetType())
+  {
+    return false;
+  }
+
+  // Check const qualifier
+  if (bIgnoreConstQualifier)
+  {
+    return true;
+  }
+  else
+  {
+    return (GetConst() == crRVal.GetConst());
+  }
+}
+
 bool AST::BaseClasses::TypeInfo::IsSigned(KnownTypes eType)
 {
   switch (eType)
@@ -376,13 +416,6 @@ AST::BaseClasses::NodePtr  AST::ControlFlow::Loop::GetChild(IndexType ChildIndex
 /***   Expressions   ***/
 /***********************/
 
-// Implementation of class AST::Expressions::Value
-AST::BaseClasses::ExpressionPtr AST::Expressions::Value::GetSubExpression(IndexType SubExprIndex)
-{
-  throw ASTExceptions::ChildIndexOutOfRange();
-}
-
-
 // Implementation of class AST::Expressions::Constant
 string AST::Expressions::Constant::DumpToXML(const size_t cszIntend) const
 {
@@ -392,6 +425,25 @@ string AST::Expressions::Constant::DumpToXML(const size_t cszIntend) const
   mapAttributes["value"]  = GetAsString();
 
   return XMLSupport::CreateXmlTag(cszIntend, "Constant", mapAttributes);
+}
+
+void AST::Expressions::Constant::ChangeType(KnownTypes eNewType)
+{
+  switch (eNewType)
+  {
+  case KnownTypes::Bool:    _ChangeType< bool     >( eNewType );  break;
+  case KnownTypes::Int8:    _ChangeType< int8_t   >( eNewType );  break;
+  case KnownTypes::UInt8:   _ChangeType< uint8_t  >( eNewType );  break;
+  case KnownTypes::Int16:   _ChangeType< int16_t  >( eNewType );  break;
+  case KnownTypes::UInt16:  _ChangeType< uint16_t >( eNewType );  break;
+  case KnownTypes::Int32:   _ChangeType< int32_t  >( eNewType );  break;
+  case KnownTypes::UInt32:  _ChangeType< uint32_t >( eNewType );  break;
+  case KnownTypes::Int64:   _ChangeType< int64_t  >( eNewType );  break;
+  case KnownTypes::UInt64:  _ChangeType< uint64_t >( eNewType );  break;
+  case KnownTypes::Float:   _ChangeType< float    >( eNewType );  break;
+  case KnownTypes::Double:  _ChangeType< double   >( eNewType );  break;
+  default:                  throw RuntimeErrorException( string("Invalid constant type: ") + BaseClasses::TypeInfo::GetTypeString(eNewType) );
+  }
 }
 
 string AST::Expressions::Constant::GetAsString() const
@@ -501,6 +553,16 @@ AST::BaseClasses::TypeInfo AST::Expressions::MemoryAccess::GetResultType() const
   }
 }
 
+void AST::Expressions::MemoryAccess::SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   SetMemoryReference(spSubExpr);  break;
+  case 1:   SetIndexExpression(spSubExpr);  break;
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
 
 // Implementation of class AST::Expressions::UnaryExpression
 string AST::Expressions::UnaryExpression::_DumpSubExpressionToXML(const size_t cszIntend) const
@@ -515,6 +577,15 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::UnaryExpression::GetSubExpress
   switch (SubExprIndex)
   {
   case 0:   return GetSubExpression();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+void AST::Expressions::UnaryExpression::SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   SetSubExpression(spSubExpr);  break;
   default:  throw ASTExceptions::ChildIndexOutOfRange();
   }
 }
@@ -617,6 +688,16 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::BinaryOperator::GetSubExpressi
   {
   case 0:   return GetLHS();
   case 1:   return GetRHS();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+void AST::Expressions::BinaryOperator::SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   SetLHS(spSubExpr);  break;
+  case 1:   SetRHS(spSubExpr);  break;
   default:  throw ASTExceptions::ChildIndexOutOfRange();
   }
 }
@@ -826,6 +907,18 @@ AST::BaseClasses::ExpressionPtr AST::Expressions::FunctionCall::GetCallParameter
   else
   {
     return _vecCallParams[ CallParamIndex ];
+  }
+}
+
+void AST::Expressions::FunctionCall::SetCallParameter(IndexType CallParamIndex, ExpressionPtr spCallParam)
+{
+  if (CallParamIndex >= GetSubExpressionCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+  else
+  {
+    _vecCallParams[CallParamIndex] = spCallParam;
   }
 }
 
