@@ -942,6 +942,41 @@ void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunct
 
     Vectorizer.RemoveUnnecessaryConversions(spVecFunction);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_2.xml");
+
+
+    Vectorizer.FlattenScopeTrees(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_3.xml");
+
+
+    // Vectorize the kernel sub-function
+    {
+      // Mark all HIPAcc images as vectorized variables
+      for (unsigned int uiParam = 0; uiParam < pSubFunction->getNumParams(); ++uiParam)
+      {
+        string strParamName = pSubFunction->getParamDecl(uiParam)->getNameAsString();
+
+        if (rHipaccHelper.GetImageFromMapping(strParamName) != nullptr)
+        {
+          Vectorization::AST::BaseClasses::VariableInfoPtr spVariableInfo = spVecFunction->GetVariableInfo(strParamName);
+          if (! spVariableInfo)
+          {
+            throw InternalErrorException(string("Missing vectorization parameter: ") + strParamName);
+          }
+
+          spVariableInfo->SetVectorize(true);
+        }
+      }
+
+      // Mark the horizontal global ID as vectorized variable if it used by the kernel sub-function
+      Vectorization::AST::BaseClasses::VariableInfoPtr spGidXInfo = spVecFunction->GetVariableInfo(rHipaccHelper.GlobalIdX());
+      if (spGidXInfo)
+      {
+        spGidXInfo->SetVectorize(true);
+      }
+    }
+
+    Vectorizer.VectorizeFunction(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_4.xml");
   }
   catch (std::exception &e)
   {
