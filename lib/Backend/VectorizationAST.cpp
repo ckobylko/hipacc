@@ -1026,7 +1026,7 @@ void AST::Expressions::FunctionCall::AddCallParameter(ExpressionPtr spCallParam)
 string AST::Expressions::FunctionCall::DumpToXML(const size_t cszIntend) const
 {
   // Dump return type
-  string strXmlString = XMLSupport::CreateXmlTag(cszIntend + 2, "ReturnType", GetReturnType().DumpToXML(cszIntend + 4));
+  string strXmlString = _DumpResultTypeToXML(cszIntend + 2);
 
   // Dump call parameters
   for (IndexType i = 0; i < GetCallParameterCount(); ++i)
