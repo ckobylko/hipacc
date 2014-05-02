@@ -707,5 +707,75 @@ void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string 
 }
 
 
+void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
+{
+  typedef map< AST::BaseClasses::VariableInfoPtr, std::list< AST::BaseClasses::ExpressionPtr > >   VariableDependencyMapType;
+
+  if (! spFunction)
+  {
+    throw InternalErrors::NullPointerException("spFunction");
+  }
+
+  VariableDependencyMapType mapVariableDependencies;
+
+  {
+    Transformations::FindAssignments AssignmentFinder;
+
+    _RunVASTTransformation(spFunction, AssignmentFinder);
+
+    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    {
+      AST::BaseClasses::ExpressionPtr spLHS = itAssignment->GetLHS();
+      while (spLHS->GetSubExpressionCount() != static_cast<IndexType>(0))
+      {
+        spLHS = spLHS->GetSubExpression(0);
+      }
+
+      if (spLHS->IsType<AST::Expressions::Identifier>())
+      {
+        AST::Expressions::IdentifierPtr   spIdentifier    = spLHS->CastToType<AST::Expressions::Identifier>();
+        AST::BaseClasses::VariableInfoPtr spVariableInfo  = spIdentifier->LookupVariableInfo();
+
+        if (! spVariableInfo)
+        {
+          throw InternalErrorException(string("Could not find variable info for identifier: ") + spIdentifier->GetName());
+        }
+
+        mapVariableDependencies[spVariableInfo].push_back(itAssignment->GetRHS());
+      }
+      else
+      {
+        throw InternalErrorException("Expected an identifier expression!");
+      }
+    }
+  }
+
+
+  bool bChanged = true;
+  while (bChanged)
+  {
+    bChanged = false;
+
+    for each (auto itEntry in mapVariableDependencies)
+    {
+      if (! itEntry.first->GetVectorize())
+      {
+        for each (auto itExpression in itEntry.second)
+        {
+          if (itExpression->IsVectorized())
+          {
+            itEntry.first->SetVectorize(true);
+            bChanged = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+}
+
+
+
 // vim: set ts=2 sw=2 sts=2 et ai:
 

@@ -318,7 +318,9 @@ string AST::BaseClasses::VariableInfo::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["name"] = GetName();
+  mapAttributes["name"]       = GetName();
+  mapAttributes["vectorize"]  = XMLSupport::ToString( GetVectorize() );
+
 
   return XMLSupport::CreateXmlTag(cszIntend, "Variable", _Type.DumpToXML(cszIntend + 2), mapAttributes);
 }
@@ -347,7 +349,28 @@ AST::BaseClasses::NodePtr AST::BaseClasses::Node::GetParent()
 // Implementation of class AST::BaseClasses::Expression
 string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(cszIntend, "ResultType", GetResultType().DumpToXML(cszIntend + 2));
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["vectorize"] = XMLSupport::ToString( IsVectorized() );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "ResultType", GetResultType().DumpToXML(cszIntend + 2), mapAttributes);
+}
+
+bool AST::BaseClasses::Expression::IsVectorized()
+{
+  bool bIsVectorized = false;
+
+  for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < GetSubExpressionCount(); ++iChildIdx)
+  {
+    ExpressionPtr spChild = GetSubExpression(iChildIdx);
+
+    if (spChild)
+    {
+      bIsVectorized |= spChild->IsVectorized();
+    }
+  }
+
+  return bIsVectorized;
 }
 
 
@@ -498,6 +521,20 @@ AST::BaseClasses::TypeInfo AST::Expressions::Identifier::GetResultType() const
   else
   {
     return BaseClasses::TypeInfo();
+  }
+}
+
+bool AST::Expressions::Identifier::IsVectorized()
+{
+  BaseClasses::VariableInfoPtr spVariableInfo = LookupVariableInfo();
+
+  if (spVariableInfo)
+  {
+    return spVariableInfo->GetVectorize();
+  }
+  else
+  {
+    return false;
   }
 }
 

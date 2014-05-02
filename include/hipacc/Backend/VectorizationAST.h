@@ -221,14 +221,20 @@ namespace Vectorization
 
         std::string _strName;
         TypeInfo    _Type;
+        bool        _bVectorize;
 
       public:
+
+        inline VariableInfo() : _strName(""), _bVectorize(false)    {}
 
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
 
         inline TypeInfo&        GetTypeInfo()       { return _Type; }
         inline const TypeInfo&  GetTypeInfo() const { return _Type; }
+
+        inline bool GetVectorize() const            { return _bVectorize; }
+        inline void SetVectorize(bool bVectorize)   { _bVectorize = bVectorize; }
 
         std::string DumpToXML(const size_t cszIntend) const;
       };
@@ -386,6 +392,9 @@ namespace Vectorization
 
         virtual NodePtr   GetChild(IndexType ChildIndex) final override   { return GetSubExpression(ChildIndex); }
         virtual IndexType GetChildCount() const final override            { return GetSubExpressionCount(); }
+
+        virtual bool      IsVectorized();
+        inline  bool      IsVectorized() const  { return const_cast< Expression* >(this)->IsVectorized(); }
 
         virtual TypeInfo  GetResultType() const = 0;
 
@@ -661,6 +670,8 @@ namespace Vectorization
 
         BaseClasses::VariableInfoPtr LookupVariableInfo() const;
 
+
+        virtual bool IsVectorized() final override;
 
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 

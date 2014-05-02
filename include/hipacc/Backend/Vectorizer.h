@@ -34,6 +34,7 @@
 #define _BACKEND_VECTORIZER_H_
 
 #include <clang/AST/StmtVisitor.h>
+#include <list>
 #include <type_traits>
 #include "CommonDefines.h"
 #include "VectorizationAST.h"
@@ -187,6 +188,17 @@ namespace Vectorization
 
     public:
 
+      class FindAssignments final
+      {
+      public:
+
+        typedef AST::Expressions::AssignmentOperator      TargetType;
+
+        std::list< AST::Expressions::AssignmentOperatorPtr >  lstAssignments;
+
+        inline void Execute(AST::Expressions::AssignmentOperatorPtr spAssignment)   { lstAssignments.push_back(spAssignment); }
+      };
+
       class FlattenScopes final
       {
       public:
@@ -256,6 +268,7 @@ namespace Vectorization
     inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
     inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
 
+    void VectorizeFunction(AST::FunctionDeclarationPtr spFunction);
 
     static void DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, std::string strXmlFilename);
   };
