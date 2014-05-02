@@ -630,92 +630,62 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 
 
 
+Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope)
+{
+  IndexType ChildCount = spChildScope->GetChildCount();
+
+  if (ChildCount == static_cast<IndexType>(0))
+  {
+    spParentScope->RemoveChild(iChildIndex);
+    --iChildIndex;
+  }
+  else if (ChildCount == static_cast<IndexType>(1))
+  {
+    spParentScope->SetChild(iChildIndex, spChildScope->GetChild(0));
+  }
+
+  return iChildIndex;
+}
+
+
+Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions::ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion)
+{
+  AST::BaseClasses::ExpressionPtr spSubExpression = spConversion->GetSubExpression();
+  AST::BaseClasses::TypeInfo      ConvertType     = spConversion->GetResultType();
+
+  if (spSubExpression)
+  {
+    AST::BaseClasses::TypeInfo  ChildType = spConversion->GetSubExpression()->GetResultType();
+    bool bRemoveConversion = false;
+
+    if (spSubExpression->IsType<AST::Expressions::Constant>())
+    {
+      AST::Expressions::ConstantPtr spConstant = spSubExpression->CastToType<AST::Expressions::Constant>();
+      spConstant->ChangeType(ConvertType.GetType());
+      bRemoveConversion = true;
+    }
+    else
+    {
+      bRemoveConversion = ConvertType.IsEqual(ChildType, true);
+    }
+
+    if (bRemoveConversion)
+    {
+      spParentExpression->SetSubExpression(iChildIndex, spConversion->GetSubExpression());
+    }
+  }
+
+  return iChildIndex;
+}
+
+
+
+
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
 //VASTBuilder().Import(pFunctionDeclaration);
 
   return VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
-}
-
-
-void Vectorizer::RemoveUnnecessaryConversions(AST::BaseClasses::ExpressionPtr spRootExpression)
-{
-  typedef AST::BaseClasses::Node::IndexType IndexType;
-
-  if (!spRootExpression)
-  {
-    throw InternalErrors::NullPointerException("spRootExpression");
-  }
-
-  for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spRootExpression->GetSubExpressionCount(); ++iChildIdx)
-  {
-    AST::BaseClasses::ExpressionPtr spChildExpression = spRootExpression->GetSubExpression(iChildIdx);
-    if (!spChildExpression)
-    {
-      continue;
-    }
-
-    // Do a depth-first search
-    RemoveUnnecessaryConversions(spChildExpression);
-
-    // Try to remove conversion expressions
-    if (spChildExpression->IsType<AST::Expressions::Conversion>())
-    {
-      AST::Expressions::ConversionPtr spConversion    = spChildExpression->CastToType<AST::Expressions::Conversion>();
-      AST::BaseClasses::ExpressionPtr spSubExpression = spConversion->GetSubExpression();
-      AST::BaseClasses::TypeInfo      ConvertType     = spConversion->GetResultType();
-
-      if (spSubExpression)
-      {
-        AST::BaseClasses::TypeInfo  ChildType = spConversion->GetSubExpression()->GetResultType();
-        bool bRemoveConversion = false;
-
-        if (spSubExpression->IsType<AST::Expressions::Constant>())
-        {
-          AST::Expressions::ConstantPtr spConstant = spSubExpression->CastToType<AST::Expressions::Constant>();
-          spConstant->ChangeType(ConvertType.GetType());
-          bRemoveConversion = true;
-        }
-        else
-        {
-          bRemoveConversion = ConvertType.IsEqual(ChildType, true);
-        }
-
-        if (bRemoveConversion)
-        {
-          spRootExpression->SetSubExpression(iChildIdx, spConversion->GetSubExpression());
-        }
-      }
-    }
-  }
-}
-
-void Vectorizer::RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)
-{
-  typedef AST::BaseClasses::Node::IndexType IndexType;
-
-  if (! spRootNode)
-  {
-    throw InternalErrors::NullPointerException("spRootNode");
-  }
-
-  for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spRootNode->GetChildCount(); ++iChildIdx)
-  {
-    AST::BaseClasses::NodePtr spChildNode = spRootNode->GetChild(iChildIdx);
-    if (! spChildNode)
-    {
-      continue;
-    }
-
-    if ( spChildNode->IsType<AST::BaseClasses::Expression>() )
-    {
-      RemoveUnnecessaryConversions( spChildNode->CastToType<AST::BaseClasses::Expression>() );
-    }
-    else
-    {
-      RemoveUnnecessaryConversions( spChildNode );
-    }
-  }
 }
 
 

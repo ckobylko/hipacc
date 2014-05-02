@@ -1077,6 +1077,8 @@ namespace Vectorization
       inline Scope() : BaseType(Node::NodeType::Scope)   {}
 
       void AddChild(NodePtr spChild);
+      void RemoveChild(IndexType ChildIndex);
+      void SetChild(IndexType ChildIndex, NodePtr spChildNode);
 
     public:
 

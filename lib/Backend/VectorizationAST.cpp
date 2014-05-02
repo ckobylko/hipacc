@@ -918,6 +918,7 @@ void AST::Expressions::FunctionCall::SetCallParameter(IndexType CallParamIndex, 
   }
   else
   {
+    _SetParentToChild(spCallParam);
     _vecCallParams[CallParamIndex] = spCallParam;
   }
 }
@@ -997,6 +998,31 @@ AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVar
   }
 
   return nullptr;
+}
+
+void AST::Scope::RemoveChild(IndexType ChildIndex)
+{
+  if (ChildIndex >= GetChildCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+  else
+  {
+    _Children.erase(_Children.begin() + ChildIndex);
+  }
+}
+
+void AST::Scope::SetChild(IndexType ChildIndex, NodePtr spChildNode)
+{
+  if (ChildIndex >= GetChildCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+  else
+  {
+    _SetParentToChild(spChildNode);
+    _Children[ChildIndex] = spChildNode;
+  }
 }
 
 

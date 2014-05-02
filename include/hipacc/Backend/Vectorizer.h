@@ -34,6 +34,7 @@
 #define _BACKEND_VECTORIZER_H_
 
 #include <clang/AST/StmtVisitor.h>
+#include <type_traits>
 #include "CommonDefines.h"
 #include "VectorizationAST.h"
 
@@ -50,6 +51,9 @@ namespace Vectorization
   class Vectorizer final
   {
   private:
+
+    typedef AST::BaseClasses::Node::IndexType IndexType;
+
 
     class VASTBuilder : public ::clang::StmtVisitor< VASTBuilder >
     {
@@ -155,6 +159,88 @@ namespace Vectorization
     };
 
 
+    class Transformations final
+    {
+    private:
+
+      template < class TransformationType >
+      inline static void _ParseChildren(typename TransformationType::TargetTypePtr spCurrentNode, TransformationType &rTransformation)
+      {
+        typedef typename TransformationType::ChildTargetType   ChildTargetType;
+        static_assert(std::is_base_of< AST::BaseClasses::Node, ChildTargetType >::value, "The child target type of the VAST transformation must be derived from class\"AST::BaseClasses::Node\"!");
+
+        for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spCurrentNode->GetChildCount(); ++iChildIdx)
+        {
+          AST::BaseClasses::NodePtr spChildNode = spCurrentNode->GetChild(iChildIdx);
+          if (! spChildNode)
+          {
+            continue;
+          }
+
+          if (spChildNode->IsType<ChildTargetType>())
+          {
+            iChildIdx = rTransformation.ProcessChild(spCurrentNode, iChildIdx, spChildNode->CastToType<ChildTargetType>());
+          }
+        }
+      }
+
+
+    public:
+
+      class FlattenScopes final
+      {
+      public:
+
+        typedef AST::Scope      TargetType;
+        typedef AST::ScopePtr   TargetTypePtr;
+        typedef AST::Scope      ChildTargetType;
+
+        inline void Execute(AST::ScopePtr spCurrentScope)   { _ParseChildren(spCurrentScope, *this); }
+
+        IndexType ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope);
+      };
+
+      class RemoveUnnecessaryConversions final
+      {
+      public:
+
+        typedef AST::BaseClasses::Expression      TargetType;
+        typedef AST::BaseClasses::ExpressionPtr   TargetTypePtr;
+        typedef AST::Expressions::Conversion      ChildTargetType;
+
+        void Execute(AST::BaseClasses::ExpressionPtr spCurrentExpression)   { _ParseChildren(spCurrentExpression, *this); }
+
+        IndexType ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion);
+      };
+    };
+
+
+    template < class TransformationType >
+    inline void _RunVASTTransformation(AST::BaseClasses::NodePtr spCurrentNode, TransformationType &rTransformation)
+    {
+      typedef typename TransformationType::TargetType   TargetType;
+      static_assert( std::is_base_of< AST::BaseClasses::Node, TargetType >::value, "The target type of the VAST transformation must be derived from class\"AST::BaseClasses::Node\"!" );
+
+      // Skip unset children
+      if (! spCurrentNode)
+      {
+        return;
+      }
+
+      // Run a depth-first search on the whole VAST tree
+      for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spCurrentNode->GetChildCount(); ++iChildIdx)
+      {
+        _RunVASTTransformation(spCurrentNode->GetChild(iChildIdx), rTransformation);
+      }
+
+      // Execute the transformation if the current node is of the target type
+      if (spCurrentNode->IsType<TargetType>())
+      {
+        rTransformation.Execute(spCurrentNode->CastToType<TargetType>());
+      }
+    }
+
+
   public:
 
     void Import(::clang::FunctionDecl *pFunctionDeclaration)
@@ -166,9 +252,9 @@ namespace Vectorization
 
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
-    void RemoveUnnecessaryConversions(AST::BaseClasses::ExpressionPtr spRootExpression);
 
-    void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode);
+    inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
+    inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
 
 
     static void DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, std::string strXmlFilename);
