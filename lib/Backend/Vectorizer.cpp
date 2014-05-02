@@ -636,17 +636,32 @@ AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::Functi
   {
 //VASTBuilder().Import(pFunctionDeclaration);
 
-    AST::FunctionDeclarationPtr spFunctionDecl = VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
+    return VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
+  }
+  catch (BackendException &e)
+  {
+    llvm::errs() << "\n\nERROR: " << e.what() << "\n\n";
+    exit(EXIT_FAILURE);
+  }
+}
 
-    std::ofstream XmlStream("Dump.xml");
+
+void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string strXmlFilename)
+{
+  try
+  {
+    if (! spVastNode)
+    {
+      throw InternalErrors::NullPointerException("spVastNode");
+    }
+
+    std::ofstream XmlStream(strXmlFilename);
 
     XmlStream << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    XmlStream << spFunctionDecl->DumpToXML(0);
+    XmlStream << spVastNode->DumpToXML(0);
 
     XmlStream.flush();
     XmlStream.close();
-
-    return spFunctionDecl;
   }
   catch (BackendException &e)
   {

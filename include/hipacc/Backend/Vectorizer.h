@@ -165,6 +165,9 @@ namespace Vectorization
 
 
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
+
+
+    static void DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, std::string strXmlFilename);
   };
 } // end namespace Vectorization
 } // end namespace Backend
