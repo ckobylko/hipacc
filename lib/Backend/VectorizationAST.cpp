@@ -455,9 +455,9 @@ AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableIn
 
   while (spParent)
   {
-    if (spParent->GetNodeType() == BaseClasses::Node::NodeType::FunctionDeclaration)
+    if (spParent->IsType<AST::IVariableContainer>())
     {
-      return spParent->CastToType< FunctionDeclaration >()->GetVariableInfo( GetName() );
+      return spParent->CastToType< AST::IVariableContainer >()->GetVariableInfo(GetName());
     }
     else
     {
@@ -855,14 +855,9 @@ void AST::Scope::AddVariable(BaseClasses::VariableInfoPtr spVariableInfo)
     spParent = spParent->GetParent();
     CHECK_NULL_POINTER(spParent);
 
-    if (spParent->GetNodeType() == BaseClasses::Node::NodeType::Scope)
+    if ( spParent->IsType<AST::IVariableContainer>() )
     {
-      spParent->CastToType<AST::Scope>()->AddVariable(spVariableInfo);
-      break;
-    }
-    else if (spParent->GetNodeType() == BaseClasses::Node::NodeType::FunctionDeclaration)
-    {
-      spParent->CastToType<AST::FunctionDeclaration>()->AddVariable(spVariableInfo);
+      spParent->CastToType<AST::IVariableContainer>()->AddVariable(spVariableInfo);
       break;
     }
   }
@@ -892,12 +887,27 @@ AST::BaseClasses::NodePtr AST::Scope::GetChild(IndexType ChildIndex)
   }
 }
 
-
-// Implementation of class AST::FunctionDeclaration
-AST::FunctionDeclaration::FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)
+AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVariableName) const
 {
+  BaseClasses::NodePtr spParent = GetThis();
+
+  while (true)
+  {
+    spParent = spParent->GetParent();
+    CHECK_NULL_POINTER(spParent);
+
+    if (spParent->IsType<AST::IVariableContainer>())
+    {
+      return spParent->CastToType<AST::IVariableContainer>()->GetVariableInfo(strVariableName);
+      break;
+    }
+  }
+
+  return nullptr;
 }
 
+
+// Implementation of class AST::FunctionDeclaration
 void AST::FunctionDeclaration::AddParameter(BaseClasses::VariableInfoPtr spVariableInfo)
 {
   CHECK_NULL_POINTER(spVariableInfo);
@@ -985,7 +995,7 @@ AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildInde
   }
 }
 
-AST::BaseClasses::VariableInfoPtr  AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName)
+AST::BaseClasses::VariableInfoPtr AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName) const
 {
   auto itVariableEntry = _mapKnownVariables.find(strVariableName);
 

@@ -294,7 +294,23 @@ namespace Vectorization
 
 
         template <class NodeClass>
-        inline NodeClass* CastToType()  { return dynamic_cast<NodeClass*>(this); }
+        inline NodeClass* CastToType()
+        {
+          if (! IsType<NodeClass>())
+          {
+            throw RuntimeErrorException("Invalid node cast type!");
+          }
+
+          return dynamic_cast<NodeClass*>(this);
+        }
+
+        template <class NodeClass>
+        inline bool IsType() const
+        {
+          static_assert( std::is_base_of< Node, NodeClass >::value, "All VAST nodes must be derived from class \"Node\"!" );
+
+          return (dynamic_cast< const NodeClass* >(this) != nullptr);
+        }
 
 
       public:
@@ -985,11 +1001,29 @@ namespace Vectorization
     };
 
 
-    class Scope final : public BaseClasses::Node
+
+    class IVariableContainer : public BaseClasses::Node
+    {
+    protected:
+
+      typedef BaseClasses::Node       BaseType;
+      typedef BaseType::IndexType     IndexType;
+
+    public:
+
+      inline IVariableContainer(BaseType::NodeType eNodeType) : BaseType(eNodeType)   {}
+
+
+      virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) = 0;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const = 0;
+    };
+
+
+    class Scope final : public IVariableContainer
     {
     private:
 
-      typedef BaseClasses::Node       BaseType;
+      typedef IVariableContainer      BaseType;
       typedef BaseType::IndexType     IndexType;
       typedef BaseClasses::NodePtr    NodePtr;
 
@@ -1006,9 +1040,11 @@ namespace Vectorization
       inline Scope() : BaseType(Node::NodeType::Scope)   {}
 
       void AddChild(NodePtr spChild);
-      void AddVariable(BaseClasses::VariableInfoPtr spVariableInfo);
 
     public:
+
+      virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(_Children.size()); }
@@ -1018,11 +1054,11 @@ namespace Vectorization
     };
 
 
-    class FunctionDeclaration : public BaseClasses::Node
+    class FunctionDeclaration final : public IVariableContainer
     {
     private:
 
-      typedef BaseClasses::Node     BaseType;
+      typedef IVariableContainer    BaseType;
       typedef BaseType::IndexType   IndexType;
       typedef BaseClasses::NodePtr  NodePtr;
 
@@ -1038,13 +1074,12 @@ namespace Vectorization
       std::string             _strName;
 
 
-
     public:
 
-      FunctionDeclaration();
+      inline FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)  {}
+
 
       void AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
-      void AddVariable(BaseClasses::VariableInfoPtr spVariableInfo);
 
       ScopePtr        GetBody();
       const ScopePtr  GetBody() const;
@@ -1052,9 +1087,11 @@ namespace Vectorization
       inline std::string  GetName() const               { return _strName; }
       inline void         SetName(std::string strName)  { _strName = strName; }
 
-      BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName);
-
     public:
+
+      virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
+
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(1); }
