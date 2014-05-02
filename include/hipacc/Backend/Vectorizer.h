@@ -82,6 +82,10 @@ namespace Vectorization
 
       static AST::Expressions::BinaryOperatorPtr  _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
 
+      static void                                 _BuildBranchingStatement(::clang::IfStmt *pIfStmt, AST::ScopePtr spEnclosingScope);
+
+      static ::clang::Stmt*                       _BuildConditionalBranch(::clang::IfStmt *pIfStmt, AST::ControlFlow::BranchingStatementPtr spBranchingStatement);
+
       static AST::Expressions::ConstantPtr        _BuildConstantExpression(::clang::Expr *pExpression);
 
       static AST::Expressions::ConversionPtr      _BuildConversionExpression(::clang::CastExpr *pCastExpr);

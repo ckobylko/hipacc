@@ -422,7 +422,7 @@ const AST::ScopePtr AST::ControlFlow::Loop::GetBody() const
   return _spBody;
 }
 
-AST::BaseClasses::NodePtr  AST::ControlFlow::Loop::GetChild(IndexType ChildIndex)
+AST::BaseClasses::NodePtr AST::ControlFlow::Loop::GetChild(IndexType ChildIndex)
 {
   switch (ChildIndex)
   {
@@ -431,6 +431,117 @@ AST::BaseClasses::NodePtr  AST::ControlFlow::Loop::GetChild(IndexType ChildIndex
   case 2:   return GetBody();
   default:  throw ASTExceptions::ChildIndexOutOfRange();
   }
+}
+
+
+// Implementation of class AST::ControlFlow::ConditionalBranch
+string AST::ControlFlow::ConditionalBranch::DumpToXML(const size_t cszIntend) const
+{
+  string strXmlString("");
+
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Condition", _DumpChildToXml(GetCondition(), cszIntend + 4) );
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Body",      _DumpChildToXml(GetBody(), cszIntend + 4) );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "ConditionalBranch", strXmlString);
+}
+
+AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody()
+{
+  if (! _spBody)
+  {
+    _SetChildPtr(_spBody, AST::CreateNode<AST::Scope>());
+  }
+
+  return _spBody;
+}
+
+const AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody() const
+{
+  CHECK_NULL_POINTER(_spBody);
+
+  return _spBody;
+}
+
+AST::BaseClasses::NodePtr AST::ControlFlow::ConditionalBranch::GetChild(IndexType ChildIndex)
+{
+  switch (ChildIndex)
+  {
+  case 0:   return GetCondition();
+  case 1:   return GetBody();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+// Implementation of class AST::ControlFlow::BranchingStatement
+void AST::ControlFlow::BranchingStatement::AddConditionalBranch(ConditionalBranchPtr spBranch)
+{
+  CHECK_NULL_POINTER(spBranch);
+
+  _SetParentToChild(spBranch);
+  _vecBranches.push_back(spBranch);
+}
+
+string AST::ControlFlow::BranchingStatement::DumpToXML(const size_t cszIntend) const
+{
+  string strXmlString("");
+
+  // Dump conditional branches
+  for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < GetConditionalBranchesCount(); ++iBranchIdx)
+  {
+    XMLSupport::AttributesMapType mapAttributes;
+
+    mapAttributes["index"] = XMLSupport::ToString(iBranchIdx);
+
+    strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Branch", GetConditionalBranch(iBranchIdx)->DumpToXML(cszIntend + 4), mapAttributes );
+  }
+
+  // Dump default branch
+  strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "DefaultBranch", GetDefaultBranch()->DumpToXML(cszIntend + 4));
+
+  return XMLSupport::CreateXmlTag(cszIntend, "BranchingStatement", strXmlString);
+}
+
+AST::BaseClasses::NodePtr AST::ControlFlow::BranchingStatement::GetChild(IndexType ChildIndex)
+{
+  if (ChildIndex < GetConditionalBranchesCount())
+  {
+    return GetConditionalBranch(ChildIndex);
+  }
+  else if (ChildIndex == GetConditionalBranchesCount())
+  {
+    return GetDefaultBranch();
+  }
+  else
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+AST::ControlFlow::ConditionalBranchPtr AST::ControlFlow::BranchingStatement::GetConditionalBranch(IndexType BranchIndex) const
+{
+  if (BranchIndex >= GetConditionalBranchesCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+
+  return _vecBranches[BranchIndex];
+}
+
+AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch()
+{
+  if (! _spDefaultBranch)
+  {
+    _SetChildPtr(_spDefaultBranch, AST::CreateNode<AST::Scope>());
+  }
+
+  return _spDefaultBranch;
+}
+
+const AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch() const
+{
+  CHECK_NULL_POINTER(_spDefaultBranch);
+
+  return _spDefaultBranch;
 }
 
 

@@ -344,6 +344,8 @@ namespace Vectorization
 
         enum class ControlFlowType
         {
+          BranchingStatement,
+          ConditionalBranch,
           Loop
         };
         
@@ -411,8 +413,12 @@ namespace Vectorization
     public:
 
       class Loop;
+      class ConditionalBranch;
+      class BranchingStatement;
 
-      typedef std::shared_ptr< Loop >   LoopPtr;
+      typedef std::shared_ptr< Loop >                 LoopPtr;
+      typedef std::shared_ptr< ConditionalBranch >    ConditionalBranchPtr;
+      typedef std::shared_ptr< BranchingStatement >   BranchingStatementPtr;
 
     public:
 
@@ -468,6 +474,72 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 3 ); }
+      };
+
+      class ConditionalBranch final : public BaseClasses::ControlFlowStatement
+      {
+      private:
+
+        typedef BaseClasses::ControlFlowStatement   BaseType;
+        typedef BaseType::IndexType                 IndexType;
+        typedef BaseClasses::ExpressionPtr          ExpressionPtr;
+
+      private:
+
+        ExpressionPtr   _spCondition;
+        ScopePtr        _spBody;
+
+      public:
+
+        ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
+
+
+        ScopePtr        GetBody();
+        const ScopePtr  GetBody() const;
+
+        inline ExpressionPtr        GetCondition()        { return _spCondition; }
+        inline const ExpressionPtr  GetCondition() const  { return _spCondition; }
+        inline void                 SetCondition(ExpressionPtr spCondition)   { _SetChildPtr(_spCondition, spCondition); }
+
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
+        virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 2 ); }
+      };
+
+      class BranchingStatement final : public BaseClasses::ControlFlowStatement
+      {
+      private:
+
+        typedef BaseClasses::ControlFlowStatement   BaseType;
+        typedef BaseType::IndexType                 IndexType;
+
+      private:
+
+        std::vector< ConditionalBranchPtr >   _vecBranches;
+        ScopePtr                              _spDefaultBranch;
+
+      public:
+
+        BranchingStatement() : BaseType(BaseType::ControlFlowType::BranchingStatement), _spDefaultBranch(nullptr)   {}
+
+        void                  AddConditionalBranch(ConditionalBranchPtr spBranch);
+        ConditionalBranchPtr  GetConditionalBranch(IndexType BranchIndex) const;
+        inline IndexType      GetConditionalBranchesCount() const   { return static_cast< IndexType >( _vecBranches.size() ); }
+
+        ScopePtr        GetDefaultBranch();
+        const ScopePtr  GetDefaultBranch() const;
+
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
+        virtual IndexType             GetChildCount() const final override    { return GetConditionalBranchesCount() + 1; }
       };
     };
 

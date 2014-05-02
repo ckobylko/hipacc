@@ -96,6 +96,68 @@ AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperato
   return spReturnOperator;
 }
 
+void Vectorizer::VASTBuilder::_BuildBranchingStatement(::clang::IfStmt *pIfStmt, AST::ScopePtr spEnclosingScope)
+{
+  AST::ControlFlow::BranchingStatementPtr spBranchingStmt = AST::CreateNode<AST::ControlFlow::BranchingStatement>();
+  spEnclosingScope->AddChild(spBranchingStmt);
+
+  // Unroll the "if-else"-cascade in the clang AST
+  ::clang::Stmt *pCurrentStatement = pIfStmt;
+  while (isa<::clang::IfStmt>(pCurrentStatement))
+  {
+    pCurrentStatement = _BuildConditionalBranch(dyn_cast<::clang::IfStmt>(pCurrentStatement), spBranchingStmt);
+    if (pCurrentStatement == nullptr)
+    {
+      break;
+    }
+  }
+
+  // Build default branch
+  AST::ScopePtr spDefaultBranch = spBranchingStmt->GetDefaultBranch();
+  if (pCurrentStatement != nullptr)
+  {
+    if (isa<::clang::CompoundStmt>(pCurrentStatement))
+    {
+      _ConvertScope(spDefaultBranch, dyn_cast<::clang::CompoundStmt>(pCurrentStatement));
+    }
+    else
+    {
+      AST::BaseClasses::NodePtr spChild = _BuildStatement(pCurrentStatement, spDefaultBranch);
+      if (spChild)
+      {
+        spDefaultBranch->AddChild(spChild);
+      }
+    }
+  }
+}
+
+::clang::Stmt* Vectorizer::VASTBuilder::_BuildConditionalBranch(::clang::IfStmt *pIfStmt, AST::ControlFlow::BranchingStatementPtr spBranchingStatement)
+{
+  AST::ControlFlow::ConditionalBranchPtr spBranch = AST::CreateNode< AST::ControlFlow::ConditionalBranch >();
+  spBranchingStatement->AddConditionalBranch(spBranch);
+
+  spBranch->SetCondition( _BuildExpression(pIfStmt->getCond()) );
+
+  AST::ScopePtr spBranchBody  = spBranch->GetBody();
+  ::clang::Stmt *pIfBody      = pIfStmt->getThen();
+  if (pIfBody != nullptr)
+  {
+    if (isa<::clang::CompoundStmt>(pIfBody))
+    {
+      _ConvertScope(spBranchBody, dyn_cast<::clang::CompoundStmt>(pIfBody));
+    }
+    else
+    {
+      AST::BaseClasses::NodePtr spChild = _BuildStatement(pIfBody, spBranchBody);
+      if (spChild)
+      {
+        spBranchBody->AddChild(spChild);
+      }
+    }
+  }
+
+  return pIfStmt->getElse();
+}
 
 AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(::clang::Expr *pExpression)
 {
@@ -461,6 +523,10 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
   {
     _BuildLoop(pStatement, spEnclosingScope);
   }
+  else if (isa<::clang::IfStmt>(pStatement))
+  {
+    _BuildBranchingStatement(dyn_cast<::clang::IfStmt>(pStatement), spEnclosingScope);
+  }
   else
   {
     throw ASTExceptions::UnknownStatementClass(pStatement->getStmtClassName());
@@ -734,7 +800,7 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions:
 
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
-//VASTBuilder().Import(pFunctionDeclaration);
+VASTBuilder().Import(pFunctionDeclaration);
 
   return VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
 }
