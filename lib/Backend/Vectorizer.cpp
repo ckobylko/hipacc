@@ -629,6 +629,18 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 }
 
 
+void Vectorizer::Transformations::FindConditionalAssignments::Execute(AST::ControlFlow::LoopPtr spLoop)
+{
+  Transformations::FindAssignments AssignmentFinder;
+
+  _RunVASTTransformation(spLoop->GetBody(), AssignmentFinder);
+
+  for each (auto itAssignment in AssignmentFinder.lstAssignments)
+  {
+    mapConditionalAssignments[itAssignment].push_back(spLoop->GetCondition());
+  }
+}
+
 
 Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope)
 {
@@ -681,6 +693,45 @@ Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions:
 
 
 
+AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment)
+{
+  if (! spAssignment)
+  {
+    throw InternalErrors::NullPointerException("spAssignment");
+  }
+
+  // Step through to the leaf node of the left hand side of the assignment expression
+  AST::BaseClasses::ExpressionPtr spValueExpression = spAssignment;
+  while (spValueExpression->GetSubExpressionCount() != static_cast<IndexType>(0))
+  {
+    spValueExpression = spValueExpression->GetSubExpression(0);
+    if (! spValueExpression)
+    {
+      throw InternalErrors::NullPointerException("spValueExpression");
+    }
+  }
+
+  // Check if the assignee is an identifier
+  if (spValueExpression->IsType<AST::Expressions::Identifier>())
+  {
+    // Fetch the variable info object which belongs to this identifier
+    AST::Expressions::IdentifierPtr   spIdentifier    = spValueExpression->CastToType<AST::Expressions::Identifier>();
+    AST::BaseClasses::VariableInfoPtr spVariableInfo  = spIdentifier->LookupVariableInfo();
+
+    if (! spVariableInfo)
+    {
+      throw InternalErrorException(string("Could not find variable info for identifier: ") + spIdentifier->GetName());
+    }
+
+    return spVariableInfo;
+  }
+  else
+  {
+    throw InternalErrorException("Expected an identifier expression!");
+  }
+}
+
+
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
 //VASTBuilder().Import(pFunctionDeclaration);
@@ -718,6 +769,7 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
 
   VariableDependencyMapType mapVariableDependencies;
 
+  // Find all asignment expression (they express direct variable dependencies)
   {
     Transformations::FindAssignments AssignmentFinder;
 
@@ -725,32 +777,29 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
 
     for each (auto itAssignment in AssignmentFinder.lstAssignments)
     {
-      AST::BaseClasses::ExpressionPtr spLHS = itAssignment->GetLHS();
-      while (spLHS->GetSubExpressionCount() != static_cast<IndexType>(0))
-      {
-        spLHS = spLHS->GetSubExpression(0);
-      }
+      mapVariableDependencies[ _GetAssigneeInfo(itAssignment) ].push_back( itAssignment->GetRHS() );
+    }
+  }
 
-      if (spLHS->IsType<AST::Expressions::Identifier>())
-      {
-        AST::Expressions::IdentifierPtr   spIdentifier    = spLHS->CastToType<AST::Expressions::Identifier>();
-        AST::BaseClasses::VariableInfoPtr spVariableInfo  = spIdentifier->LookupVariableInfo();
+  // Find all conditional assignments (an assignment based on a vectorized condition must be vectorized too)
+  {
+    Transformations::FindConditionalAssignments CondAssignmentFinder;
 
-        if (! spVariableInfo)
-        {
-          throw InternalErrorException(string("Could not find variable info for identifier: ") + spIdentifier->GetName());
-        }
+    _RunVASTTransformation(spFunction, CondAssignmentFinder);
 
-        mapVariableDependencies[spVariableInfo].push_back(itAssignment->GetRHS());
-      }
-      else
+    for each (auto itCondAssignment in CondAssignmentFinder.mapConditionalAssignments)
+    {
+      AST::BaseClasses::VariableInfoPtr spVariableInfo = _GetAssigneeInfo(itCondAssignment.first);
+
+      for each (auto itCondition in itCondAssignment.second)
       {
-        throw InternalErrorException("Expected an identifier expression!");
+        mapVariableDependencies[spVariableInfo].push_back(itCondition);
       }
     }
   }
 
 
+  // Continue to mark dependent variables as vectorized until nothing is changing anymore
   bool bChanged = true;
   while (bChanged)
   {

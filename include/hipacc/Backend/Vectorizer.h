@@ -199,6 +199,17 @@ namespace Vectorization
         inline void Execute(AST::Expressions::AssignmentOperatorPtr spAssignment)   { lstAssignments.push_back(spAssignment); }
       };
 
+      class FindConditionalAssignments final
+      {
+      public:
+
+        typedef AST::ControlFlow::Loop      TargetType;
+
+        std::map< AST::Expressions::AssignmentOperatorPtr, std::list< AST::BaseClasses::ExpressionPtr > >  mapConditionalAssignments;
+
+        void Execute(AST::ControlFlow::LoopPtr spLoop);
+      };
+
       class FlattenScopes final
       {
       public:
@@ -228,7 +239,7 @@ namespace Vectorization
 
 
     template < class TransformationType >
-    inline void _RunVASTTransformation(AST::BaseClasses::NodePtr spCurrentNode, TransformationType &rTransformation)
+    inline static void _RunVASTTransformation(AST::BaseClasses::NodePtr spCurrentNode, TransformationType &rTransformation)
     {
       typedef typename TransformationType::TargetType   TargetType;
       static_assert( std::is_base_of< AST::BaseClasses::Node, TargetType >::value, "The target type of the VAST transformation must be derived from class\"AST::BaseClasses::Node\"!" );
@@ -251,6 +262,9 @@ namespace Vectorization
         rTransformation.Execute(spCurrentNode->CastToType<TargetType>());
       }
     }
+
+
+    static AST::BaseClasses::VariableInfoPtr _GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment);
 
 
   public:
