@@ -295,6 +295,9 @@ namespace Vectorization
 
       public:
 
+        virtual ~Node() {}
+
+
         inline NodeType GetNodeType() const    { return _ceNodeType; }
 
         NodePtr       GetParent();
@@ -353,10 +356,13 @@ namespace Vectorization
 
         const ControlFlowType    _ceControlFlowType;
 
-      public:
+      protected:
 
         inline ControlFlowStatement(ControlFlowType eCtlFlowType) : BaseType(Node::NodeType::ControlFlowStatement), _ceControlFlowType(eCtlFlowType)  {}
 
+      public:
+
+        virtual ~ControlFlowStatement() {}
       };
 
       class Expression : public Node
@@ -386,11 +392,12 @@ namespace Vectorization
         std::string _DumpResultTypeToXML(const size_t cszIntend) const;
 
 
-      public:
-
         inline Expression(ExpressionType eExprType) : BaseType(Node::NodeType::Expression), _ceExprType(eExprType)  {}
 
       public:
+
+        virtual ~Expression() {}
+
 
         virtual NodePtr   GetChild(IndexType ChildIndex) final override   { return GetSubExpression(ChildIndex); }
         virtual IndexType GetChildCount() const final override            { return GetSubExpressionCount(); }
@@ -452,6 +459,8 @@ namespace Vectorization
 
         inline Loop() : BaseType(BaseType::ControlFlowType::Loop)   {}
 
+        virtual ~Loop() {}
+
 
         ScopePtr        GetBody();
         const ScopePtr  GetBody() const;
@@ -493,6 +502,8 @@ namespace Vectorization
 
         ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
 
+        virtual ~ConditionalBranch()  {}
+
 
         ScopePtr        GetBody();
         const ScopePtr  GetBody() const;
@@ -525,6 +536,9 @@ namespace Vectorization
       public:
 
         BranchingStatement() : BaseType(BaseType::ControlFlowType::BranchingStatement), _spDefaultBranch(nullptr)   {}
+
+        virtual ~BranchingStatement() {}
+
 
         void                  AddConditionalBranch(ConditionalBranchPtr spBranch);
         ConditionalBranchPtr  GetConditionalBranch(IndexType BranchIndex) const;
@@ -599,11 +613,14 @@ namespace Vectorization
 
         const ValueType   _ceValueType;
 
-      public:
+      protected:
 
         inline  Value(ValueType eValueType) : BaseType(BaseType::ExpressionType::Value), _ceValueType(eValueType)   {}
 
       public:
+
+        virtual ~Value()  {}
+
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) override                           { throw ASTExceptions::ChildIndexOutOfRange(); }
         virtual IndexType       GetSubExpressionCount() const override                                      { return static_cast< IndexType >(0); }
@@ -653,6 +670,9 @@ namespace Vectorization
       public:
 
         inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
+
+        virtual ~Constant() {}
+
 
         inline BaseClasses::TypeInfo::KnownTypes  GetValueType() const    { return _eType; }
 
@@ -737,6 +757,9 @@ namespace Vectorization
 
         inline Identifier() : BaseType(BaseType::ValueType::Identifier)   {}
 
+        virtual ~Identifier() {}
+
+
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
 
@@ -764,6 +787,8 @@ namespace Vectorization
       public:
 
         inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
+
+        virtual ~MemoryAccess() {}
 
 
         inline ExpressionPtr        GetIndexExpression()                                  { return _spIndexExpr; }
@@ -811,9 +836,12 @@ namespace Vectorization
 
         std::string _DumpSubExpressionToXML(const size_t cszIntend) const;
 
+        inline UnaryExpression(UnaryExpressionType eType) : BaseType(BaseType::ExpressionType::UnaryExpression), _ceUnaryExprType(eType), _spSubExpression(nullptr)  {}
+
       public:
 
-        inline UnaryExpression(UnaryExpressionType eType) : BaseType(BaseType::ExpressionType::UnaryExpression), _ceUnaryExprType(eType), _spSubExpression(nullptr)  {}
+        virtual ~UnaryExpression()  {}
+
 
         inline BaseClasses::ExpressionPtr         GetSubExpression()                                      { return _spSubExpression; }
         inline const BaseClasses::ExpressionPtr   GetSubExpression() const                                { return _spSubExpression; }
@@ -838,6 +866,9 @@ namespace Vectorization
 
         inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion)   {}
 
+        virtual ~Conversion() {}
+
+
         inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
         inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
 
@@ -857,6 +888,8 @@ namespace Vectorization
       public:
 
         inline Parenthesis() : BaseType(BaseType::UnaryExpressionType::Parenthesis)   {}
+
+        virtual ~Parenthesis()  {}
 
 
       public:
@@ -900,6 +933,8 @@ namespace Vectorization
 
         inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator)  {}
 
+        virtual ~UnaryOperator()  {}
+
 
         inline UnaryOperatorType  GetOperatorType() const                     { return _eOpType; }
         inline void               SetOperatorType(UnaryOperatorType eOpType)  { _eOpType = eOpType; }
@@ -941,9 +976,11 @@ namespace Vectorization
 
         std::string _DumpSubExpressionsToXML(const size_t cszIntend) const;
 
+        inline BinaryOperator(BinaryOperatorType eBinOpType) : BaseType(BaseType::ExpressionType::BinaryOperator), _ceBinOpType(eBinOpType)   {}
+
       public:
 
-        inline BinaryOperator(BinaryOperatorType eBinOpType) : BaseType(BaseType::ExpressionType::BinaryOperator), _ceBinOpType(eBinOpType)   {}
+        virtual ~BinaryOperator() {}
 
 
         inline ExpressionPtr        GetLHS()                        { return _spLHS; }
@@ -1000,6 +1037,8 @@ namespace Vectorization
 
         inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator)  {}
 
+        virtual ~ArithmeticOperator() {}
+
 
         inline ArithmeticOperatorType GetOperatorType() const                           { return _eOpType; }
         inline void                   SetOperatorType(ArithmeticOperatorType eOpType)   { _eOpType = eOpType; }
@@ -1022,6 +1061,8 @@ namespace Vectorization
       public:
 
         inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator)  {}
+
+        virtual ~AssignmentOperator() {}
 
 
       public:
@@ -1062,6 +1103,8 @@ namespace Vectorization
 
         inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator)  {}
 
+        virtual ~RelationalOperator() {}
+
 
         inline RelationalOperatorType GetOperatorType() const                           { return _eOpType; }
         inline void                   SetOperatorType(RelationalOperatorType eOpType)   { _eOpType = eOpType; }
@@ -1093,6 +1136,8 @@ namespace Vectorization
       public:
 
         inline FunctionCall() : BaseType(BaseType::ExpressionType::FunctionCall)    {}
+
+        virtual ~FunctionCall() {}
 
 
         void          AddCallParameter(ExpressionPtr spCallParam);
@@ -1129,9 +1174,11 @@ namespace Vectorization
       typedef BaseClasses::Node       BaseType;
       typedef BaseType::IndexType     IndexType;
 
+      inline IVariableContainer(BaseType::NodeType eNodeType) : BaseType(eNodeType)   {}
+
     public:
 
-      inline IVariableContainer(BaseType::NodeType eNodeType) : BaseType(eNodeType)   {}
+      virtual ~IVariableContainer() {}
 
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) = 0;
@@ -1158,6 +1205,9 @@ namespace Vectorization
     public:
 
       inline Scope() : BaseType(Node::NodeType::Scope)   {}
+
+      virtual ~Scope()  {}
+
 
       void AddChild(NodePtr spChild);
       void RemoveChild(IndexType ChildIndex);
@@ -1200,6 +1250,8 @@ namespace Vectorization
 
       inline FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)  {}
 
+      virtual ~FunctionDeclaration()  {}
+
 
       void AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
 
@@ -1221,7 +1273,6 @@ namespace Vectorization
 
       virtual std::string DumpToXML(const size_t cszIntend) const final override;
     };
-
 
 
 
