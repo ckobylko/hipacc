@@ -65,6 +65,16 @@ namespace Vectorization
       inline ChildIndexOutOfRange() : BaseType("The index for the child node is out of range!")  {}
     };
 
+    class DuplicateVariableName : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException  BaseType;   //!< The base type of this class.
+
+    public:
+
+      inline DuplicateVariableName(std::string strVarName) : BaseType(std::string("The variable name \"") + strVarName + std::string("\" is not unique!"))  {}
+    };
 
     class NonDereferencableType : public RuntimeErrorException
     {
@@ -106,9 +116,11 @@ namespace Vectorization
   // Forward declarations and type definitions
   public:
 
+    class IVariableContainer;
     class FunctionDeclaration;
     class Scope;
 
+    typedef std::shared_ptr< IVariableContainer >   IVariableContainerPtr;
     typedef std::shared_ptr< FunctionDeclaration >  FunctionDeclarationPtr;
     typedef std::shared_ptr< Scope >                ScopePtr;
 
@@ -1183,6 +1195,7 @@ namespace Vectorization
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) = 0;
       virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const = 0;
+      virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const = 0;
     };
 
 
@@ -1201,6 +1214,9 @@ namespace Vectorization
 
       ChildrenContainerType   _Children;
 
+      IVariableContainerPtr               _GetParentVariableContainer();
+      inline const IVariableContainerPtr  _GetParentVariableContainer() const { return const_cast< Scope* >( this )->_GetParentVariableContainer(); }
+
 
     public:
 
@@ -1217,6 +1233,7 @@ namespace Vectorization
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
       virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
+      virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const final override;
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(_Children.size()); }
@@ -1265,6 +1282,7 @@ namespace Vectorization
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
       virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
+      virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const final override;
 
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;

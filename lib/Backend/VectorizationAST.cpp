@@ -1078,6 +1078,27 @@ void AST::Expressions::FunctionCall::SetCallParameter(IndexType CallParamIndex, 
 /*************************/
 
 // Implementation of class AST::Scope
+AST::IVariableContainerPtr AST::Scope::_GetParentVariableContainer()
+{
+  BaseClasses::NodePtr spParent = GetThis();
+
+  while (true)
+  {
+    spParent = spParent->GetParent();
+
+    if (! spParent)
+    {
+      break;
+    }
+    else if (spParent->IsType<AST::IVariableContainer>())
+    {
+      return spParent->CastToType<AST::IVariableContainer>();
+    }
+  }
+
+  return nullptr;
+}
+
 void AST::Scope::AddChild(NodePtr spChild)
 {
   CHECK_NULL_POINTER(spChild);
@@ -1090,19 +1111,10 @@ void AST::Scope::AddVariable(BaseClasses::VariableInfoPtr spVariableInfo)
 {
   CHECK_NULL_POINTER(spVariableInfo);
 
-  BaseClasses::NodePtr spParent = GetThis();
+  AST::IVariableContainerPtr spParentVarContainer = _GetParentVariableContainer();
+  CHECK_NULL_POINTER(spParentVarContainer);
 
-  while (true)
-  {
-    spParent = spParent->GetParent();
-    CHECK_NULL_POINTER(spParent);
-
-    if ( spParent->IsType<AST::IVariableContainer>() )
-    {
-      spParent->CastToType<AST::IVariableContainer>()->AddVariable(spVariableInfo);
-      break;
-    }
-  }
+  spParentVarContainer->AddVariable(spVariableInfo);
 }
 
 string AST::Scope::DumpToXML(const size_t cszIntend) const
@@ -1148,6 +1160,14 @@ AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVar
   return nullptr;
 }
 
+bool AST::Scope::IsVariableUsed(const std::string &crstrVariableName) const
+{
+  AST::IVariableContainerPtr spParentVariableContainer = _GetParentVariableContainer();
+  CHECK_NULL_POINTER(spParentVariableContainer);
+
+  return spParentVariableContainer->IsVariableUsed(crstrVariableName);
+}
+
 void AST::Scope::RemoveChild(IndexType ChildIndex)
 {
   if (ChildIndex >= GetChildCount())
@@ -1179,14 +1199,12 @@ void AST::FunctionDeclaration::AddParameter(BaseClasses::VariableInfoPtr spVaria
 {
   CHECK_NULL_POINTER(spVariableInfo);
 
-  // TODO: Quick and dirty => fix this
-  _mapKnownVariables[spVariableInfo->GetName()] = spVariableInfo;
+  AddVariable(spVariableInfo);
 
   Expressions::IdentifierPtr spParameter = AST::CreateNode<Expressions::Identifier>();
-  _SetParentToChild(spParameter);
-
   spParameter->SetName(spVariableInfo->GetName());
 
+  _SetParentToChild(spParameter);
   _Parameters.push_back(spParameter);
 }
 
@@ -1194,8 +1212,14 @@ void AST::FunctionDeclaration::AddVariable(BaseClasses::VariableInfoPtr spVariab
 {
   CHECK_NULL_POINTER(spVariableInfo);
 
-  // TODO: Quick and dirty => fix this
-  _mapKnownVariables[spVariableInfo->GetName()] = spVariableInfo;
+  string strVariableName = spVariableInfo->GetName();
+
+  if (IsVariableUsed(strVariableName))
+  {
+    throw ASTExceptions::DuplicateVariableName(strVariableName);
+  }
+
+  _mapKnownVariables[strVariableName] = spVariableInfo;
 }
 
 string AST::FunctionDeclaration::DumpToXML(const size_t cszIntend) const
@@ -1274,6 +1298,13 @@ AST::BaseClasses::VariableInfoPtr AST::FunctionDeclaration::GetVariableInfo(std:
   {
     return nullptr;
   }
+}
+
+bool AST::FunctionDeclaration::IsVariableUsed(const std::string &crstrVariableName) const
+{
+  auto itVariable = _mapKnownVariables.find(crstrVariableName);
+
+  return (itVariable != _mapKnownVariables.end());
 }
 
 
