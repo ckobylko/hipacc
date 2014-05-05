@@ -35,6 +35,7 @@
 
 #include <clang/AST/StmtVisitor.h>
 #include <list>
+#include <map>
 #include <type_traits>
 #include "CommonDefines.h"
 #include "VectorizationAST.h"
@@ -60,6 +61,28 @@ namespace Vectorization
     {
     private:
 
+      class VariableNameTranslator final
+      {
+      private:
+
+        typedef std::map< std::string, std::string >  RenameMapType;
+
+        std::list< RenameMapType >    _lstRenameStack;
+
+      public:
+
+        inline void AddLayer()  { _lstRenameStack.push_front(RenameMapType()); }
+        inline void PopLayer()  { _lstRenameStack.pop_front(); }
+
+        void          AddRenameEntry( std::string strOriginalName, std::string strNewName );
+        std::string   TranslateName( std::string strOriginalName ) const;
+
+        static std::string  GetNextFreeVariableName( AST::IVariableContainerPtr spVariableContainer, std::string strRootName );
+      };
+
+
+    private:
+
       template <typename ValueType>
       inline static AST::Expressions::ConstantPtr _CreateConstant(ValueType TValue)
       {
@@ -79,34 +102,43 @@ namespace Vectorization
         return ReturnType;
       }
 
-
-      static AST::Expressions::BinaryOperatorPtr  _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
-
-      static void                                 _BuildBranchingStatement(::clang::IfStmt *pIfStmt, AST::ScopePtr spEnclosingScope);
-
-      static ::clang::Stmt*                       _BuildConditionalBranch(::clang::IfStmt *pIfStmt, AST::ControlFlow::BranchingStatementPtr spBranchingStatement);
-
-      static AST::Expressions::ConstantPtr        _BuildConstantExpression(::clang::Expr *pExpression);
-
-      static AST::Expressions::ConversionPtr      _BuildConversionExpression(::clang::CastExpr *pCastExpr);
-
-      static AST::BaseClasses::ExpressionPtr      _BuildExpression(::clang::Expr *pExpression);
-
-      static void                                 _BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope);
-
-      static AST::BaseClasses::NodePtr            _BuildStatement(::clang::Stmt *pStatement, AST::ScopePtr spEnclosingScope);
-
-      static AST::Expressions::UnaryOperatorPtr   _BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind);
-
-      static AST::BaseClasses::VariableInfoPtr    _BuildVariableInfo(::clang::VarDecl *pVarDecl);
-
-      static void _ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement);
-
       static void _ConvertTypeInfo(AST::BaseClasses::TypeInfo &rTypeInfo, ::clang::QualType qtSourceType);
+
+
+
+      AST::Expressions::BinaryOperatorPtr   _BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
+
+      void                                  _BuildBranchingStatement(::clang::IfStmt *pIfStmt, AST::ScopePtr spEnclosingScope);
+
+      ::clang::Stmt*                        _BuildConditionalBranch(::clang::IfStmt *pIfStmt, AST::ControlFlow::BranchingStatementPtr spBranchingStatement);
+
+      AST::Expressions::ConstantPtr         _BuildConstantExpression(::clang::Expr *pExpression);
+
+      AST::Expressions::ConversionPtr       _BuildConversionExpression(::clang::CastExpr *pCastExpr);
+
+      AST::BaseClasses::ExpressionPtr       _BuildExpression(::clang::Expr *pExpression);
+
+      AST::Expressions::IdentifierPtr       _BuildIdentifier(std::string strIdentifierName);
+
+      void                                  _BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope);
+
+      AST::BaseClasses::NodePtr             _BuildStatement(::clang::Stmt *pStatement, AST::ScopePtr spEnclosingScope);
+
+      AST::Expressions::UnaryOperatorPtr    _BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind);
+
+      AST::BaseClasses::VariableInfoPtr     _BuildVariableInfo(::clang::VarDecl *pVarDecl, AST::IVariableContainerPtr spVariableContainer);
+
+      void _ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement);
+
+
+    private:
+
+      VariableNameTranslator  _VarTranslator;
+
 
     public:
 
-      static AST::FunctionDeclarationPtr BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
+      AST::FunctionDeclarationPtr BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
 
 

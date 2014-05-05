@@ -34,8 +34,72 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <sstream>
 using namespace clang::hipacc::Backend::Vectorization;
 using namespace std;
+
+
+void  Vectorizer::VASTBuilder::VariableNameTranslator::AddRenameEntry(string strOriginalName, string strNewName)
+{
+  if (_lstRenameStack.empty())
+  {
+    throw InternalErrorException("Rename stack is empty");
+  }
+  else if (strOriginalName == strNewName)
+  {
+    throw InternalErrorException("The original and new name cannot be identical!");
+  }
+
+  RenameMapType &rCurrentMap = _lstRenameStack.front();
+  if (rCurrentMap.find(strOriginalName) != rCurrentMap.end())
+  {
+    throw InternalErrorException(string("The variable name \"") + strOriginalName + string("\" is already known at this layer!"));
+  }
+
+  rCurrentMap[strOriginalName] = strNewName;
+}
+
+string Vectorizer::VASTBuilder::VariableNameTranslator::TranslateName(string strOriginalName) const
+{
+  for (auto itMap = _lstRenameStack.begin(); itMap != _lstRenameStack.end(); itMap++)
+  {
+    auto itEntry = itMap->find(strOriginalName);
+
+    if (itEntry != itMap->end())
+    {
+      return itEntry->second;
+    }
+  }
+
+  return strOriginalName;
+}
+
+string Vectorizer::VASTBuilder::VariableNameTranslator::GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, string strRootName)
+{
+  if (! spVariableContainer)
+  {
+    throw InternalErrors::NullPointerException("spVariableContainer");
+  }
+  else if (! spVariableContainer->IsVariableUsed(strRootName))
+  {
+    return strRootName;
+  }
+
+  for (int iVarSuffix = 0; true; ++iVarSuffix)
+  {
+    stringstream VarNameStream;
+
+    VarNameStream << strRootName << "_" << iVarSuffix;
+
+    string strCurrentName = VarNameStream.str();
+
+    if (! spVariableContainer->IsVariableUsed(strCurrentName))
+    {
+      return strCurrentName;
+    }
+  }
+}
+
 
 
 AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind)
@@ -239,10 +303,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   }
   else if (isa<::clang::DeclRefExpr>(pExpression))
   {
-    AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
-    spReturnExpression = spIdentifier;
-
-    spIdentifier->SetName( dyn_cast<::clang::DeclRefExpr>(pExpression)->getNameInfo().getAsString() );
+    spReturnExpression = _BuildIdentifier( dyn_cast< ::clang::DeclRefExpr >(pExpression)->getNameInfo().getAsString() );
   }
   else if (isa<::clang::CompoundAssignOperator>(pExpression))
   {
@@ -367,6 +428,15 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   return spReturnExpression;
 }
 
+AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::_BuildIdentifier(string strIdentifierName)
+{
+  AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
+
+  spIdentifier->SetName( _VarTranslator.TranslateName(strIdentifierName) );
+
+  return spIdentifier;
+}
+
 void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope)
 {
   AST::ControlFlow::LoopPtr spLoop = AST::CreateNode< AST::ControlFlow::Loop >();
@@ -488,7 +558,7 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
       }
 
       ::clang::VarDecl  *pVarDecl = dyn_cast<::clang::VarDecl>(pDecl);
-      spEnclosingScope->AddVariable( _BuildVariableInfo(pVarDecl) );
+      spEnclosingScope->AddVariable( _BuildVariableInfo(pVarDecl, spEnclosingScope) );
 
       ::clang::Expr     *pInitExpr = pVarDecl->getInit();
       if (pInitExpr == nullptr)
@@ -498,11 +568,8 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
 
       AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
 
-      AST::Expressions::IdentifierPtr spVariable = AST::CreateNode< AST::Expressions::Identifier >();
-      spVariable->SetName(pVarDecl->getNameAsString());
-
-      spAssignment->SetLHS(spVariable);
-      spAssignment->SetRHS(_BuildExpression(pInitExpr));
+      spAssignment->SetLHS( _BuildIdentifier(pVarDecl->getNameAsString()) );
+      spAssignment->SetRHS( _BuildExpression(pInitExpr) );
 
       spEnclosingScope->AddChild(spAssignment);
     }
@@ -560,10 +627,23 @@ AST::Expressions::UnaryOperatorPtr Vectorizer::VASTBuilder::_BuildUnaryOperatorE
   return spReturnOperator;
 }
 
-AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl)
+AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl, AST::IVariableContainerPtr spVariableContainer)
 {
   AST::BaseClasses::VariableInfoPtr spVariableInfo = std::make_shared< AST::BaseClasses::VariableInfo >();
-  spVariableInfo->SetName(pVarDecl->getNameAsString());
+
+  string strVariableName = pVarDecl->getNameAsString();
+
+  if ( spVariableContainer->IsVariableUsed(strVariableName) )
+  {
+    string strNewName = _VarTranslator.GetNextFreeVariableName( spVariableContainer, strVariableName );
+
+    _VarTranslator.AddRenameEntry(strVariableName, strNewName);
+
+    strVariableName = strNewName;
+  }
+
+
+  spVariableInfo->SetName( strVariableName );
 
   _ConvertTypeInfo( spVariableInfo->GetTypeInfo(), pVarDecl->getType() );
 
@@ -572,6 +652,8 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::
 
 void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement)
 {
+  _VarTranslator.AddLayer();
+
   for (auto itChild = pCompoundStatement->child_begin(); itChild != pCompoundStatement->child_end(); itChild++)
   {
     ::clang::Stmt *pChildStatement = *itChild;
@@ -586,6 +668,8 @@ void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::Comp
       spScope->AddChild(spChild);
     }
   }
+
+  _VarTranslator.PopLayer();
 }
 
 void Vectorizer::VASTBuilder::_ConvertTypeInfo(AST::BaseClasses::TypeInfo &rTypeInfo, ::clang::QualType qtSourceType)
@@ -677,7 +761,7 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 
   for (size_t i = 0; i < pFunctionDeclaration->getNumParams(); ++i)
   {
-    AST::BaseClasses::VariableInfoPtr spVariable = _BuildVariableInfo( pFunctionDeclaration->getParamDecl(i) );
+    AST::BaseClasses::VariableInfoPtr spVariable = _BuildVariableInfo( pFunctionDeclaration->getParamDecl(i), spFunctionDecl );
 
     spFunctionDecl->AddParameter(spVariable);
   }
@@ -846,7 +930,7 @@ AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::Functi
 {
 //VASTBuilder().Import(pFunctionDeclaration);
 
-  return VASTBuilder::BuildFunctionDecl(pFunctionDeclaration);
+  return VASTBuilder().BuildFunctionDecl(pFunctionDeclaration);
 }
 
 
