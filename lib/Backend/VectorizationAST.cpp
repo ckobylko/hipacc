@@ -1117,10 +1117,37 @@ void AST::Scope::AddVariable(BaseClasses::VariableInfoPtr spVariableInfo)
   spParentVarContainer->AddVariable(spVariableInfo);
 }
 
+void AST::Scope::AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableInfo)
+{
+  CHECK_NULL_POINTER(spVariableInfo);
+
+  _setDeclaredVariables.insert( spVariableInfo->GetName() );
+
+  AddVariable(spVariableInfo);
+}
+
 string AST::Scope::DumpToXML(const size_t cszIntend) const
 {
   string strXmlString("");
 
+  // Dump declared variables
+  if (! _setDeclaredVariables.empty())
+  {
+    string strDeclarations("");
+
+    for each (auto itVar in _setDeclaredVariables)
+    {
+      XMLSupport::AttributesMapType mapDeclAttributes;
+
+      mapDeclAttributes["name"] = itVar;
+
+      strDeclarations += XMLSupport::CreateXmlTag(cszIntend + 4, "Variable", "", mapDeclAttributes);
+    }
+
+    strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "DeclaredVariables", strDeclarations);
+  }
+
+  // Dump children
   for each (auto itNode in _Children)
   {
     strXmlString += itNode->DumpToXML(cszIntend + 2);
@@ -1158,6 +1185,18 @@ AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVar
   }
 
   return nullptr;
+}
+
+void AST::Scope::ImportVariableDeclarations(ScopePtr spOtherScope)
+{
+  CHECK_NULL_POINTER( spOtherScope );
+
+  for each (auto itDecl in spOtherScope->_setDeclaredVariables)
+  {
+    _setDeclaredVariables.insert( itDecl );
+  }
+
+  spOtherScope->_setDeclaredVariables.clear();
 }
 
 bool AST::Scope::IsVariableUsed(const std::string &crstrVariableName) const

@@ -558,7 +558,7 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
       }
 
       ::clang::VarDecl  *pVarDecl = dyn_cast<::clang::VarDecl>(pDecl);
-      spEnclosingScope->AddVariable( _BuildVariableInfo(pVarDecl, spEnclosingScope) );
+      spEnclosingScope->AddVariableDeclaration( _BuildVariableInfo(pVarDecl, spEnclosingScope) );
 
       ::clang::Expr     *pInitExpr = pVarDecl->getInit();
       if (pInitExpr == nullptr)
@@ -779,6 +779,14 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
 }
 
 
+void Vectorizer::Transformations::CheckInternalDeclaration::Execute(AST::ScopePtr spScope)
+{
+  if (spScope->HasVariableDeclaration(_strDeclName))
+  {
+    _bFound = true;
+  }
+}
+
 void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt)
 {
   list< AST::BaseClasses::ExpressionPtr > lstConditions;
@@ -800,9 +808,17 @@ void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST:
 
     for each (auto itAssignment in AssignmentFinder.lstAssignments)
     {
-      for each (auto itCondition in lstConditions)
+      // Check if the assignment is done to a branch internal variable (these variables do not depend on the conditions)
+      CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
+      _RunVASTTransformation( spBranch, DeclChecker );
+
+      // Only add assignments to external variables to the result map
+      if (! DeclChecker.Found())
       {
-        mapConditionalAssignments[itAssignment].push_back(itCondition);
+        for each (auto itCondition in lstConditions)
+        {
+          mapConditionalAssignments[itAssignment].push_back(itCondition);
+        }
       }
     }
   }
@@ -815,9 +831,17 @@ void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST:
 
     for each (auto itAssignment in AssignmentFinder.lstAssignments)
     {
-      for each (auto itCondition in lstConditions)
+      // Check if the assignment is done to a branch internal variable (these variables do not depend on the conditions)
+      CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
+      _RunVASTTransformation( spBranchingStmt->GetDefaultBranch(), DeclChecker );
+
+      // Only add assignments to external variables to the result map
+      if (! DeclChecker.Found())
       {
-        mapConditionalAssignments[itAssignment].push_back(itCondition);
+        for each (auto itCondition in lstConditions)
+        {
+          mapConditionalAssignments[itAssignment].push_back(itCondition);
+        }
       }
     }
   }
@@ -825,29 +849,46 @@ void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST:
 
 void Vectorizer::Transformations::FindLoopInternalAssignments::Execute(AST::ControlFlow::LoopPtr spLoop)
 {
+  // Find all assignments inside the loop body
   Transformations::FindAssignments AssignmentFinder;
 
   _RunVASTTransformation(spLoop->GetBody(), AssignmentFinder);
 
   for each (auto itAssignment in AssignmentFinder.lstAssignments)
   {
-    mapConditionalAssignments[itAssignment].push_back(spLoop->GetCondition());
+    // Check if the assignment is done to a loop internal variable (these variables do not depend on the loop condition)
+    CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
+    _RunVASTTransformation(spLoop->GetBody(), DeclChecker);
+
+    // Only add assignments to external variables to the result map
+    if (! DeclChecker.Found())
+    {
+      mapConditionalAssignments[itAssignment].push_back(spLoop->GetCondition());
+    }
   }
 }
 
 
 Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope)
 {
-  IndexType ChildCount = spChildScope->GetChildCount();
+  bool      bRemoved    = false;
+  IndexType ChildCount  = spChildScope->GetChildCount();
 
   if (ChildCount == static_cast<IndexType>(0))
   {
     spParentScope->RemoveChild(iChildIndex);
+    bRemoved = true;
     --iChildIndex;
   }
   else if (ChildCount == static_cast<IndexType>(1))
   {
     spParentScope->SetChild(iChildIndex, spChildScope->GetChild(0));
+    bRemoved = true;
+  }
+
+  if (bRemoved)
+  {
+    spParentScope->ImportVariableDeclarations( spChildScope );
   }
 
   return iChildIndex;

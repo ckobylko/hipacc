@@ -38,6 +38,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 #include <type_traits>
@@ -1212,7 +1213,9 @@ namespace Vectorization
 
     private:
 
-      ChildrenContainerType   _Children;
+      ChildrenContainerType     _Children;
+      std::set< std::string >   _setDeclaredVariables;
+
 
       IVariableContainerPtr               _GetParentVariableContainer();
       inline const IVariableContainerPtr  _GetParentVariableContainer() const { return const_cast< Scope* >( this )->_GetParentVariableContainer(); }
@@ -1228,6 +1231,10 @@ namespace Vectorization
       void AddChild(NodePtr spChild);
       void RemoveChild(IndexType ChildIndex);
       void SetChild(IndexType ChildIndex, NodePtr spChildNode);
+
+      void        AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableInfo);
+      inline bool HasVariableDeclaration(std::string strVariableName) const   { return (_setDeclaredVariables.count(strVariableName) != 0); }
+      void        ImportVariableDeclarations(ScopePtr spOtherScope);
 
     public:
 

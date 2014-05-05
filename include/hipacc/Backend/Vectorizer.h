@@ -224,6 +224,26 @@ namespace Vectorization
 
     public:
 
+      class CheckInternalDeclaration final
+      {
+      public:
+
+        typedef AST::Scope    TargetType;
+
+      private:
+
+        std::string _strDeclName;
+        bool        _bFound;
+
+      public:
+
+        inline CheckInternalDeclaration(std::string strDeclName) : _strDeclName(strDeclName), _bFound(false)  {}
+
+        void Execute(AST::ScopePtr spScope);
+
+        inline bool Found() const   { return _bFound; }
+      };
+
       class FindAssignments final
       {
       public:
