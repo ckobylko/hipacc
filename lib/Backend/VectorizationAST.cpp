@@ -584,17 +584,17 @@ string AST::Expressions::Constant::GetAsString() const
 {
   switch (_eType)
   {
-  case KnownTypes::Bool:    return XMLSupport::ToString( _unionValues.ui64IntegralValue == static_cast< uint64_t >(0) );
-  case KnownTypes::Int8:    return XMLSupport::ToString( static_cast< int8_t   >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::UInt8:   return XMLSupport::ToString( static_cast< uint8_t  >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::Int16:   return XMLSupport::ToString( static_cast< int16_t  >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::UInt16:  return XMLSupport::ToString( static_cast< uint16_t >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::Int32:   return XMLSupport::ToString( static_cast< int32_t  >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::UInt32:  return XMLSupport::ToString( static_cast< uint32_t >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::Int64:   return XMLSupport::ToString( static_cast< int64_t  >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::UInt64:  return XMLSupport::ToString( static_cast< uint64_t >(_unionValues.ui64IntegralValue) );
-  case KnownTypes::Float:   return XMLSupport::ToString( static_cast< float    >(_unionValues.dFloatingPointValue) );
-  case KnownTypes::Double:  return XMLSupport::ToString( static_cast< double   >(_unionValues.dFloatingPointValue) );
+  case KnownTypes::Bool:    return XMLSupport::ToString( GetValue< bool     >() );
+  case KnownTypes::Int8:    return XMLSupport::ToString( GetValue< int8_t   >() );
+  case KnownTypes::UInt8:   return XMLSupport::ToString( GetValue< uint8_t  >() );
+  case KnownTypes::Int16:   return XMLSupport::ToString( GetValue< int16_t  >() );
+  case KnownTypes::UInt16:  return XMLSupport::ToString( GetValue< uint16_t >() );
+  case KnownTypes::Int32:   return XMLSupport::ToString( GetValue< int32_t  >() );
+  case KnownTypes::UInt32:  return XMLSupport::ToString( GetValue< uint32_t >() );
+  case KnownTypes::Int64:   return XMLSupport::ToString( GetValue< int64_t  >() );
+  case KnownTypes::UInt64:  return XMLSupport::ToString( GetValue< uint64_t >() );
+  case KnownTypes::Float:   return XMLSupport::ToString( GetValue< float    >() );
+  case KnownTypes::Double:  return XMLSupport::ToString( GetValue< double   >() );
   default:                  throw InternalErrorException("Unexpected constant data type!");
   }
 }
