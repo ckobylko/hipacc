@@ -977,6 +977,13 @@ void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunct
 
     Vectorizer.VectorizeFunction(spVecFunction);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_4.xml");
+
+
+    Vectorizer.SeparateBranchingStatements(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_5.xml");
+
+    Vectorizer.FlattenMemoryAccesses(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
   }
   catch (std::exception &e)
   {
