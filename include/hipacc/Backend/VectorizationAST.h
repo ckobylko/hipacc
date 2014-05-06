@@ -117,6 +117,9 @@ namespace Vectorization
   // Forward declarations and type definitions
   public:
 
+    typedef size_t    IndexType;
+
+
     class IVariableContainer;
     class FunctionDeclaration;
     class Scope;
@@ -128,6 +131,30 @@ namespace Vectorization
 
   // Class definitions
   public:
+
+    class ScopePosition final
+    {
+    private:
+
+      ScopePtr    _spScope;
+      IndexType   _ChildIndex;
+
+    public:
+
+      inline ScopePosition(ScopePtr spScope, IndexType ChildIndex) : _spScope(spScope), _ChildIndex(ChildIndex)   {}
+      inline ScopePosition(const ScopePosition &crRVal)   { *this = crRVal; }
+      inline ScopePosition& operator=(const ScopePosition &crRVal)
+      {
+        _spScope    = crRVal._spScope;
+        _ChildIndex = crRVal._ChildIndex;
+
+        return *this;
+      }
+
+      inline ScopePtr    GetScope()       { return _spScope; }
+      inline IndexType   GetChildIndex()  { return _ChildIndex; }
+    };
+
 
     class BaseClasses final
     {
@@ -260,8 +287,6 @@ namespace Vectorization
 
       public:
 
-        typedef size_t                    IndexType;
-
         enum class NodeType
         {
           ControlFlowStatement,
@@ -295,7 +320,11 @@ namespace Vectorization
           // If the child is set, remove its parent pointer
           if (rDestinationPtr)
           {
-            rDestinationPtr->_SetParent(nullptr);
+            // Only remove the parent of the child, if this node is the parent
+            if (rDestinationPtr->GetParent() == GetThis())
+            {
+              rDestinationPtr->_SetParent(nullptr);
+            }
           }
 
           // Set the child pointer and set the current node as its parent
@@ -315,6 +344,8 @@ namespace Vectorization
 
         NodePtr       GetParent();
         const NodePtr GetParent() const;
+
+        ScopePosition GetScopePosition() const;
 
         inline NodePtr        GetThis()         { return _wpThis.lock(); }
         inline const NodePtr  GetThis() const   { return _wpThis.lock(); }
@@ -345,16 +376,14 @@ namespace Vectorization
         virtual NodePtr     GetChild(IndexType ChildIndex) = 0;
         virtual IndexType   GetChildCount() const = 0;
 
-
         virtual std::string DumpToXML(const size_t cszIntend) const = 0;
       };
 
       class ControlFlowStatement : public Node
       {
-      protected:
+      private:
 
-        typedef Node                  BaseType;
-        typedef BaseType::IndexType   IndexType;
+        typedef Node    BaseType;
 
       public:
 
@@ -380,10 +409,9 @@ namespace Vectorization
 
       class Expression : public Node
       {
-      protected:
+      private:
 
-        typedef Node                  BaseType;
-        typedef BaseType::IndexType   IndexType;
+        typedef Node    BaseType;
 
       public:
 
@@ -447,7 +475,6 @@ namespace Vectorization
       private:
 
         typedef BaseClasses::ControlFlowStatement   BaseType;
-        typedef BaseType::IndexType                 IndexType;
 
       public:
         
@@ -503,7 +530,6 @@ namespace Vectorization
       private:
 
         typedef BaseClasses::ControlFlowStatement   BaseType;
-        typedef BaseType::IndexType                 IndexType;
         typedef BaseClasses::ExpressionPtr          ExpressionPtr;
 
       private:
@@ -539,7 +565,6 @@ namespace Vectorization
       private:
 
         typedef BaseClasses::ControlFlowStatement   BaseType;
-        typedef BaseType::IndexType                 IndexType;
 
       private:
 
@@ -607,10 +632,9 @@ namespace Vectorization
 
       class Value : public BaseClasses::Expression
       {
-      protected:
+      private:
 
         typedef BaseClasses::Expression     BaseType;
-        typedef BaseType::IndexType         IndexType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
       public:
@@ -791,7 +815,6 @@ namespace Vectorization
       private:
 
         typedef Value                         BaseType;
-        typedef BaseType::IndexType           IndexType;
         typedef BaseClasses::ExpressionPtr    ExpressionPtr;
 
         ExpressionPtr   _spMemoryRef;
@@ -826,10 +849,9 @@ namespace Vectorization
 
       class UnaryExpression : public BaseClasses::Expression
       {
-      protected:
+      private:
 
         typedef BaseClasses::Expression   BaseType;
-        typedef BaseType::IndexType       IndexType;
 
       public:
 
@@ -870,7 +892,6 @@ namespace Vectorization
       private:
 
         typedef UnaryExpression           BaseType;
-        typedef BaseType::IndexType       IndexType;
 
 
         BaseClasses::TypeInfo   _ConvertType;
@@ -916,8 +937,7 @@ namespace Vectorization
       {
       private:
 
-        typedef UnaryExpression           BaseType;
-        typedef BaseType::IndexType       IndexType;
+        typedef UnaryExpression   BaseType;
 
 
       public:
@@ -966,7 +986,6 @@ namespace Vectorization
       private:
 
         typedef BaseClasses::Expression     BaseType;
-        typedef BaseType::IndexType         IndexType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
       public:
@@ -1137,7 +1156,6 @@ namespace Vectorization
       private:
 
         typedef BaseClasses::Expression     BaseType;
-        typedef BaseType::IndexType         IndexType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
       private:
@@ -1182,10 +1200,11 @@ namespace Vectorization
 
     class IVariableContainer : public BaseClasses::Node
     {
-    protected:
+    private:
 
       typedef BaseClasses::Node       BaseType;
-      typedef BaseType::IndexType     IndexType;
+
+    protected:
 
       inline IVariableContainer(BaseType::NodeType eNodeType) : BaseType(eNodeType)   {}
 
@@ -1205,7 +1224,6 @@ namespace Vectorization
     private:
 
       typedef IVariableContainer      BaseType;
-      typedef BaseType::IndexType     IndexType;
       typedef BaseClasses::NodePtr    NodePtr;
 
       typedef std::vector< NodePtr >  ChildrenContainerType;
@@ -1228,9 +1246,11 @@ namespace Vectorization
       virtual ~Scope()  {}
 
 
-      void AddChild(NodePtr spChild);
-      void RemoveChild(IndexType ChildIndex);
-      void SetChild(IndexType ChildIndex, NodePtr spChildNode);
+      void      AddChild(NodePtr spChild);
+      IndexType GetChildIndex(NodePtr spChildNode);
+      void      InsertChild(IndexType ChildIndex, NodePtr spChildNode);
+      void      RemoveChild(IndexType ChildIndex);
+      void      SetChild(IndexType ChildIndex, NodePtr spChildNode);
 
       void        AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableInfo);
       inline bool HasVariableDeclaration(std::string strVariableName) const   { return (_setDeclaredVariables.count(strVariableName) != 0); }
@@ -1255,7 +1275,6 @@ namespace Vectorization
     private:
 
       typedef IVariableContainer    BaseType;
-      typedef BaseType::IndexType   IndexType;
       typedef BaseClasses::NodePtr  NodePtr;
 
       typedef std::vector< Expressions::IdentifierPtr >              ParameterContainerType;

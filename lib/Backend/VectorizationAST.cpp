@@ -345,6 +345,25 @@ AST::BaseClasses::NodePtr AST::BaseClasses::Node::GetParent()
   return _wpParent.expired() ? nullptr : _wpParent.lock();
 }
 
+AST::ScopePosition AST::BaseClasses::Node::GetScopePosition() const
+{
+  NodePtr spCurrentNode = GetThis();
+  while (spCurrentNode)
+  {
+    NodePtr spParent = spCurrentNode->GetParent();
+    if (spParent->IsType<AST::Scope>())
+    {
+      AST::ScopePtr spScope = spParent->CastToType<AST::Scope>();
+
+      return AST::ScopePosition( spScope, spScope->GetChildIndex(spCurrentNode) );
+    }
+
+    spCurrentNode = spParent;
+  }
+
+  throw InternalErrorException("Cannot find parent scope!");
+}
+
 
 // Implementation of class AST::BaseClasses::Expression
 string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend) const
@@ -1168,6 +1187,21 @@ AST::BaseClasses::NodePtr AST::Scope::GetChild(IndexType ChildIndex)
   }
 }
 
+AST::IndexType AST::Scope::GetChildIndex(NodePtr spChildNode)
+{
+  CHECK_NULL_POINTER(spChildNode);
+
+  for (IndexType iChildIndex = static_cast<IndexType>(0); iChildIndex < GetChildCount(); ++iChildIndex)
+  {
+    if (spChildNode == GetChild(iChildIndex))
+    {
+      return iChildIndex;
+    }
+  }
+
+  throw InternalErrorException("Could not find the specified child!");
+}
+
 AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVariableName) const
 {
   BaseClasses::NodePtr spParent = GetThis();
@@ -1197,6 +1231,19 @@ void AST::Scope::ImportVariableDeclarations(ScopePtr spOtherScope)
   }
 
   spOtherScope->_setDeclaredVariables.clear();
+}
+
+void AST::Scope::InsertChild(IndexType ChildIndex, NodePtr spChildNode)
+{
+  CHECK_NULL_POINTER(spChildNode);
+
+  if (ChildIndex > GetChildCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+
+  _SetParentToChild(spChildNode);
+  _Children.insert(_Children.begin() + ChildIndex, spChildNode);
 }
 
 bool AST::Scope::IsVariableUsed(const std::string &crstrVariableName) const
