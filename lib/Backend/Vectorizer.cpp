@@ -74,32 +74,6 @@ string Vectorizer::VASTBuilder::VariableNameTranslator::TranslateName(string str
   return strOriginalName;
 }
 
-string Vectorizer::VASTBuilder::VariableNameTranslator::GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, string strRootName)
-{
-  if (! spVariableContainer)
-  {
-    throw InternalErrors::NullPointerException("spVariableContainer");
-  }
-  else if (! spVariableContainer->IsVariableUsed(strRootName))
-  {
-    return strRootName;
-  }
-
-  for (int iVarSuffix = 0; true; ++iVarSuffix)
-  {
-    stringstream VarNameStream;
-
-    VarNameStream << strRootName << "_" << iVarSuffix;
-
-    string strCurrentName = VarNameStream.str();
-
-    if (! spVariableContainer->IsVariableUsed(strCurrentName))
-    {
-      return strCurrentName;
-    }
-  }
-}
-
 
 
 AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperatorExpression(::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind)
@@ -326,11 +300,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
     case BO_XorAssign:  eOpKind = BO_Xor;   break;
     }
 
-    AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode<AST::Expressions::AssignmentOperator>();
-    spReturnExpression = spAssignment;
-
-    spAssignment->SetLHS( _BuildExpression(pExprLHS) );
-    spAssignment->SetRHS( _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
+    spReturnExpression = CreateAssignmentOperator( _BuildExpression(pExprLHS), _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
   }
   else if (isa<::clang::BinaryOperator>(pExpression))
   {
@@ -430,11 +400,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 
 AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::_BuildIdentifier(string strIdentifierName)
 {
-  AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
-
-  spIdentifier->SetName( _VarTranslator.TranslateName(strIdentifierName) );
-
-  return spIdentifier;
+  return CreateIdentifier( _VarTranslator.TranslateName(strIdentifierName) );
 }
 
 void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope)
@@ -635,7 +601,7 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::
 
   if ( spVariableContainer->IsVariableUsed(strVariableName) )
   {
-    string strNewName = _VarTranslator.GetNextFreeVariableName( spVariableContainer, strVariableName );
+    string strNewName = GetNextFreeVariableName( spVariableContainer, strVariableName );
 
     _VarTranslator.AddRenameEntry(strVariableName, strNewName);
 
@@ -778,6 +744,53 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
   return spFunctionDecl;
 }
 
+AST::Expressions::AssignmentOperatorPtr Vectorizer::VASTBuilder::CreateAssignmentOperator(AST::BaseClasses::ExpressionPtr spLHS, AST::BaseClasses::ExpressionPtr spRHS)
+{
+  AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
+
+  spAssignment->SetLHS( spLHS );
+  spAssignment->SetRHS( spRHS );
+
+  return spAssignment;
+}
+
+AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::CreateIdentifier(string strIdentifierName)
+{
+  AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
+
+  spIdentifier->SetName(strIdentifierName);
+
+  return spIdentifier;
+}
+
+string Vectorizer::VASTBuilder::GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, string strRootName)
+{
+  if (!spVariableContainer)
+  {
+    throw InternalErrors::NullPointerException("spVariableContainer");
+  }
+  else if (!spVariableContainer->IsVariableUsed(strRootName))
+  {
+    return strRootName;
+  }
+
+  for (int iVarSuffix = 0; true; ++iVarSuffix)
+  {
+    stringstream VarNameStream;
+
+    VarNameStream << strRootName << "_" << iVarSuffix;
+
+    string strCurrentName = VarNameStream.str();
+
+    if (!spVariableContainer->IsVariableUsed(strCurrentName))
+    {
+      return strCurrentName;
+    }
+  }
+}
+
+
+
 
 void Vectorizer::Transformations::CheckInternalDeclaration::Execute(AST::ScopePtr spScope)
 {
@@ -869,6 +882,41 @@ void Vectorizer::Transformations::FindLoopInternalAssignments::Execute(AST::Cont
 }
 
 
+void Vectorizer::Transformations::FlattenMemoryAccesses::Execute(AST::Expressions::MemoryAccessPtr spMemoryAccess)
+{
+  if (spMemoryAccess->IsVectorized())
+  {
+    AST::BaseClasses::ExpressionPtr spIndexExpr = spMemoryAccess->GetIndexExpression();
+
+    bool bIsSingleValue = spIndexExpr->IsType<AST::Expressions::Identifier>() || spIndexExpr->IsType<AST::Expressions::Constant>();
+
+    if (! bIsSingleValue)
+    {
+      AST::ScopePosition  ScopePos        = spMemoryAccess->GetScopePosition();
+      AST::ScopePtr       spCurrentScope  = ScopePos.GetScope();
+
+      // Create a name for a new tempory index variable
+      string strIndexVariableName = VASTBuilder::GetNextFreeVariableName(spCurrentScope, VASTBuilder::GetTemporaryNamePrefix() + string("_index"));
+
+      // Create the new index variable declaration
+      {
+        AST::BaseClasses::VariableInfoPtr spVariableInfo = std::make_shared< AST::BaseClasses::VariableInfo >();
+        spVariableInfo->GetTypeInfo() = spIndexExpr->GetResultType();
+        spVariableInfo->SetName(strIndexVariableName);
+        spVariableInfo->SetVectorize(spIndexExpr->IsVectorized());
+
+        spCurrentScope->AddVariableDeclaration(spVariableInfo);
+      }
+
+      // Create the assignment expression for the new index variable
+      spCurrentScope->InsertChild( ScopePos.GetChildIndex(), VASTBuilder::CreateAssignmentOperator( VASTBuilder::CreateIdentifier(strIndexVariableName), spIndexExpr ) );
+
+      // Set the new index variable as index expression for the memory access
+      spMemoryAccess->SetIndexExpression( VASTBuilder::CreateIdentifier( strIndexVariableName ) );
+    }
+  }
+}
+
 Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope)
 {
   bool      bRemoved    = false;
@@ -893,7 +941,6 @@ Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(A
 
   return iChildIndex;
 }
-
 
 Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions::ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion)
 {
@@ -965,6 +1012,7 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions:
     throw InternalErrorException("Expected an identifier expression!");
   }
 }
+
 
 
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)

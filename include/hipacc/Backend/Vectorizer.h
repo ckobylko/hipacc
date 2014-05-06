@@ -54,7 +54,7 @@ namespace Vectorization
   {
   private:
 
-    typedef AST::BaseClasses::Node::IndexType IndexType;
+    typedef AST::IndexType IndexType;
 
 
     class VASTBuilder : public ::clang::StmtVisitor< VASTBuilder >
@@ -76,8 +76,6 @@ namespace Vectorization
 
         void          AddRenameEntry( std::string strOriginalName, std::string strNewName );
         std::string   TranslateName( std::string strOriginalName ) const;
-
-        static std::string  GetNextFreeVariableName( AST::IVariableContainerPtr spVariableContainer, std::string strRootName );
       };
 
 
@@ -139,6 +137,16 @@ namespace Vectorization
     public:
 
       AST::FunctionDeclarationPtr BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
+
+
+      static AST::Expressions::AssignmentOperatorPtr  CreateAssignmentOperator(AST::BaseClasses::ExpressionPtr spLHS, AST::BaseClasses::ExpressionPtr spRHS);
+
+      static AST::Expressions::IdentifierPtr          CreateIdentifier(std::string strIdentifierName);
+
+
+      static std::string          GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, std::string strRootName);
+
+      inline static std::string   GetTemporaryNamePrefix()   { return "_temp"; }
 
 
 
@@ -277,6 +285,15 @@ namespace Vectorization
         void Execute(AST::ControlFlow::LoopPtr spLoop);
       };
 
+      class FlattenMemoryAccesses final
+      {
+      public:
+
+        typedef AST::Expressions::MemoryAccess  TargetType;
+
+        void Execute(AST::Expressions::MemoryAccessPtr spMemoryAccess);
+      };
+
       class FlattenScopes final
       {
       public:
@@ -334,6 +351,7 @@ namespace Vectorization
     static AST::BaseClasses::VariableInfoPtr _GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment);
 
 
+
   public:
 
     void Import(::clang::FunctionDecl *pFunctionDeclaration)
@@ -346,6 +364,7 @@ namespace Vectorization
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
 
+    inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { _RunVASTTransformation(spRootNode, Transformations::FlattenMemoryAccesses()); }
     inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
     inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
 
