@@ -881,7 +881,6 @@ void Vectorizer::Transformations::FindLoopInternalAssignments::Execute(AST::Cont
   }
 }
 
-
 void Vectorizer::Transformations::FlattenMemoryAccesses::Execute(AST::Expressions::MemoryAccessPtr spMemoryAccess)
 {
   if (spMemoryAccess->IsVectorized())
@@ -970,6 +969,51 @@ Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions:
   }
 
   return iChildIndex;
+}
+
+void Vectorizer::Transformations::SeparateBranchingStatements::Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt)
+{
+  if (spBranchingStmt->IsVectorized())
+  {
+    IndexType iFirstVecBranch = static_cast< IndexType >( 0 );
+    for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < spBranchingStmt->GetConditionalBranchesCount(); ++iBranchIdx)
+    {
+      if (spBranchingStmt->GetConditionalBranch(iBranchIdx)->IsVectorized())
+      {
+        iFirstVecBranch = iBranchIdx;
+        break;
+      }
+    }
+
+    if (iFirstVecBranch == static_cast<IndexType>(0))
+    {
+      return;
+    }
+
+
+    AST::ControlFlow::BranchingStatementPtr spVecBranchStatement = AST::CreateNode< AST::ControlFlow::BranchingStatement >();
+
+    while (iFirstVecBranch < spBranchingStmt->GetConditionalBranchesCount())
+    {
+      spVecBranchStatement->AddConditionalBranch( spBranchingStmt->GetConditionalBranch(iFirstVecBranch) );
+
+      spBranchingStmt->RemoveConditionalBranch(iFirstVecBranch);
+    }
+
+    AST::ScopePtr spDefaultBranch     = spBranchingStmt->GetDefaultBranch();
+    AST::ScopePtr spDefaultBranchNew  = spVecBranchStatement->GetDefaultBranch();
+
+    while (spDefaultBranch->GetChildCount() > static_cast< IndexType >(0))
+    {
+      spDefaultBranchNew->AddChild( spDefaultBranch->GetChild(0) );
+
+      spDefaultBranch->RemoveChild(0);
+    }
+
+    spDefaultBranchNew->ImportVariableDeclarations( spDefaultBranch );
+
+    spDefaultBranch->AddChild(spVecBranchStatement);
+  }
 }
 
 

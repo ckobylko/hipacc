@@ -319,6 +319,15 @@ namespace Vectorization
 
         IndexType ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion);
       };
+
+      class SeparateBranchingStatements final
+      {
+      public:
+
+        typedef AST::ControlFlow::BranchingStatement    TargetType;
+
+        void Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt);
+      };
     };
 
 
@@ -367,6 +376,7 @@ namespace Vectorization
     inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { _RunVASTTransformation(spRootNode, Transformations::FlattenMemoryAccesses()); }
     inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
     inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
+    inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { _RunVASTTransformation(spRootNode, Transformations::SeparateBranchingStatements()); }
 
     void VectorizeFunction(AST::FunctionDeclarationPtr spFunction);
 

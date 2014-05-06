@@ -405,6 +405,8 @@ namespace Vectorization
       public:
 
         virtual ~ControlFlowStatement() {}
+
+        virtual bool IsVectorized() const = 0;
       };
 
       class Expression : public Node
@@ -523,6 +525,8 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 3 ); }
+
+        virtual bool IsVectorized() const final override;
       };
 
       class ConditionalBranch final : public BaseClasses::ControlFlowStatement
@@ -547,8 +551,8 @@ namespace Vectorization
         ScopePtr        GetBody();
         const ScopePtr  GetBody() const;
 
-        inline ExpressionPtr        GetCondition()        { return _spCondition; }
-        inline const ExpressionPtr  GetCondition() const  { return _spCondition; }
+        inline ExpressionPtr        GetCondition()                            { return _spCondition; }
+        inline const ExpressionPtr  GetCondition() const                      { return _spCondition; }
         inline void                 SetCondition(ExpressionPtr spCondition)   { _SetChildPtr(_spCondition, spCondition); }
 
 
@@ -558,6 +562,8 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 2 ); }
+
+        virtual bool IsVectorized() const final override;
       };
 
       class BranchingStatement final : public BaseClasses::ControlFlowStatement
@@ -581,6 +587,7 @@ namespace Vectorization
         void                  AddConditionalBranch(ConditionalBranchPtr spBranch);
         ConditionalBranchPtr  GetConditionalBranch(IndexType BranchIndex) const;
         inline IndexType      GetConditionalBranchesCount() const   { return static_cast< IndexType >( _vecBranches.size() ); }
+        void                  RemoveConditionalBranch(IndexType BranchIndex);
 
         ScopePtr        GetDefaultBranch();
         const ScopePtr  GetDefaultBranch() const;
@@ -592,6 +599,8 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return GetConditionalBranchesCount() + 1; }
+
+        virtual bool IsVectorized() const final override;
       };
     };
 

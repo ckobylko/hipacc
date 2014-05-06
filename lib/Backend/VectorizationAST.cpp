@@ -413,7 +413,8 @@ string AST::ControlFlow::Loop::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["type"] = _GetLoopTypeString(GetLoopType());
+  mapAttributes["type"]       = _GetLoopTypeString(GetLoopType());
+  mapAttributes["vectorize"]  = XMLSupport::ToString( IsVectorized() );
 
   string strXmlString("");
 
@@ -452,16 +453,30 @@ AST::BaseClasses::NodePtr AST::ControlFlow::Loop::GetChild(IndexType ChildIndex)
   }
 }
 
+bool AST::ControlFlow::Loop::IsVectorized() const
+{
+  if (GetCondition())
+  {
+    return GetCondition()->IsVectorized();
+  }
+
+  return false;
+}
+
 
 // Implementation of class AST::ControlFlow::ConditionalBranch
 string AST::ControlFlow::ConditionalBranch::DumpToXML(const size_t cszIntend) const
 {
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["vectorize"] = XMLSupport::ToString(IsVectorized());
+
   string strXmlString("");
 
   strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Condition", _DumpChildToXml(GetCondition(), cszIntend + 4) );
   strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Body",      _DumpChildToXml(GetBody(), cszIntend + 4) );
 
-  return XMLSupport::CreateXmlTag(cszIntend, "ConditionalBranch", strXmlString);
+  return XMLSupport::CreateXmlTag(cszIntend, "ConditionalBranch", strXmlString, mapAttributes);
 }
 
 AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody()
@@ -491,6 +506,17 @@ AST::BaseClasses::NodePtr AST::ControlFlow::ConditionalBranch::GetChild(IndexTyp
   }
 }
 
+bool AST::ControlFlow::ConditionalBranch::IsVectorized() const
+{
+  if (GetCondition())
+  {
+    return GetCondition()->IsVectorized();
+  }
+
+  return false;
+}
+
+
 // Implementation of class AST::ControlFlow::BranchingStatement
 void AST::ControlFlow::BranchingStatement::AddConditionalBranch(ConditionalBranchPtr spBranch)
 {
@@ -502,22 +528,26 @@ void AST::ControlFlow::BranchingStatement::AddConditionalBranch(ConditionalBranc
 
 string AST::ControlFlow::BranchingStatement::DumpToXML(const size_t cszIntend) const
 {
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["vectorize"] = XMLSupport::ToString(IsVectorized());
+
   string strXmlString("");
 
   // Dump conditional branches
   for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < GetConditionalBranchesCount(); ++iBranchIdx)
   {
-    XMLSupport::AttributesMapType mapAttributes;
+    XMLSupport::AttributesMapType mapIndexAttributes;
 
-    mapAttributes["index"] = XMLSupport::ToString(iBranchIdx);
+    mapIndexAttributes["index"] = XMLSupport::ToString(iBranchIdx);
 
-    strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Branch", GetConditionalBranch(iBranchIdx)->DumpToXML(cszIntend + 4), mapAttributes );
+    strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Branch", GetConditionalBranch(iBranchIdx)->DumpToXML(cszIntend + 4), mapIndexAttributes );
   }
 
   // Dump default branch
   strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "DefaultBranch", GetDefaultBranch()->DumpToXML(cszIntend + 4));
 
-  return XMLSupport::CreateXmlTag(cszIntend, "BranchingStatement", strXmlString);
+  return XMLSupport::CreateXmlTag(cszIntend, "BranchingStatement", strXmlString, mapAttributes);
 }
 
 AST::BaseClasses::NodePtr AST::ControlFlow::BranchingStatement::GetChild(IndexType ChildIndex)
@@ -561,6 +591,28 @@ const AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch() con
   CHECK_NULL_POINTER(_spDefaultBranch);
 
   return _spDefaultBranch;
+}
+
+bool AST::ControlFlow::BranchingStatement::IsVectorized() const
+{
+  bool bVectorized = false;
+
+  for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < GetConditionalBranchesCount(); ++iBranchIdx)
+  {
+    bVectorized |= GetConditionalBranch(iBranchIdx)->IsVectorized();
+  }
+
+  return bVectorized;
+}
+
+void AST::ControlFlow::BranchingStatement::RemoveConditionalBranch(IndexType BranchIndex)
+{
+  if (BranchIndex >= GetConditionalBranchesCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+
+  _vecBranches.erase( _vecBranches.begin() + BranchIndex );
 }
 
 
