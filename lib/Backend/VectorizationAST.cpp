@@ -1254,6 +1254,24 @@ AST::IndexType AST::Scope::GetChildIndex(NodePtr spChildNode)
   throw InternalErrorException("Could not find the specified child!");
 }
 
+AST::Scope::VariableDeclarationVectorType AST::Scope::GetVariableDeclarations() const
+{
+  VariableDeclarationVectorType vecDeclarations;
+
+  vecDeclarations.reserve( _setDeclaredVariables.size() );
+
+  for (auto itVariable = _setDeclaredVariables.begin(); itVariable != _setDeclaredVariables.end(); itVariable++)
+  {
+    Expressions::IdentifierPtr spVariable = AST::CreateNode< Expressions::Identifier >();
+    spVariable->SetName( *itVariable );
+
+    _SetParentToChild(spVariable);
+    vecDeclarations.push_back(spVariable);
+  }
+
+  return std::move( vecDeclarations );
+}
+
 AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVariableName) const
 {
   BaseClasses::NodePtr spParent = GetThis();
@@ -1422,6 +1440,16 @@ AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildInde
   case 0:   return GetBody();
   default:  throw ASTExceptions::ChildIndexOutOfRange();
   }
+}
+
+AST::Expressions::IdentifierPtr AST::FunctionDeclaration::GetParameter(IndexType iParamIndex)
+{
+  if (iParamIndex >= GetParameterCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+
+  return _Parameters[ iParamIndex ];
 }
 
 AST::BaseClasses::VariableInfoPtr AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName) const

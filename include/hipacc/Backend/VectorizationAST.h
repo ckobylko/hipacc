@@ -614,6 +614,7 @@ namespace Vectorization
       class Constant;
       class Identifier;
       class MemoryAccess;
+      class UnaryExpression;
       class Conversion;
       class Parenthesis;
       class UnaryOperator;
@@ -627,6 +628,7 @@ namespace Vectorization
       typedef std::shared_ptr< Constant >             ConstantPtr;
       typedef std::shared_ptr< Identifier >           IdentifierPtr;
       typedef std::shared_ptr< MemoryAccess >         MemoryAccessPtr;
+      typedef std::shared_ptr< UnaryExpression >      UnaryExpressionPtr;
       typedef std::shared_ptr< Conversion >           ConversionPtr;
       typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
       typedef std::shared_ptr< UnaryOperator >        UnaryOperatorPtr;
@@ -1230,6 +1232,10 @@ namespace Vectorization
 
     class Scope final : public IVariableContainer
     {
+    public:
+
+      typedef std::vector< Expressions::IdentifierPtr >   VariableDeclarationVectorType;
+
     private:
 
       typedef IVariableContainer      BaseType;
@@ -1261,9 +1267,10 @@ namespace Vectorization
       void      RemoveChild(IndexType ChildIndex);
       void      SetChild(IndexType ChildIndex, NodePtr spChildNode);
 
-      void        AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableInfo);
-      inline bool HasVariableDeclaration(std::string strVariableName) const   { return (_setDeclaredVariables.count(strVariableName) != 0); }
-      void        ImportVariableDeclarations(ScopePtr spOtherScope);
+      void                            AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableInfo);
+      VariableDeclarationVectorType   GetVariableDeclarations() const;
+      inline bool                     HasVariableDeclaration(std::string strVariableName) const   { return (_setDeclaredVariables.count(strVariableName) != 0); }
+      void                            ImportVariableDeclarations(ScopePtr spOtherScope);
 
     public:
 
@@ -1305,7 +1312,10 @@ namespace Vectorization
       virtual ~FunctionDeclaration()  {}
 
 
-      void AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
+      void                        AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
+      Expressions::IdentifierPtr  GetParameter(IndexType iParamIndex);
+      inline IndexType            GetParameterCount() const   { return static_cast< IndexType >( _Parameters.size() ); }
+
 
       ScopePtr        GetBody();
       const ScopePtr  GetBody() const;

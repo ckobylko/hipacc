@@ -37,6 +37,7 @@
 #include <list>
 #include <map>
 #include <type_traits>
+#include "ClangASTHelper.h"
 #include "CommonDefines.h"
 #include "VectorizationAST.h"
 
@@ -202,6 +203,47 @@ namespace Vectorization
         printf("  %s\n", E->getStmtClassName());
       }
     };
+
+
+    class VASTExportArray final
+    {
+    private:
+
+      ClangASTHelper        _ASTHelper;
+
+      const IndexType       _VectorWidth;
+      ::clang::DeclContext  *_pDeclContext;
+
+      std::map< std::string, ::clang::ValueDecl* >  _mapKnownDeclarations;
+
+
+    private:
+
+      ::clang::CompoundStmt*  _BuildCompoundStatement(AST::ScopePtr spScope);
+
+      ::clang::Expr*          _BuildConstant(AST::Expressions::ConstantPtr spConstant);
+
+      ::clang::Expr*          _BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, IndexType iVectorIndex);
+
+
+      ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
+
+      ::clang::ValueDecl* _CreateValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);
+
+      AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo);
+
+      bool _HasValueDeclaration(std::string strDeclName);
+
+
+    public:
+
+      VASTExportArray(IndexType VectorWidth, ::clang::ASTContext &rAstContext);
+
+
+      ::clang::FunctionDecl* ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction);
+
+    };
+
 
 
     class Transformations final
@@ -371,6 +413,8 @@ namespace Vectorization
 
 
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
+
+    ::clang::FunctionDecl*      ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext);
 
 
     inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { _RunVASTTransformation(spRootNode, Transformations::FlattenMemoryAccesses()); }
