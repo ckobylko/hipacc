@@ -582,8 +582,8 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageDeclarations(:
       {
         HipaccImage *pImage = _rHipaccHelper.GetImageFromMapping(strParamName)->getImage();
 
-        QualType qtArrayType  = _ASTHelper.GetASTContext().getConstantArrayType( qtElementType, llvm::APInt(32, static_cast< uint64_t >(pImage->getSizeX()), false), ::clang::ArrayType::Normal, 0 );
-        qtFinalImageType      = _ASTHelper.GetASTContext().getConstantArrayType( qtArrayType,   llvm::APInt(32, static_cast< uint64_t >(pImage->getSizeY()), false), ::clang::ArrayType::Normal, 0 );
+        QualType qtArrayType  = _ASTHelper.GetConstantArrayType( qtElementType, static_cast< size_t >(pImage->getSizeX()) );
+        qtFinalImageType      = _ASTHelper.GetConstantArrayType( qtArrayType,   static_cast< size_t >(pImage->getSizeY()) );
       }
       break;
     default:    throw InternalErrorException("Unknown image declaration type");
@@ -736,7 +736,7 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   return OutputStream.str();
 }
 
-void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
+::clang::FunctionDecl* CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
 {
   try
   {
@@ -793,6 +793,9 @@ void CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunct
 
     Vectorizer.FlattenMemoryAccesses(spVecFunction);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
+
+
+    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, 4, pSubFunction->getASTContext());
   }
   catch (std::exception &e)
   {
@@ -854,7 +857,12 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       rOutputStream << "\n\n";
 
 
-      _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper);
+      // Vectorize the kernel sub-function and print it
+      ::clang::FunctionDecl *pVecSubFunction = _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper);
+
+      rOutputStream << "inline " << _FormatFunctionHeader(pVecSubFunction, hipaccHelper, false, true);
+      pVecSubFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
+      rOutputStream << "\n\n";
     }
 
 
