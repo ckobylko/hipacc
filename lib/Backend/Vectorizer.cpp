@@ -803,6 +803,27 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 {
   ClangASTHelper::StatementVectorType vecChildren;
 
+  // Declare all array variables
+  {
+    AST::Scope::VariableDeclarationVectorType vecVarDecls;
+
+    for each (auto itVarDecl in vecVarDecls)
+    {
+      AST::BaseClasses::VariableInfoPtr spVarInfo = itVarDecl->LookupVariableInfo();
+      AST::BaseClasses::TypeInfo        &rVarType = spVarInfo->GetTypeInfo();
+
+      if ( rVarType.IsArray() && (! rVarType.GetPointer()) )
+      {
+        // Remove const flag, otherwise the assignments will not compile
+        rVarType.SetConst(false);
+
+        ::clang::ValueDecl *pValueDecl = _CreateValueDeclaration(itVarDecl);
+        
+        vecChildren.push_back( _ASTHelper.CreateDeclarationStatement(pValueDecl) );
+      }
+    }
+  }
+
   // Build child statements
   for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spScope->GetChildCount(); ++iChildIdx)
   {
@@ -852,15 +873,17 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
         }
         else
         {
-          // TODO: Build assignment expression
-          continue;
+          pChildStmt = _BuildExpressionStatement(spAssignment);
         }
       }
       else
       {
-        // TODO: Build assignment expression
-        continue;
+        pChildStmt = _BuildExpressionStatement(spAssignment);
       }
+    }
+    else if (spChild->IsType<AST::BaseClasses::Expression>())
+    {
+      pChildStmt = _BuildExpressionStatement( spChild->CastToType<AST::BaseClasses::Expression>() );
     }
     else
     {
@@ -934,31 +957,235 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
         pReturnExpr = pDeclRef;
       }
     }
+    else if (spValue->IsType<AST::Expressions::MemoryAccess>())
+    {
+      AST::Expressions::MemoryAccessPtr spMemoryAccess    = spValue->CastToType<AST::Expressions::MemoryAccess>();
+      AST::BaseClasses::ExpressionPtr   spIndexExpression = spMemoryAccess->GetIndexExpression();
+      AST::BaseClasses::TypeInfo        ReturnType        = spMemoryAccess->GetResultType();
+
+      ::clang::Expr *pArrayRef  = _BuildExpression( spMemoryAccess->GetMemoryReference(), iVectorIndex );
+      ::clang::Expr *pIndexExpr = _BuildExpression( spIndexExpression, iVectorIndex );
+
+      if ( ReturnType.IsSingleValue() && (! spIndexExpression->IsVectorized()) && (iVectorIndex != 0) )
+      {
+        ::clang::IntegerLiteral *pIndexOffset = _ASTHelper.CreateIntegerLiteral( static_cast<int32_t>(iVectorIndex) );
+
+        pIndexExpr = _ASTHelper.CreateBinaryOperator( pIndexExpr, pIndexOffset, ::clang::BO_Add, _ConvertTypeInfo(spIndexExpression->GetResultType()) );
+      }
+
+      pReturnExpr = _ASTHelper.CreateArraySubscriptExpression(pArrayRef, pIndexExpr, _ConvertTypeInfo(ReturnType), (!ReturnType.GetConst()));
+    }
     else
     {
-      // TODO: add all value types and throw an error
+      throw InternalErrorException("Unknown VAST value node detected!");
     }
   }
   else if (spExpression->IsType<AST::Expressions::UnaryExpression>())
   {
     AST::Expressions::UnaryExpressionPtr  spUnaryExpression = spExpression->CastToType<AST::Expressions::UnaryExpression>();
     AST::BaseClasses::ExpressionPtr       spSubExpression   = spUnaryExpression->GetSubExpression();
+    AST::BaseClasses::TypeInfo            ResultType        = spUnaryExpression->GetResultType();
+    ::clang::Expr*                        pSubExpr          = _BuildExpression( spSubExpression, iVectorIndex );
 
-    if (spUnaryExpression->IsType<AST::Expressions::Parenthesis>())
+    if (spUnaryExpression->IsType<AST::Expressions::Conversion>())
     {
-      pReturnExpr = _ASTHelper.CreateParenthesisExpression( _BuildExpression( spSubExpression, iVectorIndex) );
+      AST::BaseClasses::TypeInfo  SubExpressionType = spSubExpression->GetResultType();
+
+      if (ResultType.IsArray())
+      {
+        throw RuntimeErrorException("Conversions into array types are not supported!");
+      }
+      else if (ResultType.GetPointer())
+      {
+        ::clang::CastKind eCastKind = ::clang::CK_ReinterpretMemberPointer;
+
+        if (SubExpressionType.IsArray())
+        {
+          if (SubExpressionType.GetArrayDimensions().size() > 1)
+          {
+            throw RuntimeErrorException("Cannot convert multi-dimensional arrays into pointers!");
+          }
+          else if (SubExpressionType.GetPointer())
+          {
+            throw RuntimeErrorException("Cannot convert pointer arrays into pointers!");
+          }
+
+          eCastKind = ::clang::CK_ArrayToPointerDecay;
+        }
+        else if (SubExpressionType.IsSingleValue())
+        {
+          throw RuntimeErrorException("Cannot convert a single value into a pointer!");
+        }
+
+        pReturnExpr = _ASTHelper.CreateReinterpretCast(pSubExpr, _ConvertTypeInfo(ResultType), eCastKind, (! ResultType.GetConst()) );
+      }
+      else
+      {
+        if (SubExpressionType.IsSingleValue())
+        {
+          typedef AST::BaseClasses::TypeInfo::KnownTypes  KnownTypes;
+
+          ResultType.SetConst(false);
+
+          KnownTypes eRetType = ResultType.GetType();
+          KnownTypes eSubType = SubExpressionType.GetType();
+
+          ::clang::CastKind eCastKind = ::clang::CK_IntegralCast;
+
+          if ( (eRetType == KnownTypes::Unknown) || (eSubType == KnownTypes::Unknown) )
+          {
+            throw InternalErrorException("Cannot convert in between unknown types!");
+          }
+          if ((eSubType == KnownTypes::Float) || (eSubType == KnownTypes::Double))
+          {
+            switch (eRetType)
+            {
+            case KnownTypes::Bool:                            eCastKind = ::clang::CK_FloatingToBoolean;  break;
+            case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_FloatingCast;       break;
+            default:                                          eCastKind = ::clang::CK_FloatingToIntegral; break;
+            }
+          }
+          else
+          {
+            switch (eRetType)
+            {
+            case KnownTypes::Bool:                            eCastKind = ::clang::CK_IntegralToBoolean;  break;
+            case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_IntegralToFloating; break;
+            default:                                          eCastKind = ::clang::CK_IntegralCast;       break;
+            }
+          }
+
+          pReturnExpr = _ASTHelper.CreateStaticCast( pSubExpr, _ConvertTypeInfo(ResultType), eCastKind, (! ResultType.GetConst()) );
+        }
+        else
+        {
+          throw RuntimeErrorException("Cannot dereference a type by a conversion!");
+        }
+      }
+    }
+    else if (spUnaryExpression->IsType<AST::Expressions::Parenthesis>())
+    {
+      pReturnExpr = _ASTHelper.CreateParenthesisExpression( pSubExpr );
+    }
+    else if (spUnaryExpression->IsType<AST::Expressions::UnaryOperator>())
+    {
+      typedef AST::Expressions::UnaryOperator::UnaryOperatorType  OperatorType;
+
+      OperatorType eOperatorType = spUnaryExpression->CastToType<AST::Expressions::UnaryOperator>()->GetOperatorType();
+
+      ::clang::UnaryOperatorKind eOpCode;
+
+      switch (eOperatorType)
+      {
+      case OperatorType::AddressOf:       eOpCode = UO_AddrOf;    break;
+      case OperatorType::BitwiseNot:      eOpCode = UO_Not;       break;
+      case OperatorType::LogicalNot:      eOpCode = UO_LNot;      break;
+      case OperatorType::Minus:           eOpCode = UO_Minus;     break;
+      case OperatorType::Plus:            eOpCode = UO_Plus;      break;
+      case OperatorType::PostDecrement:   eOpCode = UO_PostDec;   break;
+      case OperatorType::PostIncrement:   eOpCode = UO_PostInc;   break;
+      case OperatorType::PreDecrement:    eOpCode = UO_PreDec;    break;
+      case OperatorType::PreIncrement:    eOpCode = UO_PreInc;    break;
+      default:                            throw InternalErrorException("Unknown VAST unary operator type detected!");
+      }
+
+      pReturnExpr = _ASTHelper.CreateUnaryOperator( pSubExpr, eOpCode, _ConvertTypeInfo(ResultType) );
     }
     else
     {
-      // TODO: add all unary expression types and throw an error
+      throw InternalErrorException("Unknown VAST unary expression node detected!");
     }
+  }
+  else if (spExpression->IsType<AST::Expressions::BinaryOperator>())
+  {
+    AST::Expressions::BinaryOperatorPtr spBinaryOperator = spExpression->CastToType<AST::Expressions::BinaryOperator>();
+
+    ::clang::Expr *pExprLHS = _BuildExpression( spBinaryOperator->GetLHS(), iVectorIndex );
+    ::clang::Expr *pExprRHS = _BuildExpression( spBinaryOperator->GetRHS(), iVectorIndex );
+
+    ::clang::BinaryOperatorKind eOpCode;
+
+    if (spBinaryOperator->IsType<AST::Expressions::ArithmeticOperator>())
+    {
+      typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType OperatorType;
+
+      OperatorType eOperatorType = spBinaryOperator->CastToType<AST::Expressions::ArithmeticOperator>()->GetOperatorType();
+
+      switch (eOperatorType)
+      {
+      case OperatorType::Add:         eOpCode = ::clang::BO_Add;  break;
+      case OperatorType::BitwiseAnd:  eOpCode = ::clang::BO_And;  break;
+      case OperatorType::BitwiseOr:   eOpCode = ::clang::BO_Or;   break;
+      case OperatorType::BitwiseXOr:  eOpCode = ::clang::BO_Xor;  break;
+      case OperatorType::Divide:      eOpCode = ::clang::BO_Div;  break;
+      case OperatorType::Modulo:      eOpCode = ::clang::BO_Rem;  break;
+      case OperatorType::Multiply:    eOpCode = ::clang::BO_Mul;  break;
+      case OperatorType::ShiftLeft:   eOpCode = ::clang::BO_Shl;  break;
+      case OperatorType::ShiftRight:  eOpCode = ::clang::BO_Shr;  break;
+      case OperatorType::Subtract:    eOpCode = ::clang::BO_Sub;  break;
+      default:                        throw InternalErrorException("Unknown VAST arithmetic operator type detected!");
+      }
+    }
+    else if (spBinaryOperator->IsType<AST::Expressions::AssignmentOperator>())
+    {
+      eOpCode = ::clang::BO_Assign;
+    }
+    else if (spBinaryOperator->IsType<AST::Expressions::RelationalOperator>())
+    {
+      typedef AST::Expressions::RelationalOperator::RelationalOperatorType OperatorType;
+
+      OperatorType eOperatorType = spBinaryOperator->CastToType<AST::Expressions::RelationalOperator>()->GetOperatorType();
+
+      switch (eOperatorType)
+      {
+      case OperatorType::Equal:         eOpCode = ::clang::BO_EQ;     break;
+      case OperatorType::Greater:       eOpCode = ::clang::BO_GT;     break;
+      case OperatorType::GreaterEqual:  eOpCode = ::clang::BO_GE;     break;
+      case OperatorType::Less:          eOpCode = ::clang::BO_LT;     break;
+      case OperatorType::LessEqual:     eOpCode = ::clang::BO_LE;     break;
+      case OperatorType::LogicalAnd:    eOpCode = ::clang::BO_LAnd;   break;
+      case OperatorType::LogicalOr:     eOpCode = ::clang::BO_LOr;    break;
+      case OperatorType::NotEqual:      eOpCode = ::clang::BO_NE;     break;
+      default:                          throw InternalErrorException("Unknown VAST relational operator type detected!");
+      }
+    }
+    else
+    {
+      throw InternalErrorException("Unknown VAST binary operator node detected!");
+    }
+
+    pReturnExpr = _ASTHelper.CreateBinaryOperator( pExprLHS, pExprRHS, eOpCode, _ConvertTypeInfo(spBinaryOperator->GetResultType()) );
+  }
+  else if (spExpression->IsType<AST::Expressions::FunctionCall>())
+  {
+    // TODO: Implement
+    throw InternalErrorException("Function call expressions are not yet implemented!");
   }
   else
   {
-    // TODO: add all expression types and throw an error
+    throw InternalErrorException("Unknown VAST expression node detected!");
   }
 
   return pReturnExpr;
+}
+
+::clang::Stmt* Vectorizer::VASTExportArray::_BuildExpressionStatement(AST::BaseClasses::ExpressionPtr spExpression)
+{
+  if (spExpression->IsVectorized())
+  {
+    ClangASTHelper::StatementVectorType vecStatements;
+
+    for (IndexType iVecIdx = static_cast<IndexType>(0); iVecIdx < _VectorWidth; ++iVecIdx)
+    {
+      vecStatements.push_back( _BuildExpression(spExpression, iVecIdx) );
+    }
+
+    return _ASTHelper.CreateCompoundStatement(vecStatements);
+  }
+  else
+  {
+    return _BuildExpression(spExpression, 0);
+  }
 }
 
 

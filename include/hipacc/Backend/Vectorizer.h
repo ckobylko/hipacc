@@ -225,6 +225,7 @@ namespace Vectorization
 
       ::clang::Expr*          _BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, IndexType iVectorIndex);
 
+      ::clang::Stmt*          _BuildExpressionStatement(AST::BaseClasses::ExpressionPtr spExpression);
 
       ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
