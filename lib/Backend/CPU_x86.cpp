@@ -198,11 +198,8 @@ CPU_x86::CodeGenerator::KernelSubFunctionBuilder::DeclCallPairType  CPU_x86::Cod
 {
   DeclCallPairType pairDeclAndCall;
 
-  pairDeclAndCall.first  = ASTNode::createFunctionDecl( _rASTContext, _rASTContext.getTranslationUnitDecl(), strFunctionName, crResultType,
-                                                        ArrayRef< ::clang::QualType >(_vecArgumentTypes.data(), _vecArgumentTypes.size()),
-                                                        ArrayRef< string >(_vecArgumentNames.data(), _vecArgumentNames.size()) );
-
-  pairDeclAndCall.second = ASTNode::createFunctionCall( _rASTContext, pairDeclAndCall.first, _vecCallParams );
+  pairDeclAndCall.first  = _ASTHelper.CreateFunctionDeclaration( strFunctionName, crResultType, _vecArgumentNames, _vecArgumentTypes );
+  pairDeclAndCall.second = _ASTHelper.CreateFunctionCall( pairDeclAndCall.first, _vecCallParams );
 
   return pairDeclAndCall;
 }
@@ -215,7 +212,7 @@ void CPU_x86::CodeGenerator::KernelSubFunctionBuilder::ImportUsedParameters(::cl
 
     if (IsVariableUsed(pParamVarDecl->getNameAsString(), pSubFunctionBody))
     {
-      AddCallParameter(ASTNode::createDeclRefExpr(_rASTContext, pParamVarDecl));
+      AddCallParameter( _ASTHelper.CreateDeclarationReferenceExpression(pParamVarDecl) );
     }
   }
 }

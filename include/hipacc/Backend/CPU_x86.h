@@ -197,10 +197,10 @@ namespace Backend
 
       private:
 
-        ::clang::ASTContext                           &_rASTContext;      //!< A reference to the currently used ASTContext.
-        ::llvm::SmallVector< ::clang::QualType, 16 >  _vecArgumentTypes;  //!< A vector containing the qualified types of the sub-function arguments.
-        ::llvm::SmallVector< std::string, 16 >        _vecArgumentNames;  //!< A vector containing the names of the sub-function arguments.
-        ::llvm::SmallVector< ::clang::Expr*, 16 >     _vecCallParams;     //!< A vector containing the declaration reference expression used for the sub-function call.
+        ClangASTHelper                                _ASTHelper;         //!< The AST helper object.
+        ClangASTHelper::QualTypeVectorType            _vecArgumentTypes;  //!< A vector containing the qualified types of the sub-function arguments.
+        ClangASTHelper::StringVectorType              _vecArgumentNames;  //!< A vector containing the names of the sub-function arguments.
+        ClangASTHelper::ExpressionVectorType          _vecCallParams;     //!< A vector containing the declaration reference expression used for the sub-function call.
 
 
         KernelSubFunctionBuilder(const KernelSubFunctionBuilder &) = delete;
@@ -219,7 +219,7 @@ namespace Backend
 
         /** \brief  Standard constructor.
          *  \param  rASTContext   A reference to the  currently used ASTContext. */
-        inline KernelSubFunctionBuilder(::clang::ASTContext &rASTContext) : _rASTContext(rASTContext) {}
+        inline KernelSubFunctionBuilder(::clang::ASTContext &rASTContext) : _ASTHelper(rASTContext) {}
 
 
         /** \brief  Adds a new parameter to the list of sub-function arguments.

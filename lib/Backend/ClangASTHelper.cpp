@@ -116,6 +116,17 @@ DeclStmt* ClangASTHelper::CreateDeclarationStatement(ValueDecl *pValueDecl)
   return ASTNode::createDeclStmt(GetASTContext(), pValueDecl);
 }
 
+CallExpr* ClangASTHelper::CreateFunctionCall(FunctionDecl *pFunctionDecl, const ExpressionVectorType &crvecArguments)
+{
+  return ASTNode::createFunctionCall(GetASTContext(), pFunctionDecl, crvecArguments);
+}
+
+FunctionDecl* ClangASTHelper::CreateFunctionDeclaration(string strFunctionName, const QualType &crReturnType, const StringVectorType &crvecArgumentNames, const QualTypeVectorType &crvecArgumentTypes)
+{
+  return ASTNode::createFunctionDecl( GetASTContext(), GetASTContext().getTranslationUnitDecl(), strFunctionName, crReturnType,
+                                      ArrayRef< ::clang::QualType >(crvecArgumentTypes), ArrayRef< string >(crvecArgumentNames) );
+}
+
 ImplicitCastExpr* ClangASTHelper::CreateImplicitCastExpression(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)
 {
   ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;
