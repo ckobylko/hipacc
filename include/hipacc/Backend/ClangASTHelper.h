@@ -85,53 +85,53 @@ namespace Backend
     //@{
 
     /** \brief  Creates an subscript expression.
-     *  \param  pArrayRef         A pointer to a declaration reference expression of the array.
+     *  \param  pArrayRef         A pointer to the expression which represents the array.
      *  \param  pIndexExpression  A pointer to the expression object, which returns the index of the subscript.
      *  \param  crReturnType      The return type of the array subscript.
      *  \param  bIsLValue         Specifies, whether the array subscript expression is used as a L-value of another expression. */
-    ::clang::ArraySubscriptExpr*  CreateArraySubscriptExpression(::clang::DeclRefExpr *pArrayRef, ::clang::Expr *pIndexExpression, const ::clang::QualType &crReturnType, bool bIsLValue = false);
+    ::clang::ArraySubscriptExpr*      CreateArraySubscriptExpression(::clang::Expr *pArrayRef, ::clang::Expr *pIndexExpression, const ::clang::QualType &crReturnType, bool bIsLValue = false);
 
     /** \brief  Creates a binary operator object of a specified type.
      *  \param  pLhs            A pointer to the expression object, which shall be on the left-hand-side.
      *  \param  pRhs            A pointer to the expression object, which shall be on the right-hand-side.
      *  \param  eOperatorKind   The type of the binary operator.
      *  \param  crReturnType    The return type of the operator expression. */
-    ::clang::BinaryOperator*      CreateBinaryOperator(::clang::Expr *pLhs, ::clang::Expr *pRhs, ::clang::BinaryOperatorKind eOperatorKind, const ::clang::QualType &crReturnType);
+    ::clang::BinaryOperator*          CreateBinaryOperator(::clang::Expr *pLhs, ::clang::Expr *pRhs, ::clang::BinaryOperatorKind eOperatorKind, const ::clang::QualType &crReturnType);
 
     /** \brief  Creates a binary operator object which represents a "less than" comparison.
      *  \param  pLhs  A pointer to the expression object, which shall be on the left-hand-side.
      *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
-    ::clang::BinaryOperator*      CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
+    ::clang::BinaryOperator*          CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
 
     /** \brief  Creates a bool literal expression (i.e. a compile time constant).
      *  \param  bValue  The value of the bool literal. */
-    ::clang::CXXBoolLiteralExpr*  CreateBoolLiteral(bool bValue);
+    ::clang::CXXBoolLiteralExpr*      CreateBoolLiteral(bool bValue);
 
     /** \brief  Wraps a statement object into a compound statement object.
      *  \param  pStatement  A pointer to the statement object, which shall be encapsulated into an compound statement. */
-    ::clang::CompoundStmt*        CreateCompoundStatement(::clang::Stmt *pStatement);
+    ::clang::CompoundStmt*            CreateCompoundStatement(::clang::Stmt *pStatement);
 
     /** \brief  Constructs a compound statement object around a vector of statement objects.
      *  \param  crvecStatements   A reference to the statement vector. */
-    ::clang::CompoundStmt*        CreateCompoundStatement(const StatementVectorType &crvecStatements);
+    ::clang::CompoundStmt*            CreateCompoundStatement(const StatementVectorType &crvecStatements);
 
     /** \brief  Constructs a declaration reference expression which points to a specific declaration.
      *  \param  pValueDecl  A pointer to the value declaration object. */
-    ::clang::DeclRefExpr*         CreateDeclarationReferenceExpression(::clang::ValueDecl *pValueDecl);
+    ::clang::DeclRefExpr*             CreateDeclarationReferenceExpression(::clang::ValueDecl *pValueDecl);
 
     /** \brief  Constructs a declaration statement for a specific declaration.
      *  \param  pDeclRef  A pointer to a declaration reference expression object which points to the specific declaration. */
-    ::clang::DeclStmt*            CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef);
+    ::clang::DeclStmt*                CreateDeclarationStatement(::clang::DeclRefExpr *pDeclRef);
 
     /** \brief  Constructs a declaration statement for a specific declaration.
      *  \param  pValueDecl  A pointer to the value declaration object. */
-    ::clang::DeclStmt*            CreateDeclarationStatement(::clang::ValueDecl *pValueDecl);
+    ::clang::DeclStmt*                CreateDeclarationStatement(::clang::ValueDecl *pValueDecl);
 
     /** \brief    Creates a floating point literal expression (i.e. a compile time constant).
      *  \tparam   ValueType The value type of the floating point literal (must be <b>float</b> or <b>double</b).
      *  \param    TValue    The value of the floating point literal. */
     template <typename ValueType>
-    ::clang::FloatingLiteral*     CreateFloatingLiteral(ValueType TValue)
+    ::clang::FloatingLiteral*         CreateFloatingLiteral(ValueType TValue)
     {
       static_assert( ! std::numeric_limits< ValueType >::is_integer, "The value type of a floating point literal cannot be of an integer type!" );
 
@@ -141,31 +141,31 @@ namespace Backend
     /** \brief  Constructs a function call expression.
      *  \param  pFunctionDecl   A pointer to the function declaration which the constructed call shall point to.
      *  \param  crvecArguments  A vector containing the argument expressions for the function call. */
-    ::clang::CallExpr*            CreateFunctionCall(::clang::FunctionDecl *pFunctionDecl, const ExpressionVectorType &crvecArguments);
+    ::clang::CallExpr*                CreateFunctionCall(::clang::FunctionDecl *pFunctionDecl, const ExpressionVectorType &crvecArguments);
 
     /** \brief  Constructs a function declaration statement.
      *  \param  strFunctionName     The desired name of the newly declared function.
      *  \param  crReturnType        The qualified return type of the function.
      *  \param  crvecArgumentNames  A vector containing the names of the function arguments.
      *  \param  crvecArgumentTypes  A vector containing the qualified types of the function arguments. */
-    ::clang::FunctionDecl*        CreateFunctionDeclaration(std::string strFunctionName, const ::clang::QualType &crReturnType, const StringVectorType &crvecArgumentNames, const QualTypeVectorType &crvecArgumentTypes);
+    ::clang::FunctionDecl*            CreateFunctionDeclaration(std::string strFunctionName, const ::clang::QualType &crReturnType, const StringVectorType &crvecArgumentNames, const QualTypeVectorType &crvecArgumentTypes);
 
     /** \brief  Creates an implicit cast expression object.
      *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
      *  \param  crReturnType        The qualified return type of the cast.
      *  \param  eCastKind           The internal kind of the cast.
      *  \param  bIsLValue           Specifies, whether the implicit cast expression is used as a L-value of another expression. */
-    ::clang::ImplicitCastExpr*    CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
+    ::clang::ImplicitCastExpr*        CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
     /** \brief  Constructs an init list expression object around a vector of expressions.
      *  \param  crvecExpressions  A reference to the expression vector. */
-    ::clang::InitListExpr*        CreateInitListExpression(const ExpressionVectorType &crvecExpressions);
+    ::clang::InitListExpr*            CreateInitListExpression(const ExpressionVectorType &crvecExpressions);
 
     /** \brief    Creates an integer literal expression (i.e. a compile time constant).
      *  \tparam   ValueType The value type of the integer literal (must be integral).
      *  \param    TValue    The value of the integer literal. */
     template <typename ValueType>
-    ::clang::IntegerLiteral*      CreateIntegerLiteral(ValueType TValue)
+    ::clang::IntegerLiteral*          CreateIntegerLiteral(ValueType TValue)
     {
       static_assert( std::numeric_limits< ValueType >::is_integer, "The value type of an integer literal must be of an integer type!" );
 
@@ -177,15 +177,35 @@ namespace Backend
      *  \param    TValue      The value of the literal.
      *  \remarks  Depending on the value type, this function construct a bool, integer or floating point literal. */
     template <typename ValueType>
-    ::clang::Expr*                CreateLiteral(ValueType TValue);
+    ::clang::Expr*                    CreateLiteral(ValueType TValue);
 
     /** \brief  Creates a parenthesis expression around another expression.
      *  \param  pSubExpression  A pointer to the expression object which shall be encapsulated into a parenthesis expression. */
-    ::clang::ParenExpr*           CreateParenthesisExpression(::clang::Expr *pSubExpression);
+    ::clang::ParenExpr*               CreateParenthesisExpression(::clang::Expr *pSubExpression);
 
     /** \brief  Constructs a post increment statement for a declaration reference expression object.
      *  \param  pDeclRef  A pointer to the declaration reference expression, which shall be used in the post increment operator. */
-    ::clang::UnaryOperator*       CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
+    ::clang::UnaryOperator*           CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
+
+    /** \brief  Creates a reinterpret cast expression object.
+     *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
+     *  \param  crReturnType        The qualified return type of the cast.
+     *  \param  eCastKind           The internal kind of the cast.
+     *  \param  bIsLValue           Specifies, whether the reinterpret cast expression is used as a L-value of another expression. */
+    ::clang::CXXReinterpretCastExpr*  CreateReinterpretCast(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
+
+    /** \brief  Creates a static cast expression object.
+     *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
+     *  \param  crReturnType        The qualified return type of the cast.
+     *  \param  eCastKind           The internal kind of the cast.
+     *  \param  bIsLValue           Specifies, whether the static cast expression is used as a L-value of another expression. */
+    ::clang::CXXStaticCastExpr*       CreateStaticCast(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
+
+    /** \brief  Creates an unary operator object of a specified type.
+     *  \param  pSubExpression  A pointer to the expression object, which shall be the sub-expression of the operator.
+     *  \param  eOperatorKind   The type of the unary operator.
+     *  \param  crReturnType    The return type of the operator expression. */
+    ::clang::UnaryOperator*           CreateUnaryOperator(::clang::Expr *pSubExpression, ::clang::UnaryOperatorKind eOperatorKind, const ::clang::QualType &crResultType);
 
     /** \brief    Creates a new variable declaration object.
      *  \param    pParentFunction     A pointer to the declaration context which the new variable shall be declared in.
@@ -193,7 +213,7 @@ namespace Backend
      *  \param    crVariableType      The qualified type of newly declared variable.
      *  \param    pInitExpression     A pointer to the initialization expression object for the variable declaration (i.e. the R-value of the assignment).
      *  \remarks  The created variable declaration is automatically added to the declaration context of the specified function declaration. */
-    ::clang::VarDecl*             CreateVariableDeclaration(::clang::DeclContext *pDeclContext, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
+    ::clang::VarDecl*                 CreateVariableDeclaration(::clang::DeclContext *pDeclContext, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
 
     /** \brief    Creates a new variable declaration object.
      *  \param    pParentFunction     A pointer to the function declaration object in whose context the new variable shall be declared.
@@ -201,7 +221,7 @@ namespace Backend
      *  \param    crVariableType      The qualified type of newly declared variable.
      *  \param    pInitExpression     A pointer to the initialization expression object for the variable declaration (i.e. the R-value of the assignment).
      *  \remarks  The created variable declaration is automatically added to the declaration context of the specified function declaration. */
-    ::clang::VarDecl*             CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
+    ::clang::VarDecl*                 CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
 
     //@}
 

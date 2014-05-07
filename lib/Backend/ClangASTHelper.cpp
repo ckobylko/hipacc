@@ -70,7 +70,7 @@ unsigned int ClangASTHelper::CountNumberOfReferences(Stmt *pStatement, const str
 }
 
 
-ArraySubscriptExpr* ClangASTHelper::CreateArraySubscriptExpression(DeclRefExpr *pArrayRef, Expr *pIndexExpression, const QualType &crReturnType, bool bIsLValue)
+ArraySubscriptExpr* ClangASTHelper::CreateArraySubscriptExpression(Expr *pArrayRef, Expr *pIndexExpression, const QualType &crReturnType, bool bIsLValue)
 {
   ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;
 
@@ -151,7 +151,30 @@ ParenExpr* ClangASTHelper::CreateParenthesisExpression(Expr *pSubExpression)
 
 UnaryOperator* ClangASTHelper::CreatePostIncrementOperator(DeclRefExpr *pDeclRef)
 {
-  return ASTNode::createUnaryOperator(GetASTContext(), pDeclRef, UO_PostInc, pDeclRef->getType());
+  return CreateUnaryOperator(pDeclRef, UO_PostInc, pDeclRef->getType());
+}
+
+CXXReinterpretCastExpr* ClangASTHelper::CreateReinterpretCast(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)
+{
+  ExprValueKind  eValueKind = true ? VK_LValue : VK_RValue;
+
+  CXXCastPath CastPath;
+
+  return CXXReinterpretCastExpr::Create(GetASTContext(), crReturnType, eValueKind, eCastKind, pOperandExpression, &CastPath, GetASTContext().getTrivialTypeSourceInfo(crReturnType), SourceLocation(), SourceLocation(), SourceRange());
+}
+
+CXXStaticCastExpr* ClangASTHelper::CreateStaticCast(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)
+{
+  ExprValueKind  eValueKind = true ? VK_LValue : VK_RValue;
+  
+  CXXCastPath CastPath;
+
+  return CXXStaticCastExpr::Create(GetASTContext(), crReturnType, eValueKind, eCastKind, pOperandExpression, &CastPath, GetASTContext().getTrivialTypeSourceInfo(crReturnType), SourceLocation(), SourceLocation(), SourceRange());
+}
+
+UnaryOperator* ClangASTHelper::CreateUnaryOperator(Expr *pSubExpression, UnaryOperatorKind eOperatorKind, const QualType &crResultType)
+{
+  return ASTNode::createUnaryOperator(GetASTContext(), pSubExpression, eOperatorKind, crResultType);
 }
 
 VarDecl* ClangASTHelper::CreateVariableDeclaration(DeclContext *pDeclContext, const string &crstrVariableName, const QualType &crVariableType, Expr *pInitExpression)
@@ -170,7 +193,7 @@ VarDecl* ClangASTHelper::CreateVariableDeclaration(FunctionDecl *pParentFunction
 
 QualType ClangASTHelper::GetConstantArrayType(const QualType &crElementType, const size_t cszDimension)
 {
-  return GetASTContext().getConstantArrayType( crElementType, llvm::APInt(32, static_cast< uint64_t >(cszDimension), false), ::clang::ArrayType::Normal, 0 );
+  return GetASTContext().getConstantArrayType( crElementType, llvm::APInt(32, static_cast< uint64_t >(cszDimension), false), ArrayType::Normal, 0 );
 }
 
 
