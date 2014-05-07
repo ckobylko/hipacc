@@ -34,6 +34,8 @@
 #define _BACKEND_CLANG_AST_HELPER_H_
 
 #include "hipacc/AST/ASTNode.h"
+#include <clang/AST/ExprCXX.h>
+#include <limits>
 #include <string>
 
 namespace clang
@@ -69,6 +71,11 @@ namespace Backend
     /** \brief  Returns a reference to the current AST context. */
     inline ::clang::ASTContext& GetASTContext()   { return _rCtx; }
 
+    /** \brief  Returns the corresponding array type for a qualified clang type.
+     *  \param  crElementType   A reference to the qualified type whose array type shall be returned.
+     *  \param  cszDimension    The dimension of the array. */
+    ::clang::QualType           GetConstantArrayType(const ::clang::QualType &crElementType, const size_t cszDimension);
+
     /** \brief  Returns the corresponding pointer type for a qualified clang type.
      *  \param  crPointeeType   A reference to the qualified type whose pointer type shall be returned. */
     inline ::clang::QualType    GetPointerType(const ::clang::QualType &crPointeeType)  { return GetASTContext().getPointerType(crPointeeType); }
@@ -96,6 +103,10 @@ namespace Backend
      *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
     ::clang::BinaryOperator*      CreateBinaryOperatorLessThan(::clang::Expr *pLhs, ::clang::Expr *pRhs);
 
+    /** \brief  Creates a bool literal expression (i.e. a compile time constant).
+     *  \param  bValue  The value of the bool literal. */
+    ::clang::CXXBoolLiteralExpr*  CreateBoolLiteral(bool bValue);
+
     /** \brief  Wraps a statement object into a compound statement object.
      *  \param  pStatement  A pointer to the statement object, which shall be encapsulated into an compound statement. */
     ::clang::CompoundStmt*        CreateCompoundStatement(::clang::Stmt *pStatement);
@@ -116,6 +127,17 @@ namespace Backend
      *  \param  pValueDecl  A pointer to the value declaration object. */
     ::clang::DeclStmt*            CreateDeclarationStatement(::clang::ValueDecl *pValueDecl);
 
+    /** \brief    Creates a floating point literal expression (i.e. a compile time constant).
+     *  \tparam   ValueType The value type of the floating point literal (must be <b>float</b> or <b>double</b).
+     *  \param    TValue    The value of the floating point literal. */
+    template <typename ValueType>
+    ::clang::FloatingLiteral*     CreateFloatingLiteral(ValueType TValue)
+    {
+      static_assert( ! std::numeric_limits< ValueType >::is_integer, "The value type of a floating point literal cannot be of an integer type!" );
+
+      return ASTNode::createFloatingLiteral(GetASTContext(), TValue);
+    }
+
     /** \brief  Constructs a function call expression.
      *  \param  pFunctionDecl   A pointer to the function declaration which the constructed call shall point to.
      *  \param  crvecArguments  A vector containing the argument expressions for the function call. */
@@ -135,9 +157,27 @@ namespace Backend
      *  \param  bIsLValue           Specifies, whether the implicit cast expression is used as a L-value of another expression. */
     ::clang::ImplicitCastExpr*    CreateImplicitCastExpression(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
-    /** \brief  Creates an integer literal expression (i.e. a compile time constant).
-     *  \param  iValue  The value of the integer literal. */
-    ::clang::IntegerLiteral*      CreateIntegerLiteral(int32_t iValue);
+    /** \brief  Constructs an init list expression object around a vector of expressions.
+     *  \param  crvecExpressions  A reference to the expression vector. */
+    ::clang::InitListExpr*        CreateInitListExpression(const ExpressionVectorType &crvecExpressions);
+
+    /** \brief    Creates an integer literal expression (i.e. a compile time constant).
+     *  \tparam   ValueType The value type of the integer literal (must be integral).
+     *  \param    TValue    The value of the integer literal. */
+    template <typename ValueType>
+    ::clang::IntegerLiteral*      CreateIntegerLiteral(ValueType TValue)
+    {
+      static_assert( std::numeric_limits< ValueType >::is_integer, "The value type of an integer literal must be of an integer type!" );
+
+      return ASTNode::createIntegerLiteral(GetASTContext(), TValue);
+    }
+
+    /** \brief    Creates a literal expression (i.e. a compile time constant).
+     *  \tparam   ValueType   The value type of the literal.
+     *  \param    TValue      The value of the literal.
+     *  \remarks  Depending on the value type, this function construct a bool, integer or floating point literal. */
+    template <typename ValueType>
+    ::clang::Expr*                CreateLiteral(ValueType TValue);
 
     /** \brief  Creates a parenthesis expression around another expression.
      *  \param  pSubExpression  A pointer to the expression object which shall be encapsulated into a parenthesis expression. */
@@ -148,6 +188,14 @@ namespace Backend
     ::clang::UnaryOperator*       CreatePostIncrementOperator(::clang::DeclRefExpr *pDeclRef);
 
     /** \brief    Creates a new variable declaration object.
+     *  \param    pParentFunction     A pointer to the declaration context which the new variable shall be declared in.
+     *  \param    crstrVariableName   The name of the newly declared variable.
+     *  \param    crVariableType      The qualified type of newly declared variable.
+     *  \param    pInitExpression     A pointer to the initialization expression object for the variable declaration (i.e. the R-value of the assignment).
+     *  \remarks  The created variable declaration is automatically added to the declaration context of the specified function declaration. */
+    ::clang::VarDecl*             CreateVariableDeclaration(::clang::DeclContext *pDeclContext, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
+
+    /** \brief    Creates a new variable declaration object.
      *  \param    pParentFunction     A pointer to the function declaration object in whose context the new variable shall be declared.
      *  \param    crstrVariableName   The name of the newly declared variable.
      *  \param    crVariableType      The qualified type of newly declared variable.
@@ -156,6 +204,7 @@ namespace Backend
     ::clang::VarDecl*             CreateVariableDeclaration(::clang::FunctionDecl *pParentFunction, const std::string &crstrVariableName, const ::clang::QualType &crVariableType, ::clang::Expr *pInitExpression);
 
     //@}
+
 
   public:
 
@@ -181,6 +230,21 @@ namespace Backend
      *  \param  pNewDecl          A pointer to the value declaration to which all reference will be updated. */
     static void             ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
   };
+
+
+  // Template function specializations
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(bool     TValue)   { return CreateBoolLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int8_t   TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint8_t  TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int16_t  TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint16_t TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int32_t  TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint32_t TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int64_t  TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint64_t TValue)   { return CreateIntegerLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(float    TValue)   { return CreateFloatingLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(double   TValue)   { return CreateFloatingLiteral(TValue); }
+
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang

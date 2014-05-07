@@ -87,6 +87,11 @@ BinaryOperator* ClangASTHelper::CreateBinaryOperatorLessThan(Expr *pLhs, Expr *p
   return CreateBinaryOperator(pLhs, pRhs, BO_LT, GetASTContext().BoolTy);
 }
 
+CXXBoolLiteralExpr* ClangASTHelper::CreateBoolLiteral(bool bValue)
+{
+  return new (GetASTContext()) CXXBoolLiteralExpr(bValue, GetASTContext().BoolTy, SourceLocation());
+}
+
 CompoundStmt* ClangASTHelper::CreateCompoundStatement(Stmt *pStatement)
 {
   StatementVectorType vecStatements;
@@ -134,9 +139,9 @@ ImplicitCastExpr* ClangASTHelper::CreateImplicitCastExpression(Expr *pOperandExp
   return ASTNode::createImplicitCastExpr(GetASTContext(), crReturnType, eCastKind, pOperandExpression, nullptr, eValueKind);
 }
 
-IntegerLiteral* ClangASTHelper::CreateIntegerLiteral(int32_t iValue)
+InitListExpr* ClangASTHelper::CreateInitListExpression(const ExpressionVectorType &crvecExpressions)
 {
-  return ASTNode::createIntegerLiteral(GetASTContext(), iValue);
+  return new (GetASTContext()) InitListExpr( GetASTContext(), SourceLocation(), ArrayRef< Expr* >(crvecExpressions), SourceLocation() );
 }
 
 ParenExpr* ClangASTHelper::CreateParenthesisExpression(Expr *pSubExpression)
@@ -149,14 +154,23 @@ UnaryOperator* ClangASTHelper::CreatePostIncrementOperator(DeclRefExpr *pDeclRef
   return ASTNode::createUnaryOperator(GetASTContext(), pDeclRef, UO_PostInc, pDeclRef->getType());
 }
 
-VarDecl* ClangASTHelper::CreateVariableDeclaration(FunctionDecl *pParentFunction, const string &crstrVariableName, const QualType &crVariableType, Expr *pInitExpression)
+VarDecl* ClangASTHelper::CreateVariableDeclaration(DeclContext *pDeclContext, const string &crstrVariableName, const QualType &crVariableType, Expr *pInitExpression)
 {
-  DeclContext *pDeclContext = FunctionDecl::castToDeclContext(pParentFunction);
-
   VarDecl *pVarDecl = ASTNode::createVarDecl(GetASTContext(), pDeclContext, crstrVariableName, crVariableType, pInitExpression);
   pDeclContext->addDecl(pVarDecl);
 
   return pVarDecl;
+}
+
+VarDecl* ClangASTHelper::CreateVariableDeclaration(FunctionDecl *pParentFunction, const string &crstrVariableName, const QualType &crVariableType, Expr *pInitExpression)
+{
+  return CreateVariableDeclaration(FunctionDecl::castToDeclContext(pParentFunction), crstrVariableName, crVariableType, pInitExpression);
+}
+
+
+QualType ClangASTHelper::GetConstantArrayType(const QualType &crElementType, const size_t cszDimension)
+{
+  return GetASTContext().getConstantArrayType( crElementType, llvm::APInt(32, static_cast< uint64_t >(cszDimension), false), ::clang::ArrayType::Normal, 0 );
 }
 
 
