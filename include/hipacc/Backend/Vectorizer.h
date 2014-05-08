@@ -229,6 +229,8 @@ namespace Vectorization
 
       ::clang::Expr*          _BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex);
 
+      ::clang::IfStmt*        _BuildIfStatement(AST::ControlFlow::BranchingStatementPtr spBranchingStatement);
+
       ::clang::Stmt*          _BuildLoop(AST::ControlFlow::LoopPtr spLoop);
 
       ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);

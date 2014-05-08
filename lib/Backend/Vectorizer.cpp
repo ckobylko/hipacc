@@ -896,8 +896,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
       }
       else if (spControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
-        // TODO: Implented branching statement export
-        continue;
+        pChildStmt = _BuildIfStatement( spControlFlow->CastToType<AST::ControlFlow::BranchingStatement>() );
       }
       else
       {
@@ -1218,6 +1217,52 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
   //throw InternalErrorException("Function call expressions are not yet implemented!");
 }
+
+::clang::IfStmt* Vectorizer::VASTExportArray::_BuildIfStatement(AST::ControlFlow::BranchingStatementPtr spBranchingStatement)
+{
+  if (spBranchingStatement->IsVectorized())
+  {
+    throw RuntimeErrorException("Cannot export branching statements with vectorized conditions => Rebuild the branching statements before calling the export!");
+  }
+
+  const IndexType ciBranchesCount = spBranchingStatement->GetConditionalBranchesCount();
+  AST::ScopePtr   spDefaultBranch = spBranchingStatement->GetDefaultBranch();
+
+  if (ciBranchesCount == static_cast<IndexType>(0))
+  {
+    AST::Expressions::ConstantPtr spTrueCondition = AST::CreateNode<AST::Expressions::Constant>();
+    spTrueCondition->SetValue(true);
+
+    return _ASTHelper.CreateIfStatement( _BuildConstant(spTrueCondition), _BuildCompoundStatement(spDefaultBranch) );
+  }
+  else
+  {
+    ClangASTHelper::VectorType< ::clang::IfStmt* > vecIfBranches;
+
+    for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < ciBranchesCount; ++iBranchIdx)
+    {
+      AST::ControlFlow::ConditionalBranchPtr spCurrentBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
+
+      ::clang::Expr *pCondition = _BuildExpression( spCurrentBranch->GetCondition(), 0 );
+      ::clang::Stmt *pBody      = _BuildCompoundStatement( spCurrentBranch->GetBody() );
+
+      vecIfBranches.push_back(_ASTHelper.CreateIfStatement(pCondition, pBody));
+    }
+
+    for (IndexType iBranchIdx = static_cast<IndexType>(1); iBranchIdx < ciBranchesCount; ++iBranchIdx)
+    {
+      vecIfBranches[iBranchIdx - 1]->setElse( vecIfBranches[iBranchIdx] );
+    }
+
+    if (spDefaultBranch->GetChildCount() > static_cast<IndexType>(0))
+    {
+      vecIfBranches.back()->setElse( _BuildCompoundStatement(spDefaultBranch) );
+    }
+
+    return vecIfBranches[0];
+  }
+}
+
 
 ::clang::Stmt* Vectorizer::VASTExportArray::_BuildLoop(AST::ControlFlow::LoopPtr spLoop)
 {
