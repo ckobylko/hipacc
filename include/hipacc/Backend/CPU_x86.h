@@ -36,6 +36,7 @@
 #include "ClangASTHelper.h"
 #include "CodeGeneratorBaseImplT.h"
 #include "hipacc/DSL/ClassRepresentation.h"
+#include "OptionParsers.h"
 #include <list>
 #include <utility>
 #include <vector>
@@ -54,6 +55,7 @@ namespace Backend
     /** \brief  Contains the IDs of all supported specific compiler switches for this backend. */
     enum class CompilerSwitchTypeEnum
     {
+      ArrayExport,
       VectorizeKernel
     };
 
@@ -62,6 +64,30 @@ namespace Backend
     class KnownSwitches final
     {
     public:
+
+      /** \brief  The switch type for the "vector to array export" switch. */
+      struct ArrayExport final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-a"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return "<n>"; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()
+        {
+          std::string strDescription("");
+
+          strDescription += "Exports all vectorized variables into arrays of size \"<n>\" (must be a positive integer).\n";
+          strDescription += "This is meant for academic purposes, not for productive use!";
+
+          return strDescription;
+        }
+
+
+        typedef CommonDefines::OptionParsers::Integer   OptionParser;   //!< Type definition for the option parser for this switch.
+      };
 
       /** \brief  The switch type for the "kernel function vectorization" switch. */
       struct VectorizeKernel final
@@ -221,6 +247,9 @@ namespace Backend
          *  \param  rASTContext   A reference to the  currently used ASTContext. */
         inline KernelSubFunctionBuilder(::clang::ASTContext &rASTContext) : _ASTHelper(rASTContext) {}
 
+        /** \brief  Returns the currently set call parameters. */
+        inline const ClangASTHelper::ExpressionVectorType& GetCallParameters() const  { return _vecCallParams; }
+
 
         /** \brief  Adds a new parameter to the list of sub-function arguments.
          *  \param  pCallParam        A declaration reference expression for the new argument.
@@ -343,6 +372,7 @@ namespace Backend
     private:
 
       bool    _bVectorizeKernel;    //!< Specifies, whether the kernel function shall be vectorized.
+      size_t  _szVectorWidth;       //!< The width of the vectors inside the kernel function in pixels (only relevant if vectorization is turned on).
 
     protected:
 

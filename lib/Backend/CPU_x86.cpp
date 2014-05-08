@@ -599,9 +599,11 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageDeclarations(:
 // Implementation of class CPU_x86::CodeGenerator
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
-  _InitSwitch< KnownSwitches::VectorizeKernel >(CompilerSwitchTypeEnum::VectorizeKernel);
+  _InitSwitch< KnownSwitches::ArrayExport     >( CompilerSwitchTypeEnum::ArrayExport );
+  _InitSwitch< KnownSwitches::VectorizeKernel >( CompilerSwitchTypeEnum::VectorizeKernel );
 
   _bVectorizeKernel = false;
+  _szVectorWidth    = static_cast< size_t >(4);
 }
 
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
@@ -611,6 +613,18 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 
   switch (eSwitch)
   {
+  case CompilerSwitchTypeEnum::ArrayExport:
+    {
+      int iArraySize = _ParseOption< KnownSwitches::ArrayExport >(rvecArguments, szCurrentIndex);
+      if (iArraySize <= 0)
+      {
+        throw RuntimeErrors::InvalidOptionException(KnownSwitches::ArrayExport::Key(), rvecArguments[szCurrentIndex + 1]);
+      }
+
+      _szVectorWidth = static_cast< size_t >( iArraySize );
+      ++szReturnIndex;
+    }
+    break;
   case CompilerSwitchTypeEnum::VectorizeKernel:
     _bVectorizeKernel = true;
     break;
@@ -795,7 +809,7 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
 
 
-    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, 4, pSubFunction->getASTContext());
+    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext());
   }
   catch (std::exception &e)
   {
@@ -818,6 +832,8 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
     DeclRefExpr *gid_x_ref = ASTHelper.FindDeclaration(pKernelFunction, HipaccHelper::GlobalIdX());
     DeclRefExpr *gid_y_ref = ASTHelper.FindDeclaration(pKernelFunction, HipaccHelper::GlobalIdY());
 
+    ::clang::CallExpr *pSubFuncCallScalar     = nullptr;
+    ::clang::CallExpr *pSubFuncCallVectorized = nullptr;
 
     // If vectorization is enabled, split the kernel function into the "iteration space"-part and the "pixel-wise processing"-part
     if (_bVectorizeKernel)
@@ -847,8 +863,8 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
       DeclCallPair.first->setBody(pKernelBody);
 
 
-      // Create function call reference for kernel loop body
-      pKernelFunction->setBody(ASTHelper.CreateCompoundStatement(DeclCallPair.second));
+      // Create function call reference for the scalar sub-functiuon
+      pSubFuncCallScalar = DeclCallPair.second;
 
 
       // Print the new kernel body sub-function
@@ -859,6 +875,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
       // Vectorize the kernel sub-function and print it
       ::clang::FunctionDecl *pVecSubFunction = _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper);
+      pSubFuncCallVectorized = ASTHelper.CreateFunctionCall(pVecSubFunction, SubFuncBuilder.GetCallParameters());
 
       rOutputStream << "inline " << _FormatFunctionHeader(pVecSubFunction, hipaccHelper, false, true);
       pVecSubFunction->getBody()->printPretty(rOutputStream, 0, GetPrintingPolicy(), 0);
@@ -867,6 +884,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
     // Create the iteration space
+    ClangASTHelper::StatementVectorType vecKernelFunctionBody;
     ClangASTHelper::StatementVectorType vecOuterLoopBody;
 
     {
@@ -896,18 +914,55 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
           // Replace all references to the HIPAcc image by the "current pixel" pointer
           ASTHelper.ReplaceDeclarationReferences(pKernelFunction->getBody(), strParamName, LinePosDeclPair.second);
         }
+
+        // Compute the iteration space range, which must be handled by the scalar sub-function
+        ::clang::DeclRefExpr  *pScalarRangeRef = nullptr;
+        {
+          ::clang::VarDecl *pGidXDecl = dyn_cast<::clang::VarDecl>(gid_x_ref->getDecl());
+
+          ::clang::DeclRefExpr  *pIterationSpaceWidth = hipaccHelper.GetImageParameterDecl(pKernelFunction->getParamDecl(0)->getNameAsString(), HipaccHelper::ImageParamType::Width);
+          ::clang::QualType     qtReturnType          = pIterationSpaceWidth->getType();
+
+          ::clang::IntegerLiteral *pVectorWidth = ASTHelper.CreateIntegerLiteral(static_cast<int>(_szVectorWidth));
+          ::clang::Expr           *pInitExpr    = ASTHelper.CreateBinaryOperator(pIterationSpaceWidth, pVectorWidth, ::clang::BO_Rem, qtReturnType);
+
+          pInitExpr = ASTHelper.CreateParenthesisExpression(pInitExpr);
+          pInitExpr = ASTHelper.CreateBinaryOperator(pGidXDecl->getInit(), pInitExpr, ::clang::BO_Add, qtReturnType);
+
+          qtReturnType.addConst();
+
+          ::clang::ValueDecl *pScalarRangeDecl = ASTHelper.CreateVariableDeclaration(pKernelFunction, "is_scalar_range", qtReturnType, pInitExpr);
+          vecKernelFunctionBody.push_back(ASTHelper.CreateDeclarationStatement(pScalarRangeDecl));
+
+          pScalarRangeRef = ASTHelper.CreateDeclarationReferenceExpression(pScalarRangeDecl);
+        }
+
+        // Create the horizontal iteration space loops and push them to the vertical loop body
+        {
+          ::clang::ValueDecl    *pNewGidXDecl = ASTHelper.CreateVariableDeclaration(pKernelFunction, HipaccHelper::GlobalIdX(), gid_x_ref->getType(), pScalarRangeRef);
+          ::clang::DeclRefExpr  *pNewGidXRef = ASTHelper.CreateDeclarationReferenceExpression(pNewGidXDecl);
+
+          // Add the loop for the scalar function call
+          vecInnerLoopBody.push_back(pSubFuncCallScalar);
+          vecOuterLoopBody.push_back( _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, pScalarRangeRef, ASTHelper.CreateCompoundStatement(vecInnerLoopBody)) );
+
+          // Add the loop for the vectorized function call
+          vecInnerLoopBody.pop_back();
+          vecInnerLoopBody.push_back(pSubFuncCallVectorized);
+          vecOuterLoopBody.push_back( _CreateIterationSpaceLoop(ASTHelper, pNewGidXRef, hipaccHelper.GetIterationSpaceLimitX(), ASTHelper.CreateCompoundStatement(vecInnerLoopBody)) );
+        }
       }
-
-      // Create the horizontal iteration space loop and push it to the vertical loop body
-      vecInnerLoopBody.push_back(pKernelFunction->getBody());
-
-      ForStmt *pInnerLoop = _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, hipaccHelper.GetIterationSpaceLimitX(), ASTHelper.CreateCompoundStatement(vecInnerLoopBody));
-      vecOuterLoopBody.push_back( pInnerLoop );
+      else
+      {
+        // Create the horizontal iteration space loop and push it to the vertical loop body
+        ForStmt *pInnerLoop = _CreateIterationSpaceLoop(ASTHelper, gid_x_ref, hipaccHelper.GetIterationSpaceLimitX(), pKernelFunction->getBody());
+        vecOuterLoopBody.push_back(pInnerLoop);
+      }
     }
 
     // Create the vertical iteration space loop and set it as kernel function body
-    ForStmt *pOuterLoop = _CreateIterationSpaceLoop(ASTHelper, gid_y_ref, hipaccHelper.GetIterationSpaceLimitY(), ASTHelper.CreateCompoundStatement(vecOuterLoopBody));
-    pKernelFunction->setBody( ASTHelper.CreateCompoundStatement(pOuterLoop) );
+    vecKernelFunctionBody.push_back( _CreateIterationSpaceLoop(ASTHelper, gid_y_ref, hipaccHelper.GetIterationSpaceLimitY(), ASTHelper.CreateCompoundStatement(vecOuterLoopBody)) );
+    pKernelFunction->setBody( ASTHelper.CreateCompoundStatement(vecKernelFunctionBody) );
   }
 
 
