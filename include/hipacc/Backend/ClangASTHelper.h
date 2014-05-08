@@ -51,10 +51,11 @@ namespace Backend
 
     template <typename ElementType>   using VectorType = ::llvm::SmallVector< ElementType, 16U >;   // Type alias for LLVM SmallVector type
 
-    typedef VectorType< ::clang::Expr* >      ExpressionVectorType;   //!< Type definition for a vector of expressions.
-    typedef VectorType< ::clang::QualType >   QualTypeVectorType;     //!< Type definition for a vector of qualified types.
-    typedef VectorType< ::clang::Stmt* >      StatementVectorType;    //!< Type definition for a vector of statements.
-    typedef VectorType< std::string >         StringVectorType;       //!< Type definition for a vector of strings.
+    typedef VectorType< ::clang::Expr* >          ExpressionVectorType;             //!< Type definition for a vector of expressions.
+    typedef VectorType< ::clang::FunctionDecl* >  FunctionDeclarationVectorType;    //!< Type definition for a vector of function declarations.
+    typedef VectorType< ::clang::QualType >       QualTypeVectorType;               //!< Type definition for a vector of qualified types.
+    typedef VectorType< ::clang::Stmt* >          StatementVectorType;              //!< Type definition for a vector of statements.
+    typedef VectorType< std::string >             StringVectorType;                 //!< Type definition for a vector of strings.
 
   private:
 
@@ -259,23 +260,36 @@ namespace Backend
     /** \brief  Counts the number of declaration references to a specific declaration inside a statement tree.
      *  \param  pStatement          A pointer to the root of the statement tree which shall be parsed for the specified declaration references.
      *  \param  crstrReferenceName  The name of the declaration reference whose appearances shall be counted. */
-    static unsigned int     CountNumberOfReferences(::clang::Stmt *pStatement, const std::string &crstrReferenceName);
+    static unsigned int             CountNumberOfReferences(::clang::Stmt *pStatement, const std::string &crstrReferenceName);
 
     /** \brief    Looks up a specific declaration.
      *  \param    pFunction       A pointer to the function declaration object whose declaration context will be searched for the specified declaration.
      *  \param    crstrDeclName   The name of the declaration which shall be searched for.
      *  \return   If successful, a pointer to a newly created declaration reference expression for the found declaration, and zero otherwise. */
-    ::clang::DeclRefExpr*   FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+    ::clang::DeclRefExpr*           FindDeclaration(::clang::FunctionDecl *pFunction, const std::string &crstrDeclName);
+
+    /** \brief  Returns the fully qualified name of a function declaration, i.e. the function name with all preceding namespace names.
+     *  \param  pFunctionDecl   A pointer to the function declaration object, whose fully qualified name shall be retrieved. */
+    static std::string              GetFullyQualifiedFunctionName(::clang::FunctionDecl *pFunctionDecl);
+
+    /** \brief    Returns a vector of all known function declarations in the encapsulated AST context.
+     *  \remarks  This method parses all namespaces, beginning with the global namespace. */
+    FunctionDeclarationVectorType   GetKnownFunctionDeclarations();
+
+    /** \brief    Returns a vector of all known function declarations inside a namespace declaration.
+     *  \param    pNamespaceDecl  A pointer to the namespace declaration object which shall be parsed for function declarations.
+     *  \remarks  This method also parses all child namespace declarations of the specified namespace declaration. */
+    FunctionDeclarationVectorType   GetNamespaceFunctionDeclarations(::clang::NamespaceDecl *pNamespaceDecl);
 
     /** \brief  Checks whether a statement tree has only one branch (i.e. none of its nodes has more than one child).
      *  \param  pStatement  A pointer to the root of the statement tree. */
-    static bool             IsSingleBranchStatement(::clang::Stmt *pStatement);
+    static bool                     IsSingleBranchStatement(::clang::Stmt *pStatement);
 
     /** \brief  Replaces <b>all</b> instances of a declaration reference in a statement tree by a new value declaration.
      *  \param  pStatement        A pointer to the root of the statement tree which shall be parsed for the specified declaration references.
      *  \param  crstrDeclRefName  The name of the declaration reference which shall be replaced.
      *  \param  pNewDecl          A pointer to the value declaration to which all reference will be updated. */
-    static void             ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
+    static void                     ReplaceDeclarationReferences(::clang::Stmt* pStatement, const std::string &crstrDeclRefName, ::clang::ValueDecl *pNewDecl);
   };
 
 

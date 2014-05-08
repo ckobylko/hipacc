@@ -246,6 +246,80 @@ DeclRefExpr* ClangASTHelper::FindDeclaration(FunctionDecl *pFunction, const stri
   return nullptr;
 }
 
+string ClangASTHelper::GetFullyQualifiedFunctionName(FunctionDecl *pFunctionDecl)
+{
+  string strFunctionName = pFunctionDecl->getNameAsString();
+
+  // Unroll the namespaces
+  DeclContext  *pNameSpaceDeclContext = pFunctionDecl->getEnclosingNamespaceContext();
+  while (pNameSpaceDeclContext != nullptr)
+  {
+    // Check if we have a namespace declaration (there namespace aliases, too)
+    if (! isa<NamespaceDecl>(pNameSpaceDeclContext))
+    {
+      break;
+    }
+
+    NamespaceDecl *pNameSpace = NamespaceDecl::castFromDeclContext(pNameSpaceDeclContext);
+
+    strFunctionName = pNameSpace->getNameAsString() + string("::") + strFunctionName;
+
+    // Get the parent namespace
+    DeclContext *pParentNameSpaceDeclContext = pNameSpaceDeclContext->getEnclosingNamespaceContext();
+    if (pParentNameSpaceDeclContext == pNameSpaceDeclContext)
+    {
+      // The global namespace is encapsulating itself (weird) => break as soon as a namespace is its own parent
+      break;
+    }
+
+    pNameSpaceDeclContext = pParentNameSpaceDeclContext;
+  }
+
+  // Remove global namespace specifier if present
+  if ((strFunctionName.size() > 2) && (strFunctionName.substr(0, 2) == "::"))
+  {
+    strFunctionName = strFunctionName.substr(2, string::npos);
+  }
+
+  return strFunctionName;
+}
+
+ClangASTHelper::FunctionDeclarationVectorType ClangASTHelper::GetKnownFunctionDeclarations()
+{
+  TranslationUnitDecl *pTranslationUnit = GetASTContext().getTranslationUnitDecl();
+
+  DeclContext *pGlobalNamespaceDeclContext = pTranslationUnit->getEnclosingNamespaceContext();
+
+  return GetNamespaceFunctionDeclarations( NamespaceDecl::castFromDeclContext(pGlobalNamespaceDeclContext) );
+}
+
+ClangASTHelper::FunctionDeclarationVectorType ClangASTHelper::GetNamespaceFunctionDeclarations(NamespaceDecl *pNamespaceDecl)
+{
+  FunctionDeclarationVectorType vecFunctionDecls;
+
+  for (auto itDecl = pNamespaceDecl->decls_begin(); itDecl != pNamespaceDecl->decls_end(); itDecl++)
+  {
+    Decl *pDecl = *itDecl;
+    if (pDecl == nullptr)
+    {
+      continue;
+    }
+
+    if (isa<FunctionDecl>(pDecl))
+    {
+      vecFunctionDecls.push_back(dyn_cast<FunctionDecl>(pDecl));
+    }
+    else if (isa<NamespaceDecl>(pDecl))
+    {
+      FunctionDeclarationVectorType vecNamespaceFunctionDecls = GetNamespaceFunctionDeclarations( dyn_cast<NamespaceDecl>(pDecl) );
+
+      vecFunctionDecls.insert( vecFunctionDecls.end(), vecNamespaceFunctionDecls.begin(), vecNamespaceFunctionDecls.end() );
+    }
+  }
+
+  return vecFunctionDecls;
+}
+
 bool ClangASTHelper::IsSingleBranchStatement(Stmt *pStatement)
 {
   if (pStatement == nullptr)                                      // Empty statements have no children
