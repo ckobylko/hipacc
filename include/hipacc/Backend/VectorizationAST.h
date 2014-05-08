@@ -161,13 +161,15 @@ namespace Vectorization
     // Forward declarations and type definitions
     public:
 
+      class ControlFlowStatement;
       class Node;
       class Expression;
       class VariableInfo;
 
-      typedef std::shared_ptr< Node >           NodePtr;
-      typedef std::shared_ptr< Expression >     ExpressionPtr;
-      typedef std::shared_ptr< VariableInfo >   VariableInfoPtr;
+      typedef std::shared_ptr< ControlFlowStatement >   ControlFlowStatementPtr;
+      typedef std::shared_ptr< Node >                   NodePtr;
+      typedef std::shared_ptr< Expression >             ExpressionPtr;
+      typedef std::shared_ptr< VariableInfo >           VariableInfoPtr;
 
 
     public:

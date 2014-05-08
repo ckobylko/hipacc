@@ -227,6 +227,10 @@ namespace Vectorization
 
       ::clang::Stmt*          _BuildExpressionStatement(AST::BaseClasses::ExpressionPtr spExpression);
 
+      ::clang::Expr*          _BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex);
+
+      ::clang::Stmt*          _BuildLoop(AST::ControlFlow::LoopPtr spLoop);
+
       ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
       ::clang::ValueDecl* _CreateValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);

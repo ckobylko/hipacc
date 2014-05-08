@@ -799,6 +799,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   }
 }
 
+
 ::clang::CompoundStmt* Vectorizer::VASTExportArray::_BuildCompoundStatement(AST::ScopePtr spScope)
 {
   ClangASTHelper::StatementVectorType vecChildren;
@@ -885,10 +886,27 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     {
       pChildStmt = _BuildExpressionStatement( spChild->CastToType<AST::BaseClasses::Expression>() );
     }
+    else if (spChild->IsType<AST::BaseClasses::ControlFlowStatement>())
+    {
+      AST::BaseClasses::ControlFlowStatementPtr spControlFlow = spChild->CastToType<AST::BaseClasses::ControlFlowStatement>();
+
+      if (spControlFlow->IsType<AST::ControlFlow::Loop>())
+      {
+        pChildStmt = _BuildLoop( spControlFlow->CastToType<AST::ControlFlow::Loop>() );
+      }
+      else if (spControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
+      {
+        // TODO: Implented branching statement export
+        continue;
+      }
+      else
+      {
+        throw InternalErrorException("Unsupported VAST control flow statement detected!");
+      }
+    }
     else
     {
-      // TODO: Add all supported statement types and throw an error in the else branch
-      continue;
+      throw InternalErrorException("Unsupported VAST node detected!");
     }
 
     vecChildren.push_back( pChildStmt );
@@ -1158,8 +1176,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   }
   else if (spExpression->IsType<AST::Expressions::FunctionCall>())
   {
-    // TODO: Implement
-    throw InternalErrorException("Function call expressions are not yet implemented!");
+    pReturnExpr = _BuildFunctionCall(spExpression->CastToType<AST::Expressions::FunctionCall>(), iVectorIndex);
   }
   else
   {
@@ -1186,6 +1203,96 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   {
     return _BuildExpression(spExpression, 0);
   }
+}
+
+::clang::Expr* Vectorizer::VASTExportArray::_BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex)
+{
+  // TODO: Implement this correctly
+  AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
+
+  spConstant->SetValue(iVectorIndex);
+  spConstant->ChangeType( spFunctionCall->GetResultType().GetType() );
+
+  return _BuildConstant( spConstant );
+
+
+  //throw InternalErrorException("Function call expressions are not yet implemented!");
+}
+
+::clang::Stmt* Vectorizer::VASTExportArray::_BuildLoop(AST::ControlFlow::LoopPtr spLoop)
+{
+  typedef AST::ControlFlow::Loop::LoopType  LoopType;
+
+  if (spLoop->IsVectorized())
+  {
+    throw RuntimeErrorException("Cannot export loops with vectorized conditions => Rebuild the loops before calling the export!");
+  }
+
+  LoopType eLoopType = spLoop->GetLoopType();
+
+  ::clang::CompoundStmt *pLoopBody      = _BuildCompoundStatement( spLoop->GetBody() );
+  ::clang::Expr         *pConditionExpr = _BuildExpression( spLoop->GetCondition(), 0 );
+  ::clang::Expr         *pIncrementExpr = nullptr;
+
+  if (spLoop->GetIncrement())
+  {
+    AST::BaseClasses::ExpressionPtr spIncrement   = spLoop->GetIncrement();
+    ::clang::QualType               qtReturnType  = _ConvertTypeInfo( spIncrement->GetResultType() );
+
+    if (spIncrement->IsVectorized())
+    {
+      ClangASTHelper::ExpressionVectorType vecIncExpressions;
+
+      for (IndexType iVecIdx = static_cast<IndexType>(0); iVecIdx < _VectorWidth; ++iVecIdx)
+      {
+        ::clang::Expr *pCurExpr = _BuildExpression( spIncrement, iVecIdx );
+        vecIncExpressions.push_back( _ASTHelper.CreateParenthesisExpression(pCurExpr) );
+      }
+
+      for (IndexType iVecIdx = static_cast<IndexType>(1); iVecIdx < _VectorWidth; ++iVecIdx)
+      {
+        ::clang::Expr *pNextLeaf  = vecIncExpressions[iVecIdx];
+        vecIncExpressions[0]      = _ASTHelper.CreateBinaryOperatorComma( vecIncExpressions[0], pNextLeaf );
+      }
+
+      pIncrementExpr = vecIncExpressions[0];
+    }
+    else
+    {
+      pIncrementExpr = _BuildExpression( spIncrement, 0 );
+    }
+  }
+
+  ::clang::Stmt *pLoopStmt = nullptr;
+
+  if (eLoopType == LoopType::TopControlled)
+  {
+    if (pIncrementExpr == nullptr)
+    {
+      pLoopStmt = _ASTHelper.CreateLoopWhile(pConditionExpr, pLoopBody);
+    }
+    else
+    {
+      pLoopStmt = _ASTHelper.CreateLoopFor(pConditionExpr, pLoopBody, nullptr, pIncrementExpr);
+    }
+  }
+  else if (eLoopType == LoopType::BottomControlled)
+  {
+    if (pIncrementExpr != nullptr)
+    {
+      pIncrementExpr = _ASTHelper.CreateParenthesisExpression( pIncrementExpr );
+      pConditionExpr = _ASTHelper.CreateParenthesisExpression( pConditionExpr );
+      pConditionExpr = _ASTHelper.CreateBinaryOperatorComma( pIncrementExpr, pConditionExpr );
+    }
+
+    pLoopStmt = _ASTHelper.CreateLoopDoWhile(pConditionExpr, pLoopBody);
+  }
+  else
+  {
+    throw InternalErrorException("Unsupported VAST loop type detected!");
+  }
+
+  return pLoopStmt;
 }
 
 
