@@ -363,7 +363,9 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
         throw InternalErrors::NullPointerException("pCalleeDecl");
       }
 
-      spFunctionCall->SetName(pCalleeDecl->getNameAsString());
+      std::string strFunctionName = ClangASTHelper::GetFullyQualifiedFunctionName( pCalleeDecl );
+
+      spFunctionCall->SetName(strFunctionName);
     }
 
     // Set the return type
@@ -1206,16 +1208,56 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
 ::clang::Expr* Vectorizer::VASTExportArray::_BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex)
 {
-  // TODO: Implement this correctly
-  AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
+  string          strFunctionName = spFunctionCall->GetName();
+  const IndexType ciArgumentCount = spFunctionCall->GetCallParameterCount();
 
-  spConstant->SetValue(iVectorIndex);
-  spConstant->ChangeType( spFunctionCall->GetResultType().GetType() );
+  // Build the argument expressions
+  ClangASTHelper::ExpressionVectorType  vecArguments;
+  ClangASTHelper::QualTypeVectorType    vecArgumentTypes;
 
-  return _BuildConstant( spConstant );
+  for (IndexType iArgIdx = static_cast<IndexType>(0); iArgIdx < ciArgumentCount; ++iArgIdx)
+  {
+    AST::BaseClasses::ExpressionPtr spCurrentArgument     = spFunctionCall->GetCallParameter(iArgIdx);
+    ::clang::Expr                   *pCurrentArgumentExpr = _BuildExpression(spCurrentArgument, iVectorIndex);
 
+    vecArguments.push_back( pCurrentArgumentExpr );
+    vecArgumentTypes.push_back( _ConvertTypeInfo(spCurrentArgument->GetResultType()) );
+  }
 
-  //throw InternalErrorException("Function call expressions are not yet implemented!");
+  // Find the first exactly matching function
+  ::clang::FunctionDecl *pCalleeDecl = nullptr;
+  {
+    FunctionDeclVectorType vecFunctionDecls = _GetMatchingFunctionDeclarations( strFunctionName, static_cast<unsigned int>(ciArgumentCount) );
+
+    for each (auto itFuncDecl in vecFunctionDecls)
+    {
+      bool bFound = true;
+
+      for (IndexType iArgIdx = static_cast<IndexType>(0); iArgIdx < ciArgumentCount; ++iArgIdx)
+      {
+        ::clang::ParmVarDecl  *pParamDecl = itFuncDecl->getParamDecl( static_cast<unsigned int>(iArgIdx) );
+        ::clang::QualType     qtParamType = pParamDecl->getType();
+
+        if (qtParamType->getCanonicalTypeUnqualified() != vecArgumentTypes[iArgIdx]->getCanonicalTypeUnqualified())
+        {
+          bFound = false;
+          break;
+        }
+      }
+
+      if (bFound)
+      {
+        pCalleeDecl = itFuncDecl;
+      }
+    }
+  }
+
+  if (pCalleeDecl == nullptr)
+  {
+    throw RuntimeErrorException(string("Could not find matching FunctionDecl object for function call \"") + strFunctionName + string("\"!"));
+  }
+
+  return _ASTHelper.CreateFunctionCall(pCalleeDecl, vecArguments);
 }
 
 ::clang::IfStmt* Vectorizer::VASTExportArray::_BuildIfStatement(AST::ControlFlow::BranchingStatementPtr spBranchingStatement)
@@ -1262,7 +1304,6 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     return vecIfBranches[0];
   }
 }
-
 
 ::clang::Stmt* Vectorizer::VASTExportArray::_BuildLoop(AST::ControlFlow::LoopPtr spLoop)
 {
@@ -1406,6 +1447,31 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   return pVarDecl;
 }
 
+Vectorizer::VASTExportArray::FunctionDeclVectorType Vectorizer::VASTExportArray::_GetMatchingFunctionDeclarations(string strFunctionName, unsigned int uiParamCount)
+{
+  FunctionDeclVectorType vecFunctionDecls;
+
+  auto itFunctionParamCountMap = _mapKnownFunctions.find( strFunctionName );
+  if (itFunctionParamCountMap == _mapKnownFunctions.end())
+  {
+    return vecFunctionDecls;
+  }
+
+  FunctionDeclParamCountMapType &rParamCountMap = itFunctionParamCountMap->second;
+  
+  auto itFunctionDeclVec = rParamCountMap.find(uiParamCount);
+  if (itFunctionDeclVec == rParamCountMap.end())
+  {
+    return vecFunctionDecls;
+  }
+
+  FunctionDeclVectorType &rvecKnownFunctionDecls = itFunctionDeclVec->second;
+
+  vecFunctionDecls.insert( vecFunctionDecls.begin(), rvecKnownFunctionDecls.begin(), rvecKnownFunctionDecls.end() );
+
+  return std::move( vecFunctionDecls );
+}
+
 AST::BaseClasses::TypeInfo Vectorizer::VASTExportArray::_GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo)
 {
   if (crOriginalTypeInfo.GetPointer())
@@ -1465,10 +1531,27 @@ bool Vectorizer::VASTExportArray::_HasValueDeclaration(string strDeclName)
 
   _pDeclContext = ::clang::FunctionDecl::castToDeclContext(pFunctionDecl);
 
+  // Parse known function declarations
+  {
+    FunctionDeclVectorType vecFunctionDecls = _ASTHelper.GetKnownFunctionDeclarations();
+
+    for each (auto itFunctionDecl in vecFunctionDecls)
+    {
+      string strFunctionName = ClangASTHelper::GetFullyQualifiedFunctionName( itFunctionDecl );
+
+      _mapKnownFunctions[ strFunctionName ][ itFunctionDecl->getNumParams() ].push_back( itFunctionDecl );
+    }
+  }
+
+
+  // Build the function body
   pFunctionDecl->setBody( _BuildCompoundStatement( spVASTFunction->GetBody() ) );
 
+
+  // Reset exporter state
   _pDeclContext = nullptr;
   _mapKnownDeclarations.clear();
+  _mapKnownFunctions.clear();
 
   return pFunctionDecl;
 }

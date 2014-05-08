@@ -209,12 +209,18 @@ namespace Vectorization
     {
     private:
 
+      typedef ClangASTHelper::FunctionDeclarationVectorType           FunctionDeclVectorType;
+      typedef std::map< unsigned int, FunctionDeclVectorType >        FunctionDeclParamCountMapType;
+      typedef std::map< std::string, FunctionDeclParamCountMapType >  FunctionDeclNameMapType;
+
+
       ClangASTHelper        _ASTHelper;
 
       const IndexType       _VectorWidth;
       ::clang::DeclContext  *_pDeclContext;
 
       std::map< std::string, ::clang::ValueDecl* >  _mapKnownDeclarations;
+      FunctionDeclNameMapType                       _mapKnownFunctions;
 
 
     private:
@@ -240,6 +246,9 @@ namespace Vectorization
       AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo);
 
       bool _HasValueDeclaration(std::string strDeclName);
+
+
+      FunctionDeclVectorType _GetMatchingFunctionDeclarations( std::string strFunctionName, unsigned int uiParamCount );
 
 
     public:
