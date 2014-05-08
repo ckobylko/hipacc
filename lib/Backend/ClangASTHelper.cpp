@@ -137,6 +137,11 @@ FunctionDecl* ClangASTHelper::CreateFunctionDeclaration(string strFunctionName, 
                                       ArrayRef< ::clang::QualType >(crvecArgumentTypes), ArrayRef< string >(crvecArgumentNames) );
 }
 
+IfStmt* ClangASTHelper::CreateIfStatement(Expr *pCondition, Stmt *pThenBranch, Stmt *pElseBranch)
+{
+  return ASTNode::createIfStmt(GetASTContext(), pCondition, pThenBranch, pElseBranch, nullptr);
+}
+
 ImplicitCastExpr* ClangASTHelper::CreateImplicitCastExpression(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)
 {
   ExprValueKind  eValueKind = bIsLValue ? VK_LValue : VK_RValue;

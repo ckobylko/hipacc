@@ -49,10 +49,12 @@ namespace Backend
   {
   public:
 
-    typedef ::llvm::SmallVector< ::clang::Expr*,     16U >  ExpressionVectorType;   //!< Type definition for a vector of expressions.
-    typedef ::llvm::SmallVector< ::clang::QualType,  16U >  QualTypeVectorType;     //!< Type definition for a vector of qualified types.
-    typedef ::llvm::SmallVector< ::clang::Stmt*,     16U >  StatementVectorType;    //!< Type definition for a vector of statements.
-    typedef ::llvm::SmallVector< std::string,        16U >  StringVectorType;       //!< Type definition for a vector of strings.
+    template <typename ElementType>   using VectorType = ::llvm::SmallVector< ElementType, 16U >;   // Type alias for LLVM SmallVector type
+
+    typedef VectorType< ::clang::Expr* >      ExpressionVectorType;   //!< Type definition for a vector of expressions.
+    typedef VectorType< ::clang::QualType >   QualTypeVectorType;     //!< Type definition for a vector of qualified types.
+    typedef VectorType< ::clang::Stmt* >      StatementVectorType;    //!< Type definition for a vector of statements.
+    typedef VectorType< std::string >         StringVectorType;       //!< Type definition for a vector of strings.
 
   private:
 
@@ -154,6 +156,8 @@ namespace Backend
      *  \param  crvecArgumentNames  A vector containing the names of the function arguments.
      *  \param  crvecArgumentTypes  A vector containing the qualified types of the function arguments. */
     ::clang::FunctionDecl*            CreateFunctionDeclaration(std::string strFunctionName, const ::clang::QualType &crReturnType, const StringVectorType &crvecArgumentNames, const QualTypeVectorType &crvecArgumentTypes);
+
+    ::clang::IfStmt*                  CreateIfStatement(::clang::Expr *pCondition, ::clang::Stmt *pThenBranch, ::clang::Stmt *pElseBranch = nullptr);
 
     /** \brief  Creates an implicit cast expression object.
      *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
