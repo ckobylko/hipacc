@@ -424,7 +424,8 @@ namespace Vectorization
           BinaryOperator,
           FunctionCall,
           UnaryExpression,
-          Value
+          Value,
+          VectorExpression
         };
 
 
@@ -1210,6 +1211,116 @@ namespace Vectorization
     };
 
 
+    class VectorSupport final
+    {
+      // Forward declarations and type definitions
+    public:
+
+      class VectorExpression;
+      class BroadCast;
+      class VectorIndex;
+
+      typedef std::shared_ptr< VectorExpression >   VectorExpressionPtr;
+      typedef std::shared_ptr< BroadCast >          BroadCastPtr;
+      typedef std::shared_ptr< VectorIndex >        VectorIndexPtr;
+
+
+    public:
+
+      class VectorExpression : public BaseClasses::Expression
+      {
+      private:
+
+        typedef BaseClasses::Expression     BaseType;
+
+      public:
+
+        enum class VectorExpressionType
+        {
+          BroadCast,
+          VectorIndex
+        };
+
+      private:
+
+        const VectorExpressionType   _ceVectorExpressionType;
+
+      protected:
+
+        inline VectorExpression(VectorExpressionType eVecExprType) : BaseType(BaseType::ExpressionType::VectorExpression), _ceVectorExpressionType(eVecExprType)   {}
+
+      public:
+
+        virtual ~VectorExpression()  {}
+      };
+
+      class BroadCast final : public VectorExpression
+      {
+      private:
+
+        typedef VectorExpression            BaseType;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+
+      private:
+
+        ExpressionPtr _spSubExpression;
+
+      public:
+
+        inline BroadCast() : BaseType(BaseType::VectorExpressionType::BroadCast), _spSubExpression(nullptr)   {}
+
+        inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
+        inline const ExpressionPtr  GetSubExpression() const                    { return _spSubExpression; }
+        inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
+
+
+      public:
+
+        virtual bool IsVectorized() final override      { return true; }
+
+        virtual BaseClasses::TypeInfo  GetResultType() const final override;
+
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType       GetSubExpressionCount() const final override      { return static_cast< IndexType >( 1 ); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+      };
+
+      class VectorIndex final : public VectorExpression
+      {
+      private:
+
+        typedef VectorExpression                    BaseType;
+        typedef BaseClasses::ExpressionPtr          ExpressionPtr;
+        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
+
+      private:
+
+        KnownTypes  _eType;
+
+      public:
+
+        inline VectorIndex() : BaseType(BaseType::VectorExpressionType::VectorIndex), _eType(KnownTypes::Int32)  {}
+
+        inline KnownTypes   GetType() const                 { return _eType; }
+        inline void         SetType(KnownTypes eNewType)    { _eType = eNewType; }
+
+
+      public:
+
+        virtual bool IsVectorized() final override      { return true; }
+
+        virtual BaseClasses::TypeInfo  GetResultType() const final override;
+
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override                           { throw ASTExceptions::ChildIndexOutOfRange(); }
+        virtual IndexType       GetSubExpressionCount() const final override                                      { return static_cast< IndexType >(0); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override  { throw ASTExceptions::ChildIndexOutOfRange(); }
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+      };
+    };
+
 
     class IVariableContainer : public BaseClasses::Node
     {
@@ -1317,6 +1428,7 @@ namespace Vectorization
       void                        AddParameter(BaseClasses::VariableInfoPtr spVariableInfo);
       Expressions::IdentifierPtr  GetParameter(IndexType iParamIndex);
       inline IndexType            GetParameterCount() const   { return static_cast< IndexType >( _Parameters.size() ); }
+      void                        SetParameter(IndexType iParamIndex, BaseClasses::VariableInfoPtr spVariableInfo);
 
 
       ScopePtr        GetBody();

@@ -1145,6 +1145,65 @@ void AST::Expressions::FunctionCall::SetCallParameter(IndexType CallParamIndex, 
 
 
 /*************************/
+/***   VectorSupport   ***/
+/*************************/
+
+// Implementation of class AST::VectorSupport::BroadCast
+string AST::VectorSupport::BroadCast::DumpToXML(const size_t cszIntend) const
+{
+  string strXmlString("");
+
+  strXmlString += _DumpResultTypeToXML(cszIntend + 2);
+  strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "SubExpression", _DumpChildToXml(GetSubExpression(), cszIntend + 4));
+
+  return XMLSupport::CreateXmlTag(cszIntend, "BroadCast", strXmlString);
+}
+
+AST::BaseClasses::TypeInfo AST::VectorSupport::BroadCast::GetResultType() const
+{
+  if (GetSubExpression())
+  {
+    return GetSubExpression()->GetResultType();
+  }
+  else
+  {
+    return BaseClasses::TypeInfo();
+  }
+}
+
+AST::BaseClasses::ExpressionPtr AST::VectorSupport::BroadCast::GetSubExpression(IndexType SubExprIndex)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   return GetSubExpression();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+void AST::VectorSupport::BroadCast::SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   SetSubExpression(spSubExpr);  break;
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+
+// Implementation of class AST::VectorSupport::VectorIndex
+string AST::VectorSupport::VectorIndex::DumpToXML(const size_t cszIntend) const
+{
+  return XMLSupport::CreateXmlTag(cszIntend, "VectorIndex", _DumpResultTypeToXML(cszIntend + 2));
+}
+
+AST::BaseClasses::TypeInfo AST::VectorSupport::VectorIndex::GetResultType() const
+{
+  return AST::BaseClasses::TypeInfo(GetType(), true, false);
+}
+
+
+
+/*************************/
 /***   Other classes   ***/
 /*************************/
 
@@ -1471,6 +1530,33 @@ bool AST::FunctionDeclaration::IsVariableUsed(const std::string &crstrVariableNa
   auto itVariable = _mapKnownVariables.find(crstrVariableName);
 
   return (itVariable != _mapKnownVariables.end());
+}
+
+void AST::FunctionDeclaration::SetParameter(IndexType iParamIndex, BaseClasses::VariableInfoPtr spVariableInfo)
+{
+  if (iParamIndex >= GetParameterCount())
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+
+  string strNewParamName = spVariableInfo->GetName();
+  if (IsVariableUsed(strNewParamName))
+  {
+    throw ASTExceptions::DuplicateVariableName(strNewParamName);
+  }
+
+  // Erase the old parameter
+  Expressions::IdentifierPtr spOldParam = GetParameter(iParamIndex);
+  _mapKnownVariables.erase( _mapKnownVariables.find(spOldParam->GetName()) );
+
+  // Set the new parameter
+  Expressions::IdentifierPtr spNewParameter = AST::CreateNode<Expressions::Identifier>();
+  spNewParameter->SetName(strNewParamName);
+
+  _SetParentToChild(spNewParameter);
+  _Parameters[iParamIndex] = spNewParameter;
+
+  _mapKnownVariables[strNewParamName] = spVariableInfo;
 }
 
 

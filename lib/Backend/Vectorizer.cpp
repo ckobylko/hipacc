@@ -504,9 +504,11 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
     ::clang::CompoundStmt *pCurrentCompound = dyn_cast<::clang::CompoundStmt>(pStatement);
 
     AST::ScopePtr spChildScope = AST::CreateNode<AST::Scope>();
-    spStatement = spChildScope;
+    spEnclosingScope->AddChild( spChildScope );
 
     _ConvertScope(spChildScope, pCurrentCompound);
+
+    spStatement = nullptr;
   }
   else if (isa<::clang::DeclStmt>(pStatement))
   {
@@ -1179,6 +1181,42 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   {
     pReturnExpr = _BuildFunctionCall(spExpression->CastToType<AST::Expressions::FunctionCall>(), iVectorIndex);
   }
+  else if (spExpression->IsType<AST::VectorSupport::VectorExpression>())
+  {
+    AST::VectorSupport::VectorExpressionPtr spVectorExpression = spExpression->CastToType<AST::VectorSupport::VectorExpression>();
+
+    if (spVectorExpression->IsType<AST::VectorSupport::BroadCast>())
+    {
+      AST::VectorSupport::BroadCastPtr  spBroadCast     = spVectorExpression->CastToType<AST::VectorSupport::BroadCast>();
+      AST::BaseClasses::ExpressionPtr   spSubExpression = spBroadCast->GetSubExpression();
+
+      if (spSubExpression->IsVectorized())
+      {
+        throw RuntimeErrorException("Cannot broad cast vectorized expressions!");
+      }
+      else if (! spSubExpression->GetResultType().IsSingleValue())
+      {
+        throw RuntimeErrorException("Broad casts are only allowed for single values!");
+      }
+
+      pReturnExpr = _BuildExpression(spSubExpression, 0);
+    }
+    else if (spVectorExpression->IsType<AST::VectorSupport::VectorIndex>())
+    {
+      AST::VectorSupport::VectorIndexPtr spVectorIndex = spVectorExpression->CastToType<AST::VectorSupport::VectorIndex>();
+
+      AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
+
+      spConstant->SetValue(iVectorIndex);
+      spConstant->ChangeType( spVectorIndex->GetType() );
+
+      pReturnExpr = _BuildConstant( spConstant );
+    }
+    else
+    {
+      throw InternalErrorException("Unknown VAST vector expression node detected!");
+    }
+  }
   else
   {
     throw InternalErrorException("Unknown VAST expression node detected!");
@@ -1516,7 +1554,13 @@ bool Vectorizer::VASTExportArray::_HasValueDeclaration(string strDeclName)
       vecArgumentNames.push_back( spParameter->GetName() );
 
       AST::BaseClasses::VariableInfoPtr spParamInfo = spParameter->LookupVariableInfo();
-      vecArgumentTypes.push_back( _ConvertTypeInfo(spParamInfo->GetTypeInfo()) );
+      AST::BaseClasses::TypeInfo        ParamType   = spParamInfo->GetTypeInfo();
+      if (spParamInfo->GetVectorize())
+      {
+        ParamType = _GetVectorizedType( ParamType );
+      }
+
+      vecArgumentTypes.push_back( _ConvertTypeInfo(ParamType) );
     }
 
     pFunctionDecl = _ASTHelper.CreateFunctionDeclaration( strFunctionName, _ASTHelper.GetASTContext().VoidTy, vecArgumentNames, vecArgumentTypes );
