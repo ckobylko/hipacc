@@ -809,6 +809,67 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
 
 
+    // Convert vectorized function parameters
+    {
+      Vectorization::AST::ScopePtr spVecFunctionBody = spVecFunction->GetBody();
+
+      for (Vectorization::AST::IndexType iParamIdx = static_cast<Vectorization::AST::IndexType>(0); iParamIdx < spVecFunction->GetParameterCount(); ++iParamIdx)
+      {
+        Vectorization::AST::Expressions::IdentifierPtr    spParam     = spVecFunction->GetParameter( iParamIdx );
+        Vectorization::AST::BaseClasses::VariableInfoPtr  spParamInfo = spParam->LookupVariableInfo();
+
+        // Each vectorized single value parameter will be converted into a scalar parameter and a new vectorized variable will be created
+        if (spParamInfo->GetVectorize() && spParamInfo->GetTypeInfo().IsSingleValue())
+        {
+          string strParamName = spParam->GetName();
+
+          // Replace parameter
+          Vectorization::AST::Expressions::IdentifierPtr   spNewParam     = Vectorization::AST::CreateNode<Vectorization::AST::Expressions::Identifier>();
+          Vectorization::AST::BaseClasses::VariableInfoPtr spNewParamInfo = std::make_shared<Vectorization::AST::BaseClasses::VariableInfo>();
+
+          spNewParamInfo->GetTypeInfo() = spParamInfo->GetTypeInfo();
+          spNewParamInfo->SetName(spParamInfo->GetName() + string("_base"));
+          spNewParamInfo->SetVectorize(false);
+
+          spNewParam->SetName(spNewParamInfo->GetName());
+
+          spVecFunction->SetParameter(iParamIdx, spNewParamInfo);
+
+
+          // Create the assignment expression for the new variable
+          Vectorization::AST::Expressions::AssignmentOperatorPtr  spAssignment    = Vectorization::AST::CreateNode< Vectorization::AST::Expressions::AssignmentOperator >();
+          Vectorization::AST::VectorSupport::BroadCastPtr         spBaseBroadCast = Vectorization::AST::CreateNode< Vectorization::AST::VectorSupport::BroadCast        >();
+
+          spAssignment->SetLHS(spParam);
+          spBaseBroadCast->SetSubExpression(spNewParam);
+
+          if (strParamName == HipaccHelper::GlobalIdX())
+          {
+            // The horizontal global id must be incremental vector
+            Vectorization::AST::Expressions::ArithmeticOperatorPtr  spAddOperator = Vectorization::AST::CreateNode< Vectorization::AST::Expressions::ArithmeticOperator >();
+            Vectorization::AST::VectorSupport::VectorIndexPtr       spVectorIndex = Vectorization::AST::CreateNode< Vectorization::AST::VectorSupport::VectorIndex      >();
+
+            spAddOperator->SetOperatorType( Vectorization::AST::Expressions::ArithmeticOperator::ArithmeticOperatorType::Add );
+            spAddOperator->SetLHS( spBaseBroadCast );
+            spAddOperator->SetRHS( spVectorIndex );
+
+            spAssignment->SetRHS(spAddOperator);
+          }
+          else
+          {
+            // Every other variable will be initialized with the base value
+            spAssignment->SetRHS(spBaseBroadCast);
+          }
+
+          // Add the declaration and the assignment statement
+          spVecFunctionBody->AddVariableDeclaration(spParamInfo);
+          spVecFunctionBody->InsertChild(0, spAssignment);
+        }
+      }
+    }
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_7.xml");
+
+
     return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext());
   }
   catch (std::exception &e)
