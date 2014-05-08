@@ -82,6 +82,11 @@ BinaryOperator* ClangASTHelper::CreateBinaryOperator(Expr *pLhs, Expr *pRhs, Bin
   return ASTNode::createBinaryOperator(GetASTContext(), pLhs, pRhs, eOperatorKind, crReturnType);
 }
 
+BinaryOperator* ClangASTHelper::CreateBinaryOperatorComma(Expr *pLhs, Expr *pRhs)
+{
+  return CreateBinaryOperator(pLhs, pRhs, BO_Comma, pRhs->getType());
+}
+
 BinaryOperator* ClangASTHelper::CreateBinaryOperatorLessThan(Expr *pLhs, Expr *pRhs)
 {
   return CreateBinaryOperator(pLhs, pRhs, BO_LT, GetASTContext().BoolTy);
@@ -142,6 +147,21 @@ ImplicitCastExpr* ClangASTHelper::CreateImplicitCastExpression(Expr *pOperandExp
 InitListExpr* ClangASTHelper::CreateInitListExpression(const ExpressionVectorType &crvecExpressions)
 {
   return new (GetASTContext()) InitListExpr( GetASTContext(), SourceLocation(), ArrayRef< Expr* >(crvecExpressions), SourceLocation() );
+}
+
+DoStmt* ClangASTHelper::CreateLoopDoWhile(::clang::Expr *pCondition, ::clang::Stmt *pBody)
+{
+  return new (GetASTContext()) DoStmt(pBody, pCondition, SourceLocation(), SourceLocation(), SourceLocation());
+}
+
+ForStmt* ClangASTHelper::CreateLoopFor(Expr *pCondition, Stmt *pBody, Stmt *pInitializer, Expr *pIncrement)
+{
+  return ASTNode::createForStmt(GetASTContext(), pInitializer, pCondition, pIncrement, pBody, nullptr);
+}
+
+WhileStmt* ClangASTHelper::CreateLoopWhile(Expr *pCondition, Stmt *pBody)
+{
+  return ASTNode::createWhileStmt(GetASTContext(), nullptr, pCondition, pBody);
 }
 
 ParenExpr* ClangASTHelper::CreateParenthesisExpression(Expr *pSubExpression)

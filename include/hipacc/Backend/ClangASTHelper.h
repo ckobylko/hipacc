@@ -98,6 +98,11 @@ namespace Backend
      *  \param  crReturnType    The return type of the operator expression. */
     ::clang::BinaryOperator*          CreateBinaryOperator(::clang::Expr *pLhs, ::clang::Expr *pRhs, ::clang::BinaryOperatorKind eOperatorKind, const ::clang::QualType &crReturnType);
 
+    /** \brief  Creates a binary operator object which represents the "comma" operator.
+     *  \param  pLhs  A pointer to the expression object, which shall be on the left-hand-side.
+     *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
+    ::clang::BinaryOperator*          CreateBinaryOperatorComma(::clang::Expr *pLhs, ::clang::Expr *pRhs);
+
     /** \brief  Creates a binary operator object which represents a "less than" comparison.
      *  \param  pLhs  A pointer to the expression object, which shall be on the left-hand-side.
      *  \param  pRhs  A pointer to the expression object, which shall be on the right-hand-side. */
@@ -178,6 +183,24 @@ namespace Backend
      *  \remarks  Depending on the value type, this function construct a bool, integer or floating point literal. */
     template <typename ValueType>
     ::clang::Expr*                    CreateLiteral(ValueType TValue);
+
+    /** \brief  Creates a <b>do-while</b>-loop statement.
+     *  \param  pCondition  The condition expression of the loop.
+     *  \param  pBody       The statement which represents the loop body. */
+    ::clang::DoStmt*                  CreateLoopDoWhile(::clang::Expr *pCondition, ::clang::Stmt *pBody);
+
+    /** \brief  Creates a <b>for</b>-loop statement.
+     *  \param  pCondition    The condition expression of the loop.
+     *  \param  pBody         The statement which represents the loop body.
+     *  \param  pInitializer  The initializer statement of the for-loop (can be <b>NULL</b>).
+     *  \param  pIncrement    The increment expression of the for-loop, i.e. the expression which will be evaluated after each iteration (can be <b>NULL</b>). */
+    ::clang::ForStmt*                 CreateLoopFor(::clang::Expr *pCondition, ::clang::Stmt *pBody, ::clang::Stmt *pInitializer = nullptr, ::clang::Expr *pIncrement = nullptr);
+
+    /** \brief  Creates a <b>while</b>-loop statement.
+     *  \param  pCondition  The condition expression of the loop.
+     *  \param  pBody       The statement which represents the loop body. */
+    ::clang::WhileStmt*               CreateLoopWhile(::clang::Expr *pCondition, ::clang::Stmt *pBody);
+
 
     /** \brief  Creates a parenthesis expression around another expression.
      *  \param  pSubExpression  A pointer to the expression object which shall be encapsulated into a parenthesis expression. */
