@@ -290,6 +290,24 @@ namespace Vectorization
 
     public:
 
+      template < class NodeClass >
+      class FindNodes final
+      {
+      private:
+
+        static_assert( std::is_base_of< AST::BaseClasses::Node, NodeClass >::value, "The NodeClass type must be derived from class \"AST::BaseClasses::Node\" !" );
+
+      public:
+
+        typedef NodeClass                       TargetType;
+        typedef std::shared_ptr< TargetType >   TargetTypePtr;
+
+        std::list< TargetTypePtr >  lstFoundNodes;
+
+        inline void Execute(TargetTypePtr spFoundNode)    { lstFoundNodes.push_back(spFoundNode); }
+      };
+
+
       class CheckInternalDeclaration final
       {
       public:
@@ -437,6 +455,9 @@ namespace Vectorization
     inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
     inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
     inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { _RunVASTTransformation(spRootNode, Transformations::SeparateBranchingStatements()); }
+
+
+    void RebuildControlFlow(AST::FunctionDeclarationPtr spFunction);
 
     void VectorizeFunction(AST::FunctionDeclarationPtr spFunction);
 

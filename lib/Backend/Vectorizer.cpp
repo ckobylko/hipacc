@@ -1201,6 +1201,49 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
       pReturnExpr = _BuildExpression(spSubExpression, 0);
     }
+    else if (spVectorExpression->IsType<AST::VectorSupport::CheckActiveElements>())
+    {
+      typedef AST::VectorSupport::CheckActiveElements::CheckType  CheckType;
+
+      AST::VectorSupport::CheckActiveElementsPtr  spCheckElements = spVectorExpression->CastToType<AST::VectorSupport::CheckActiveElements>();
+      AST::BaseClasses::ExpressionPtr             spSubExpression = spCheckElements->GetSubExpression();
+
+      if (! spSubExpression->IsVectorized())
+      {
+        throw RuntimeErrorException("Cannot check active vector elements in a scalar expression!");
+      }
+
+      ::clang::BinaryOperatorKind eCombineOpCode;
+      switch (spCheckElements->GetCheckType())
+      {
+      case CheckType::All:    eCombineOpCode = ::clang::BO_LAnd;  break;
+      case CheckType::Any:    eCombineOpCode = ::clang::BO_LOr;   break;
+      case CheckType::None:   eCombineOpCode = ::clang::BO_LOr;   break;
+      default:                throw RuntimeErrorException("Unknown active vector element check type detected!");
+      }
+
+      ClangASTHelper::ExpressionVectorType vecSubExpressions;
+      for (IndexType iVecIdx = static_cast<IndexType>(0); iVecIdx < _VectorWidth; ++iVecIdx)
+      {
+        ::clang::Expr *pCurrentSubExpr = _BuildExpression( spSubExpression, iVecIdx );
+        vecSubExpressions.push_back( _ASTHelper.CreateParenthesisExpression(pCurrentSubExpr) );
+      }
+
+      ::clang::QualType qtBoolType            = _ASTHelper.GetASTContext().BoolTy;
+
+      for (IndexType iVecIdx = static_cast<IndexType>(1); iVecIdx < _VectorWidth; ++iVecIdx)
+      {
+        vecSubExpressions[0] = _ASTHelper.CreateBinaryOperator(vecSubExpressions[0], vecSubExpressions[iVecIdx], eCombineOpCode, qtBoolType);
+      }
+
+      pReturnExpr = vecSubExpressions[0];
+
+      if (spCheckElements->GetCheckType() == CheckType::None)
+      {
+        pReturnExpr = _ASTHelper.CreateParenthesisExpression(pReturnExpr);
+        pReturnExpr = _ASTHelper.CreateUnaryOperator(pReturnExpr, ::clang::UO_LNot, qtBoolType);
+      }
+    }
     else if (spVectorExpression->IsType<AST::VectorSupport::VectorIndex>())
     {
       AST::VectorSupport::VectorIndexPtr spVectorIndex = spVectorExpression->CastToType<AST::VectorSupport::VectorIndex>();
@@ -1902,6 +1945,58 @@ void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string 
   XmlStream.close();
 }
 
+
+void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
+{
+  // TODO: Quick and dirty implementation => Do this correctly
+
+  {
+    Transformations::FindNodes< AST::ControlFlow::Loop >  LoopFinder;
+    _RunVASTTransformation(spFunction, LoopFinder);
+
+    for each (auto itLoop in LoopFinder.lstFoundNodes)
+    {
+      if (itLoop->IsVectorized())
+      {
+        AST::VectorSupport::CheckActiveElementsPtr spElementCheck = AST::CreateNode< AST::VectorSupport::CheckActiveElements >();
+
+        spElementCheck->SetCheckType( AST::VectorSupport::CheckActiveElements::CheckType::Any );
+        spElementCheck->SetSubExpression( itLoop->GetCondition() );
+
+        itLoop->SetCondition( spElementCheck );
+      }
+    }
+  }
+
+  {
+    SeparateBranchingStatements(spFunction);
+
+    Transformations::FindNodes< AST::ControlFlow::BranchingStatement >  BranchingStatementFinder;
+
+    _RunVASTTransformation(spFunction, BranchingStatementFinder);
+
+    for each (auto itBranchingStmt in BranchingStatementFinder.lstFoundNodes)
+    {
+      if (itBranchingStmt->IsVectorized())
+      {
+        for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < itBranchingStmt->GetConditionalBranchesCount(); ++iBranchIdx)
+        {
+          AST::ControlFlow::ConditionalBranchPtr spBranch = itBranchingStmt->GetConditionalBranch(iBranchIdx);
+
+          if (spBranch->IsVectorized())
+          {
+            AST::VectorSupport::CheckActiveElementsPtr spElementCheck = AST::CreateNode< AST::VectorSupport::CheckActiveElements >();
+
+            spElementCheck->SetCheckType(AST::VectorSupport::CheckActiveElements::CheckType::Any);
+            spElementCheck->SetSubExpression(spBranch->GetCondition());
+
+            spBranch->SetCondition(spElementCheck);
+          }
+        }
+      }
+    }
+  }
+}
 
 void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
 {
