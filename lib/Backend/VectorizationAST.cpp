@@ -1214,6 +1214,51 @@ void AST::VectorSupport::BroadCast::SetSubExpression(IndexType SubExprIndex, Exp
 }
 
 
+// Implementation of class AST::VectorSupport::CheckActiveElements
+string AST::VectorSupport::CheckActiveElements::_GetCheckTypeString(CheckType eType)
+{
+  switch (eType)
+  {
+  case CheckType::All:    return "All";
+  case CheckType::Any:    return "Any";
+  case CheckType::None:   return "None";
+  default:                throw InternalErrorException("Unknown check type!");
+  }
+}
+
+string AST::VectorSupport::CheckActiveElements::DumpToXML(const size_t cszIntend) const
+{
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["check_type"] = _GetCheckTypeString( GetCheckType() );
+
+  string strXmlString("");
+
+  strXmlString += _DumpResultTypeToXML(cszIntend + 2);
+  strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "SubExpression", _DumpChildToXml(GetSubExpression(), cszIntend + 4) );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "CheckActiveElements", strXmlString, mapAttributes);
+}
+
+AST::BaseClasses::ExpressionPtr AST::VectorSupport::CheckActiveElements::GetSubExpression(IndexType SubExprIndex)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   return GetSubExpression();
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+void AST::VectorSupport::CheckActiveElements::SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr)
+{
+  switch (SubExprIndex)
+  {
+  case 0:   return SetSubExpression(spSubExpr);   break;
+  default:  throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+
 // Implementation of class AST::VectorSupport::VectorIndex
 string AST::VectorSupport::VectorIndex::DumpToXML(const size_t cszIntend) const
 {

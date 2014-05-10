@@ -1221,11 +1221,13 @@ namespace Vectorization
 
       class VectorExpression;
       class BroadCast;
+      class CheckActiveElements;
       class VectorIndex;
 
-      typedef std::shared_ptr< VectorExpression >   VectorExpressionPtr;
-      typedef std::shared_ptr< BroadCast >          BroadCastPtr;
-      typedef std::shared_ptr< VectorIndex >        VectorIndexPtr;
+      typedef std::shared_ptr< VectorExpression >       VectorExpressionPtr;
+      typedef std::shared_ptr< CheckActiveElements >    CheckActiveElementsPtr;
+      typedef std::shared_ptr< BroadCast >              BroadCastPtr;
+      typedef std::shared_ptr< VectorIndex >            VectorIndexPtr;
 
 
     public:
@@ -1241,6 +1243,7 @@ namespace Vectorization
         enum class VectorExpressionType
         {
           BroadCast,
+          CheckActiveElements,
           VectorIndex
         };
 
@@ -1272,6 +1275,9 @@ namespace Vectorization
 
         inline BroadCast() : BaseType(BaseType::VectorExpressionType::BroadCast), _spSubExpression(nullptr)   {}
 
+        virtual ~BroadCast()  {}
+
+
         inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
         inline const ExpressionPtr  GetSubExpression() const                    { return _spSubExpression; }
         inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
@@ -1285,6 +1291,57 @@ namespace Vectorization
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType       GetSubExpressionCount() const final override      { return static_cast< IndexType >( 1 ); }
+        virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+      };
+
+      class CheckActiveElements final : public VectorExpression
+      {
+      private:
+
+        typedef VectorExpression                    BaseType;
+        typedef BaseClasses::ExpressionPtr          ExpressionPtr;
+
+      public:
+
+        enum class CheckType
+        {
+          All,
+          Any,
+          None
+        };
+
+      private:
+
+        CheckType     _eCheckType;
+        ExpressionPtr _spSubExpression;
+
+
+        static std::string _GetCheckTypeString(CheckType eType);
+
+      public:
+
+        inline CheckActiveElements() : BaseType(BaseType::VectorExpressionType::CheckActiveElements), _eCheckType(CheckType::All), _spSubExpression(nullptr)  {}
+
+        virtual ~CheckActiveElements()  {}
+
+
+        inline CheckType  GetCheckType() const                    { return _eCheckType; }
+        inline void       SetCheckType(CheckType eNewCheckType)   { _eCheckType = eNewCheckType; }
+
+        inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
+        inline const ExpressionPtr  GetSubExpression() const                    { return _spSubExpression; }
+        inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
+
+      public:
+
+        virtual bool IsVectorized() final override                            { return false; }
+
+        virtual BaseClasses::TypeInfo  GetResultType() const final override   { return BaseClasses::TypeInfo( BaseClasses::TypeInfo::KnownTypes::Bool, true, false ); }
+
+        virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType       GetSubExpressionCount() const final override                                      { return static_cast< IndexType >(1); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
 
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
@@ -1305,6 +1362,9 @@ namespace Vectorization
       public:
 
         inline VectorIndex() : BaseType(BaseType::VectorExpressionType::VectorIndex), _eType(KnownTypes::Int32)  {}
+
+        virtual ~VectorIndex()  {}
+
 
         inline KnownTypes   GetType() const                 { return _eType; }
         inline void         SetType(KnownTypes eNewType)    { _eType = eNewType; }
