@@ -342,6 +342,9 @@ namespace Vectorization
         virtual ~Node() {}
 
 
+        IndexType GetHierarchyLevel() const;
+
+
         inline NodeType GetNodeType() const    { return _ceNodeType; }
 
         NodePtr       GetParent();

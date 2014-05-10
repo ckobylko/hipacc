@@ -340,6 +340,28 @@ void AST::BaseClasses::Node::_SetParentToChild(NodePtr spChild) const
   }
 }
 
+AST::IndexType AST::BaseClasses::Node::GetHierarchyLevel() const
+{
+  IndexType iHierarchyLevel = static_cast< IndexType >( 0 );
+
+  NodePtr spCurrentNode = GetThis();
+  while (true)
+  {
+    spCurrentNode = spCurrentNode->GetParent();
+
+    if (spCurrentNode)
+    {
+      ++iHierarchyLevel;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  return iHierarchyLevel;
+}
+
 AST::BaseClasses::NodePtr AST::BaseClasses::Node::GetParent()
 {
   return _wpParent.expired() ? nullptr : _wpParent.lock();
@@ -413,8 +435,9 @@ string AST::ControlFlow::Loop::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["type"]       = _GetLoopTypeString(GetLoopType());
-  mapAttributes["vectorize"]  = XMLSupport::ToString( IsVectorized() );
+  mapAttributes["hierarchy_level"]  = XMLSupport::ToString( GetHierarchyLevel() );
+  mapAttributes["type"]             = _GetLoopTypeString(GetLoopType());
+  mapAttributes["vectorize"]        = XMLSupport::ToString( IsVectorized() );
 
   string strXmlString("");
 
@@ -530,7 +553,8 @@ string AST::ControlFlow::BranchingStatement::DumpToXML(const size_t cszIntend) c
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["vectorize"] = XMLSupport::ToString(IsVectorized());
+  mapAttributes["hierarchy_level"]  = XMLSupport::ToString(GetHierarchyLevel());
+  mapAttributes["vectorize"]        = XMLSupport::ToString(IsVectorized());
 
   string strXmlString("");
 
