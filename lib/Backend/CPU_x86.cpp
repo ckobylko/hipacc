@@ -802,8 +802,9 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_4.xml");
 
 
-    Vectorizer.SeparateBranchingStatements(spVecFunction);
+    Vectorizer.RebuildControlFlow(spVecFunction);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_5.xml");
+
 
     Vectorizer.FlattenMemoryAccesses(spVecFunction);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
