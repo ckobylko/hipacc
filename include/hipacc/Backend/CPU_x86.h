@@ -56,6 +56,7 @@ namespace Backend
     enum class CompilerSwitchTypeEnum
     {
       ArrayExport,
+      UnrollVectorLoops,
       VectorizeKernel
     };
 
@@ -87,6 +88,30 @@ namespace Backend
 
 
         typedef CommonDefines::OptionParsers::Integer   OptionParser;   //!< Type definition for the option parser for this switch.
+      };
+
+      /** \brief  The switch type for the "unroll vector array loops" switch. */
+      struct UnrollVectorLoops final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-u"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return "<o>"; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()
+        {
+          std::string strDescription("");
+
+          strDescription += "Specifies, whether loops over vector array expressions shall be unrolled.\n";
+          strDescription += std::string("  Valid values for ") + AdditionalOptions() + std::string(" are \"on\" or \"off\".");
+
+          return strDescription;
+        }
+
+
+        typedef CommonDefines::OptionParsers::OnOff   OptionParser;   //!< Type definition for the option parser for this switch.
       };
 
       /** \brief  The switch type for the "kernel function vectorization" switch. */
@@ -371,6 +396,7 @@ namespace Backend
 
     private:
 
+      bool    _bUnrollVectorLoops;  //!< Specifies, whether loops over vector array expressions shall be unrolled.
       bool    _bVectorizeKernel;    //!< Specifies, whether the kernel function shall be vectorized.
       size_t  _szVectorWidth;       //!< The width of the vectors inside the kernel function in pixels (only relevant if vectorization is turned on).
 

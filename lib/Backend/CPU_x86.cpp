@@ -599,11 +599,13 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageDeclarations(:
 // Implementation of class CPU_x86::CodeGenerator
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
-  _InitSwitch< KnownSwitches::ArrayExport     >( CompilerSwitchTypeEnum::ArrayExport );
-  _InitSwitch< KnownSwitches::VectorizeKernel >( CompilerSwitchTypeEnum::VectorizeKernel );
+  _InitSwitch< KnownSwitches::ArrayExport       >( CompilerSwitchTypeEnum::ArrayExport );
+  _InitSwitch< KnownSwitches::UnrollVectorLoops >( CompilerSwitchTypeEnum::UnrollVectorLoops );
+  _InitSwitch< KnownSwitches::VectorizeKernel   >( CompilerSwitchTypeEnum::VectorizeKernel );
 
-  _bVectorizeKernel = false;
-  _szVectorWidth    = static_cast< size_t >(4);
+  _bUnrollVectorLoops = true;
+  _bVectorizeKernel   = false;
+  _szVectorWidth      = static_cast< size_t >(4);
 }
 
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
@@ -622,6 +624,15 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
       }
 
       _szVectorWidth = static_cast< size_t >( iArraySize );
+      ++szReturnIndex;
+    }
+    break;
+  case CompilerSwitchTypeEnum::UnrollVectorLoops:
+    {
+      ::clang::hipacc::CompilerOption eOption = _ParseOption< KnownSwitches::UnrollVectorLoops >(rvecArguments, szCurrentIndex);
+
+      _bUnrollVectorLoops = (eOption == USER_ON);
+
       ++szReturnIndex;
     }
     break;
@@ -871,7 +882,7 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_7.xml");
 
 
-    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext());
+    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext(), _bUnrollVectorLoops);
   }
   catch (std::exception &e)
   {
