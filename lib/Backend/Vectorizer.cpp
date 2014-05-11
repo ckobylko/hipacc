@@ -794,6 +794,16 @@ string Vectorizer::VASTBuilder::GetNextFreeVariableName(AST::IVariableContainerP
 }
 
 
+// Implementation of class Vectorizer::VASTExportArray
+::clang::Expr* Vectorizer::VASTExportArray::VectorIndex::CreateIndexExpression(::clang::hipacc::Backend::ClangASTHelper &rASTHelper) const
+{
+  switch (_ceIndexType)
+  {
+  case VectorIndexType::Constant:     return rASTHelper.CreateIntegerLiteral( static_cast<int32_t>(_ciVectorIndex) );
+  case VectorIndexType::Identifier:   return rASTHelper.CreateDeclarationReferenceExpression( const_cast<::clang::ValueDecl*>( _cpIndexExprDecl ) );
+  default:                            throw InternalErrorException("Unknown vector index type!");
+  }
+}
 
 Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::ASTContext &rAstContext) : _ASTHelper(rAstContext), _VectorWidth(VectorWidth), _pDeclContext(nullptr)
 {
@@ -870,7 +880,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
           }
           else
           {
-            pInitExpression = _BuildExpression( spRHS, 0 );
+            pInitExpression = _BuildExpression( spRHS, VectorIndex() );
           }
 
           ::clang::ValueDecl *pVarDecl = _CreateValueDeclaration(spIdentifier, pInitExpression);
@@ -940,7 +950,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   }
 }
 
-::clang::Expr* Vectorizer::VASTExportArray::_BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, IndexType iVectorIndex)
+::clang::Expr* Vectorizer::VASTExportArray::_BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex)
 {
   ::clang::Expr *pReturnExpr = nullptr;
 
@@ -969,7 +979,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
       if (spIdentifierInfo->GetVectorize() && IdentifierType.IsSingleValue())
       {
-        ::clang::Expr *pIndex = _ASTHelper.CreateIntegerLiteral( static_cast< int32_t >(iVectorIndex) );
+        ::clang::Expr *pIndex = crVectorIndex.CreateIndexExpression( _ASTHelper );
 
         pReturnExpr = _ASTHelper.CreateArraySubscriptExpression( pDeclRef, pIndex, _ConvertTypeInfo(IdentifierType), (! IdentifierType.GetConst()) );
       }
@@ -984,12 +994,12 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
       AST::BaseClasses::ExpressionPtr   spIndexExpression = spMemoryAccess->GetIndexExpression();
       AST::BaseClasses::TypeInfo        ReturnType        = spMemoryAccess->GetResultType();
 
-      ::clang::Expr *pArrayRef  = _BuildExpression( spMemoryAccess->GetMemoryReference(), iVectorIndex );
-      ::clang::Expr *pIndexExpr = _BuildExpression( spIndexExpression, iVectorIndex );
+      ::clang::Expr *pArrayRef  = _BuildExpression( spMemoryAccess->GetMemoryReference(), crVectorIndex );
+      ::clang::Expr *pIndexExpr = _BuildExpression( spIndexExpression, crVectorIndex );
 
-      if ( ReturnType.IsSingleValue() && (! spIndexExpression->IsVectorized()) && (iVectorIndex != 0) )
+      if ( ReturnType.IsSingleValue() && (! spIndexExpression->IsVectorized()) )
       {
-        ::clang::IntegerLiteral *pIndexOffset = _ASTHelper.CreateIntegerLiteral( static_cast<int32_t>(iVectorIndex) );
+        ::clang::Expr *pIndexOffset = crVectorIndex.CreateIndexExpression( _ASTHelper );
 
         pIndexExpr = _ASTHelper.CreateBinaryOperator( pIndexExpr, pIndexOffset, ::clang::BO_Add, _ConvertTypeInfo(spIndexExpression->GetResultType()) );
       }
@@ -1006,7 +1016,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     AST::Expressions::UnaryExpressionPtr  spUnaryExpression = spExpression->CastToType<AST::Expressions::UnaryExpression>();
     AST::BaseClasses::ExpressionPtr       spSubExpression   = spUnaryExpression->GetSubExpression();
     AST::BaseClasses::TypeInfo            ResultType        = spUnaryExpression->GetResultType();
-    ::clang::Expr*                        pSubExpr          = _BuildExpression( spSubExpression, iVectorIndex );
+    ::clang::Expr*                        pSubExpr          = _BuildExpression( spSubExpression, crVectorIndex );
 
     if (spUnaryExpression->IsType<AST::Expressions::Conversion>())
     {
@@ -1121,8 +1131,8 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   {
     AST::Expressions::BinaryOperatorPtr spBinaryOperator = spExpression->CastToType<AST::Expressions::BinaryOperator>();
 
-    ::clang::Expr *pExprLHS = _BuildExpression( spBinaryOperator->GetLHS(), iVectorIndex );
-    ::clang::Expr *pExprRHS = _BuildExpression( spBinaryOperator->GetRHS(), iVectorIndex );
+    ::clang::Expr *pExprLHS = _BuildExpression( spBinaryOperator->GetLHS(), crVectorIndex );
+    ::clang::Expr *pExprRHS = _BuildExpression( spBinaryOperator->GetRHS(), crVectorIndex );
 
     ::clang::BinaryOperatorKind eOpCode;
 
@@ -1179,7 +1189,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   }
   else if (spExpression->IsType<AST::Expressions::FunctionCall>())
   {
-    pReturnExpr = _BuildFunctionCall(spExpression->CastToType<AST::Expressions::FunctionCall>(), iVectorIndex);
+    pReturnExpr = _BuildFunctionCall(spExpression->CastToType<AST::Expressions::FunctionCall>(), crVectorIndex);
   }
   else if (spExpression->IsType<AST::VectorSupport::VectorExpression>())
   {
@@ -1199,7 +1209,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
         throw RuntimeErrorException("Broad casts are only allowed for single values!");
       }
 
-      pReturnExpr = _BuildExpression(spSubExpression, 0);
+      pReturnExpr = _BuildExpression(spSubExpression, VectorIndex());
     }
     else if (spVectorExpression->IsType<AST::VectorSupport::CheckActiveElements>())
     {
@@ -1246,14 +1256,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
     else if (spVectorExpression->IsType<AST::VectorSupport::VectorIndex>())
     {
-      AST::VectorSupport::VectorIndexPtr spVectorIndex = spVectorExpression->CastToType<AST::VectorSupport::VectorIndex>();
-
-      AST::Expressions::ConstantPtr spConstant = AST::CreateNode<AST::Expressions::Constant>();
-
-      spConstant->SetValue(iVectorIndex);
-      spConstant->ChangeType( spVectorIndex->GetType() );
-
-      pReturnExpr = _BuildConstant( spConstant );
+      pReturnExpr = crVectorIndex.CreateIndexExpression( _ASTHelper );
     }
     else
     {
@@ -1272,22 +1275,40 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 {
   if (spExpression->IsVectorized())
   {
-    ClangASTHelper::StatementVectorType vecStatements;
-
-    for (IndexType iVecIdx = static_cast<IndexType>(0); iVecIdx < _VectorWidth; ++iVecIdx)
+    if (_pVectorIndexExpr)
     {
-      vecStatements.push_back( _BuildExpression(spExpression, iVecIdx) );
-    }
+      // Create a vector loop
+      ::clang::Stmt *pExprStmt = _BuildExpression(spExpression, VectorIndex(_pVectorIndexExpr));
+      pExprStmt                = _ASTHelper.CreateCompoundStatement(pExprStmt);
 
-    return _ASTHelper.CreateCompoundStatement(vecStatements);
+      ::clang::Expr *pCondition = _ASTHelper.CreateBinaryOperator(_ASTHelper.CreateDeclarationReferenceExpression(_pVectorIndexExpr),
+                                                                   _ASTHelper.CreateIntegerLiteral(static_cast<int32_t>(_VectorWidth)),
+                                                                   ::clang::BO_LT, _ASTHelper.GetASTContext().BoolTy );
+
+      ::clang::Expr *pIncrement = _ASTHelper.CreateUnaryOperator( _ASTHelper.CreateDeclarationReferenceExpression(_pVectorIndexExpr), ::clang::UO_PreInc, _pVectorIndexExpr->getType() );
+
+      return _ASTHelper.CreateLoopFor( pCondition, pExprStmt, _ASTHelper.CreateDeclarationStatement(_pVectorIndexExpr), pIncrement );
+    }
+    else
+    {
+      // Unroll the vector-loops
+      ClangASTHelper::StatementVectorType vecStatements;
+
+      for (IndexType iVecIdx = static_cast<IndexType>(0); iVecIdx < _VectorWidth; ++iVecIdx)
+      {
+        vecStatements.push_back( _BuildExpression(spExpression, iVecIdx) );
+      }
+
+      return _ASTHelper.CreateCompoundStatement(vecStatements);
+    }
   }
   else
   {
-    return _BuildExpression(spExpression, 0);
+    return _BuildExpression(spExpression, VectorIndex());
   }
 }
 
-::clang::Expr* Vectorizer::VASTExportArray::_BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex)
+::clang::Expr* Vectorizer::VASTExportArray::_BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, const VectorIndex &crVectorIndex)
 {
   string          strFunctionName = spFunctionCall->GetName();
   const IndexType ciArgumentCount = spFunctionCall->GetCallParameterCount();
@@ -1299,7 +1320,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   for (IndexType iArgIdx = static_cast<IndexType>(0); iArgIdx < ciArgumentCount; ++iArgIdx)
   {
     AST::BaseClasses::ExpressionPtr spCurrentArgument     = spFunctionCall->GetCallParameter(iArgIdx);
-    ::clang::Expr                   *pCurrentArgumentExpr = _BuildExpression(spCurrentArgument, iVectorIndex);
+    ::clang::Expr                   *pCurrentArgumentExpr = _BuildExpression(spCurrentArgument, crVectorIndex);
 
     vecArguments.push_back( pCurrentArgumentExpr );
     vecArgumentTypes.push_back( _ConvertTypeInfo(spCurrentArgument->GetResultType()) );
@@ -1366,7 +1387,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     {
       AST::ControlFlow::ConditionalBranchPtr spCurrentBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
 
-      ::clang::Expr *pCondition = _BuildExpression( spCurrentBranch->GetCondition(), 0 );
+      ::clang::Expr *pCondition = _BuildExpression( spCurrentBranch->GetCondition(), VectorIndex() );
       ::clang::Stmt *pBody      = _BuildCompoundStatement( spCurrentBranch->GetBody() );
 
       vecIfBranches.push_back(_ASTHelper.CreateIfStatement(pCondition, pBody));
@@ -1398,7 +1419,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   LoopType eLoopType = spLoop->GetLoopType();
 
   ::clang::CompoundStmt *pLoopBody      = _BuildCompoundStatement( spLoop->GetBody() );
-  ::clang::Expr         *pConditionExpr = _BuildExpression( spLoop->GetCondition(), 0 );
+  ::clang::Expr         *pConditionExpr = _BuildExpression( spLoop->GetCondition(), VectorIndex() );
   ::clang::Expr         *pIncrementExpr = nullptr;
 
   if (spLoop->GetIncrement())
@@ -1426,7 +1447,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
     else
     {
-      pIncrementExpr = _BuildExpression( spIncrement, 0 );
+      pIncrementExpr = _BuildExpression( spIncrement, VectorIndex() );
     }
   }
 
@@ -1575,7 +1596,7 @@ bool Vectorizer::VASTExportArray::_HasValueDeclaration(string strDeclName)
 }
 
 
-::clang::FunctionDecl* Vectorizer::VASTExportArray::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction)
+::clang::FunctionDecl* Vectorizer::VASTExportArray::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops)
 {
   if (! spVASTFunction)
   {
@@ -1631,12 +1652,25 @@ bool Vectorizer::VASTExportArray::_HasValueDeclaration(string strDeclName)
   }
 
 
+  // If requested, create the vector index expression
+  if (bUnrollVectorLoops)
+  {
+    _pVectorIndexExpr = nullptr;
+  }
+  else
+  {
+    _pVectorIndexExpr = _ASTHelper.CreateVariableDeclaration(pFunctionDecl, "_vec_idx_", _ASTHelper.GetASTContext().IntTy, _ASTHelper.CreateIntegerLiteral(0));
+  }
+  
+
+
   // Build the function body
   pFunctionDecl->setBody( _BuildCompoundStatement( spVASTFunction->GetBody() ) );
 
 
   // Reset exporter state
-  _pDeclContext = nullptr;
+  _pVectorIndexExpr = nullptr;
+  _pDeclContext     = nullptr;
   _mapKnownDeclarations.clear();
   _mapKnownFunctions.clear();
 
@@ -1920,11 +1954,11 @@ AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::Functi
   return VASTBuilder().BuildFunctionDecl(pFunctionDeclaration);
 }
 
-::clang::FunctionDecl* Vectorizer::ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext)
+::clang::FunctionDecl* Vectorizer::ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext, bool bUnrollVectorLoops)
 {
   VASTExportArray Exporter(cszVectorWidth, rASTContext);
 
-  return Exporter.ExportVASTFunction(spVASTFunction);
+  return Exporter.ExportVASTFunction(spVASTFunction, bUnrollVectorLoops);
 }
 
 

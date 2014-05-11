@@ -213,11 +213,45 @@ namespace Vectorization
       typedef std::map< unsigned int, FunctionDeclVectorType >        FunctionDeclParamCountMapType;
       typedef std::map< std::string, FunctionDeclParamCountMapType >  FunctionDeclNameMapType;
 
+      class VectorIndex final
+      {
+      private:
+
+        enum class VectorIndexType
+        {
+          Constant,
+          Identifier
+        };
+
+
+        const VectorIndexType     _ceIndexType;
+        const IndexType           _ciVectorIndex;
+        const ::clang::ValueDecl  *_cpIndexExprDecl;
+
+
+        VectorIndex(const VectorIndex &) = delete;
+        VectorIndex& operator=(const VectorIndex &) = delete;
+
+      public:
+
+        inline VectorIndex(IndexType iVecIdx = static_cast<IndexType>(0)) : _ceIndexType(VectorIndexType::Constant), _ciVectorIndex(iVecIdx), _cpIndexExprDecl(nullptr)  {}
+
+        inline VectorIndex(::clang::ValueDecl *pIndexDecl) : _ceIndexType(VectorIndexType::Identifier), _ciVectorIndex(0), _cpIndexExprDecl(pIndexDecl)  {}
+
+
+        ::clang::Expr* CreateIndexExpression(ClangASTHelper &rASTHelper) const;
+      };
+
+
+    private:
 
       ClangASTHelper        _ASTHelper;
 
       const IndexType       _VectorWidth;
       ::clang::DeclContext  *_pDeclContext;
+
+      ::clang::ValueDecl    *_pVectorIndexExpr;
+
 
       std::map< std::string, ::clang::ValueDecl* >  _mapKnownDeclarations;
       FunctionDeclNameMapType                       _mapKnownFunctions;
@@ -229,11 +263,11 @@ namespace Vectorization
 
       ::clang::Expr*          _BuildConstant(AST::Expressions::ConstantPtr spConstant);
 
-      ::clang::Expr*          _BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, IndexType iVectorIndex);
+      ::clang::Expr*          _BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex);
 
       ::clang::Stmt*          _BuildExpressionStatement(AST::BaseClasses::ExpressionPtr spExpression);
 
-      ::clang::Expr*          _BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, IndexType iVectorIndex);
+      ::clang::Expr*          _BuildFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall, const VectorIndex &crVectorIndex);
 
       ::clang::IfStmt*        _BuildIfStatement(AST::ControlFlow::BranchingStatementPtr spBranchingStatement);
 
@@ -256,7 +290,7 @@ namespace Vectorization
       VASTExportArray(IndexType VectorWidth, ::clang::ASTContext &rAstContext);
 
 
-      ::clang::FunctionDecl* ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction);
+      ::clang::FunctionDecl* ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops);
 
     };
 
@@ -448,7 +482,7 @@ namespace Vectorization
 
     AST::FunctionDeclarationPtr ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
-    ::clang::FunctionDecl*      ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext);
+    ::clang::FunctionDecl*      ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext, bool bUnrollVectorLoops);
 
 
     inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { _RunVASTTransformation(spRootNode, Transformations::FlattenMemoryAccesses()); }
