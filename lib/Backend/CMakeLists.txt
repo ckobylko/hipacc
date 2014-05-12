@@ -36,3 +36,9 @@ SOURCE_GROUP("Source Files\\Generators" FILES ${Backend_Generators_SOURCES})
 SOURCE_GROUP("Header Files\\Common" FILES ${Backend_Common_HEADERS})
 SOURCE_GROUP("Header Files\\Generators" FILES ${Backend_Generators_HEADERS})
 SOURCE_GROUP("Header Files\\Generators\\Base" FILES ${Backend_Generators_Base_HEADERS})
+
+# Activate Runtime Type Information for the Backend library
+IF (MSVC)
+    SET_TARGET_PROPERTIES(Backend PROPERTIES COMPILE_FLAGS "/GR")
+ENDIF (MSVC)
+
