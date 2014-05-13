@@ -123,6 +123,13 @@ namespace Backend
      *  \param  crvecStatements   A reference to the statement vector. */
     ::clang::CompoundStmt*            CreateCompoundStatement(const StatementVectorType &crvecStatements);
 
+    /** \brief  Constructs a conditional operator expression object (i.e. the "<cond> ? <expr_1> : <expr_2>" operator).
+     *  \param  pCondition    A pointer to the expression object, which represents the condition.
+     *  \param  pThenExpr     A pointer to the expression object, which will be returned when the condition is evaluated to <b>true</b>.
+     *  \param  pElseExpr     A pointer to the expression object, which will be returned when the condition is evaluated to <b>false</b>.
+     *  \param  crReturnType  The return type of the operator expression. */
+    ::clang::ConditionalOperator*     CreateConditionalOperator(::clang::Expr *pCondition, ::clang::Expr *pThenExpr, ::clang::Expr *pElseExpr, const ::clang::QualType &crReturnType);
+
     /** \brief  Constructs a declaration reference expression which points to a specific declaration.
      *  \param  pValueDecl  A pointer to the value declaration object. */
     ::clang::DeclRefExpr*             CreateDeclarationReferenceExpression(::clang::ValueDecl *pValueDecl);

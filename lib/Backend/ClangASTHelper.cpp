@@ -111,6 +111,11 @@ CompoundStmt* ClangASTHelper::CreateCompoundStatement(const StatementVectorType 
   return ASTNode::createCompoundStmt(GetASTContext(), crvecStatements);
 }
 
+ConditionalOperator* ClangASTHelper::CreateConditionalOperator(Expr *pCondition, Expr *pThenExpr, Expr *pElseExpr, const QualType &crReturnType)
+{
+  return new (GetASTContext()) ConditionalOperator(pCondition, SourceLocation(), pThenExpr, SourceLocation(), pElseExpr, crReturnType, VK_RValue, OK_Ordinary);
+}
+
 DeclRefExpr* ClangASTHelper::CreateDeclarationReferenceExpression(ValueDecl *pValueDecl)
 {
   return ASTNode::createDeclRefExpr(GetASTContext(), pValueDecl);
