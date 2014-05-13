@@ -267,6 +267,8 @@ namespace Vectorization
 
       public:
 
+        static VariableInfoPtr Create(std::string strName, const TypeInfo &crTypeInfo, bool bVectorize = false);
+
         inline VariableInfo() : _strName(""), _bVectorize(false)    {}
 
         inline std::string  GetName() const               { return _strName; }
@@ -549,6 +551,8 @@ namespace Vectorization
 
       public:
 
+        static ConditionalBranchPtr Create(ExpressionPtr spCondition);
+
         ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
 
         virtual ~ConditionalBranch()  {}
@@ -584,6 +588,8 @@ namespace Vectorization
         ScopePtr                              _spDefaultBranch;
 
       public:
+
+        static BranchingStatementPtr Create();
 
         BranchingStatement() : BaseType(BaseType::ControlFlowType::BranchingStatement), _spDefaultBranch(nullptr)   {}
 
@@ -723,6 +729,17 @@ namespace Vectorization
 
       public:
 
+        template <typename ValueType>
+        static ConstantPtr Create(ValueType TValue)
+        {
+          ConstantPtr spConstant = AST::CreateNode<Constant>();
+
+          spConstant->SetValue(TValue);
+
+          return spConstant;
+        }
+
+
         inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
 
         virtual ~Constant() {}
@@ -808,6 +825,8 @@ namespace Vectorization
         std::string   _strName;
 
       public:
+
+        static IdentifierPtr Create( std::string strName );
 
         inline Identifier() : BaseType(BaseType::ValueType::Identifier)   {}
 
@@ -1000,7 +1019,7 @@ namespace Vectorization
 
       class BinaryOperator : public BaseClasses::Expression
       {
-      private:
+      protected:
 
         typedef BaseClasses::Expression     BaseType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
@@ -1084,7 +1103,9 @@ namespace Vectorization
 
       public:
 
-        inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator)  {}
+        static ArithmeticOperatorPtr Create(ArithmeticOperatorType eOpType = ArithmeticOperatorType::Add, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
+
+        inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator), _eOpType(ArithmeticOperatorType::Add)  {}
 
         virtual ~ArithmeticOperator() {}
 
@@ -1105,9 +1126,12 @@ namespace Vectorization
       {
       private:
 
-        typedef BinaryOperator    BaseType;
+        typedef BinaryOperator            BaseType;
+        typedef BaseType::ExpressionPtr   ExpressionPtr;
 
       public:
+
+        static AssignmentOperatorPtr Create(ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
 
         inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator)  {}
 
@@ -1150,7 +1174,7 @@ namespace Vectorization
 
       public:
 
-        inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator)  {}
+        inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator), _eOpType(RelationalOperatorType::Equal)  {}
 
         virtual ~RelationalOperator() {}
 
@@ -1273,6 +1297,8 @@ namespace Vectorization
 
       public:
 
+        static BroadCastPtr Create(ExpressionPtr spSubExpression = nullptr);
+
         inline BroadCast() : BaseType(BaseType::VectorExpressionType::BroadCast), _spSubExpression(nullptr)   {}
 
         virtual ~BroadCast()  {}
@@ -1321,6 +1347,8 @@ namespace Vectorization
         static std::string _GetCheckTypeString(CheckType eType);
 
       public:
+
+        static CheckActiveElementsPtr Create(CheckType eCheckType = CheckType::All, ExpressionPtr spSubExpression = nullptr);
 
         inline CheckActiveElements() : BaseType(BaseType::VectorExpressionType::CheckActiveElements), _eCheckType(CheckType::All), _spSubExpression(nullptr)  {}
 
@@ -1432,6 +1460,8 @@ namespace Vectorization
 
     public:
 
+      static ScopePtr Create();
+
       inline Scope() : BaseType(Node::NodeType::Scope)   {}
 
       virtual ~Scope()  {}
@@ -1447,6 +1477,11 @@ namespace Vectorization
       VariableDeclarationVectorType   GetVariableDeclarations() const;
       inline bool                     HasVariableDeclaration(std::string strVariableName) const   { return (_setDeclaredVariables.count(strVariableName) != 0); }
       void                            ImportVariableDeclarations(ScopePtr spOtherScope);
+
+      void ImportScope(ScopePtr spOtherScope);
+
+      inline bool IsEmpty() const   { return (GetChildCount() == static_cast<IndexType>(0)); }
+
 
     public:
 

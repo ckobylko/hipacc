@@ -314,6 +314,17 @@ bool AST::BaseClasses::TypeInfo::IsSigned(KnownTypes eType)
 
 
 // Implementation of class AST::BaseClasses::VariableInfo
+AST::BaseClasses::VariableInfoPtr AST::BaseClasses::VariableInfo::Create(string strName, const TypeInfo &crTypeInfo, bool bVectorize)
+{
+  AST::BaseClasses::VariableInfoPtr spVariableInfo = make_shared<AST::BaseClasses::VariableInfo>();
+
+  spVariableInfo->GetTypeInfo() = crTypeInfo;
+  spVariableInfo->SetName(strName);
+  spVariableInfo->SetVectorize(bVectorize);
+
+  return spVariableInfo;
+}
+
 string AST::BaseClasses::VariableInfo::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -488,6 +499,18 @@ bool AST::ControlFlow::Loop::IsVectorized() const
 
 
 // Implementation of class AST::ControlFlow::ConditionalBranch
+AST::ControlFlow::ConditionalBranchPtr AST::ControlFlow::ConditionalBranch::Create(ExpressionPtr spCondition)
+{
+  ConditionalBranchPtr spCondBranch = AST::CreateNode<ConditionalBranch>();
+
+  spCondBranch->SetCondition(spCondition);
+
+  // Initialize branch body
+  spCondBranch->GetBody();
+
+  return spCondBranch;
+}
+
 string AST::ControlFlow::ConditionalBranch::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -547,6 +570,16 @@ void AST::ControlFlow::BranchingStatement::AddConditionalBranch(ConditionalBranc
 
   _SetParentToChild(spBranch);
   _vecBranches.push_back(spBranch);
+}
+
+AST::ControlFlow::BranchingStatementPtr AST::ControlFlow::BranchingStatement::Create()
+{
+  BranchingStatementPtr spBranchingStatement = AST::CreateNode<BranchingStatement>();
+
+  // Initialize body of default branch
+  spBranchingStatement->GetDefaultBranch();
+
+  return spBranchingStatement;
 }
 
 string AST::ControlFlow::BranchingStatement::DumpToXML(const size_t cszIntend) const
@@ -707,6 +740,15 @@ AST::BaseClasses::TypeInfo AST::Expressions::Constant::GetResultType() const
 
 
 // Implementation of class AST::Expressions::Identifier
+AST::Expressions::IdentifierPtr AST::Expressions::Identifier::Create(string strName)
+{
+  IdentifierPtr spIdentifier = AST::CreateNode<Identifier>();
+
+  spIdentifier->SetName( strName );
+
+  return spIdentifier;
+}
+
 string AST::Expressions::Identifier::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -989,6 +1031,17 @@ AST::BaseClasses::TypeInfo::KnownTypes AST::Expressions::ArithmeticOperator::_Ge
   }
 }
 
+AST::Expressions::ArithmeticOperatorPtr AST::Expressions::ArithmeticOperator::Create(ArithmeticOperatorType eOpType, ExpressionPtr spLHS, ExpressionPtr spRHS)
+{
+  ArithmeticOperatorPtr spArithmeticOp = AST::CreateNode<ArithmeticOperator>();
+
+  spArithmeticOp->SetOperatorType(eOpType);
+  spArithmeticOp->SetLHS(spLHS);
+  spArithmeticOp->SetRHS(spRHS);
+
+  return spArithmeticOp;
+}
+
 string AST::Expressions::ArithmeticOperator::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -1052,6 +1105,16 @@ AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType()
 
 
 // Implementation of class AST::Expressions::AssignmentOperator
+AST::Expressions::AssignmentOperatorPtr AST::Expressions::AssignmentOperator::Create(ExpressionPtr spLHS, ExpressionPtr spRHS)
+{
+  AssignmentOperatorPtr spAssignment = AST::CreateNode<AssignmentOperator>();
+
+  spAssignment->SetLHS(spLHS);
+  spAssignment->SetRHS(spRHS);
+
+  return spAssignment;
+}
+
 string AST::Expressions::AssignmentOperator::DumpToXML(const size_t cszIntend) const
 {
   return XMLSupport::CreateXmlTag( cszIntend, "AssignmentOperator", _DumpSubExpressionsToXML(cszIntend + 2) );
@@ -1173,6 +1236,15 @@ void AST::Expressions::FunctionCall::SetCallParameter(IndexType CallParamIndex, 
 /*************************/
 
 // Implementation of class AST::VectorSupport::BroadCast
+AST::VectorSupport::BroadCastPtr AST::VectorSupport::BroadCast::Create(ExpressionPtr spSubExpression)
+{
+  BroadCastPtr spBroadCast = AST::CreateNode<BroadCast>();
+
+  spBroadCast->SetSubExpression(spSubExpression);
+
+  return spBroadCast;
+}
+
 string AST::VectorSupport::BroadCast::DumpToXML(const size_t cszIntend) const
 {
   string strXmlString("");
@@ -1224,6 +1296,16 @@ string AST::VectorSupport::CheckActiveElements::_GetCheckTypeString(CheckType eT
   case CheckType::None:   return "None";
   default:                throw InternalErrorException("Unknown check type!");
   }
+}
+
+AST::VectorSupport::CheckActiveElementsPtr AST::VectorSupport::CheckActiveElements::Create(CheckType eCheckType, ExpressionPtr spSubExpression)
+{
+  CheckActiveElementsPtr spCheckElements = AST::CreateNode<CheckActiveElements>();
+
+  spCheckElements->SetCheckType(eCheckType);
+  spCheckElements->SetSubExpression(spSubExpression);
+
+  return spCheckElements;
 }
 
 string AST::VectorSupport::CheckActiveElements::DumpToXML(const size_t cszIntend) const
@@ -1325,6 +1407,11 @@ void AST::Scope::AddVariableDeclaration(BaseClasses::VariableInfoPtr spVariableI
   AddVariable(spVariableInfo);
 }
 
+AST::ScopePtr AST::Scope::Create()
+{
+  return AST::CreateNode<Scope>();
+}
+
 string AST::Scope::DumpToXML(const size_t cszIntend) const
 {
   string strXmlString("");
@@ -1417,6 +1504,20 @@ AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVar
   }
 
   return nullptr;
+}
+
+void AST::Scope::ImportScope(ScopePtr spOtherScope)
+{
+  CHECK_NULL_POINTER(spOtherScope);
+
+  ImportVariableDeclarations(spOtherScope);
+
+  for each (auto itChild in spOtherScope->_Children)
+  {
+    AddChild(itChild);
+  }
+
+  spOtherScope->_Children.clear();
 }
 
 void AST::Scope::ImportVariableDeclarations(ScopePtr spOtherScope)
