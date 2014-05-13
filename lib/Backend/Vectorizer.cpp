@@ -1705,13 +1705,13 @@ void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST:
 
     Transformations::FindAssignments AssignmentFinder;
 
-    _RunVASTTransformation(spBranch->GetBody(), AssignmentFinder);
+    Transformations::Run(spBranch->GetBody(), AssignmentFinder);
 
-    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
     {
       // Check if the assignment is done to a branch internal variable (these variables do not depend on the conditions)
       CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
-      _RunVASTTransformation( spBranch, DeclChecker );
+      Transformations::Run(spBranch, DeclChecker);
 
       // Only add assignments to external variables to the result map
       if (! DeclChecker.Found())
@@ -1728,13 +1728,13 @@ void Vectorizer::Transformations::FindBranchingInternalAssignments::Execute(AST:
   {
     Transformations::FindAssignments AssignmentFinder;
 
-    _RunVASTTransformation(spBranchingStmt->GetDefaultBranch(), AssignmentFinder);
+    Transformations::Run(spBranchingStmt->GetDefaultBranch(), AssignmentFinder);
 
-    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
     {
       // Check if the assignment is done to a branch internal variable (these variables do not depend on the conditions)
       CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
-      _RunVASTTransformation( spBranchingStmt->GetDefaultBranch(), DeclChecker );
+      Transformations::Run(spBranchingStmt->GetDefaultBranch(), DeclChecker);
 
       // Only add assignments to external variables to the result map
       if (! DeclChecker.Found())
@@ -1753,13 +1753,13 @@ void Vectorizer::Transformations::FindLoopInternalAssignments::Execute(AST::Cont
   // Find all assignments inside the loop body
   Transformations::FindAssignments AssignmentFinder;
 
-  _RunVASTTransformation(spLoop->GetBody(), AssignmentFinder);
+  Transformations::Run(spLoop->GetBody(), AssignmentFinder);
 
-  for each (auto itAssignment in AssignmentFinder.lstAssignments)
+  for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
   {
     // Check if the assignment is done to a loop internal variable (these variables do not depend on the loop condition)
     CheckInternalDeclaration DeclChecker( _GetAssigneeInfo(itAssignment)->GetName() );
-    _RunVASTTransformation(spLoop->GetBody(), DeclChecker);
+    Transformations::Run(spLoop->GetBody(), DeclChecker);
 
     // Only add assignments to external variables to the result map
     if (! DeclChecker.Found())
@@ -1986,7 +1986,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
   {
     Transformations::FindNodes< AST::ControlFlow::Loop >  LoopFinder;
-    _RunVASTTransformation(spFunction, LoopFinder);
+    Transformations::Run(spFunction, LoopFinder);
 
     for each (auto itLoop in LoopFinder.lstFoundNodes)
     {
@@ -2007,7 +2007,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
     Transformations::FindNodes< AST::ControlFlow::BranchingStatement >  BranchingStatementFinder;
 
-    _RunVASTTransformation(spFunction, BranchingStatementFinder);
+    Transformations::Run(spFunction, BranchingStatementFinder);
 
     for each (auto itBranchingStmt in BranchingStatementFinder.lstFoundNodes)
     {
@@ -2047,9 +2047,9 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
   {
     Transformations::FindAssignments AssignmentFinder;
 
-    _RunVASTTransformation(spFunction, AssignmentFinder);
+    Transformations::Run(spFunction, AssignmentFinder);
 
-    for each (auto itAssignment in AssignmentFinder.lstAssignments)
+    for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
     {
       mapVariableDependencies[ _GetAssigneeInfo(itAssignment) ].push_back( itAssignment->GetRHS() );
     }
@@ -2059,7 +2059,7 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
   {
     Transformations::FindLoopInternalAssignments LoopAssignmentFinder;
 
-    _RunVASTTransformation(spFunction, LoopAssignmentFinder);
+    Transformations::Run(spFunction, LoopAssignmentFinder);
 
     for each (auto itCondAssignment in LoopAssignmentFinder.mapConditionalAssignments)
     {
@@ -2076,7 +2076,7 @@ void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
   {
     Transformations::FindBranchingInternalAssignments BranchAssignmentFinder;
 
-    _RunVASTTransformation(spFunction, BranchAssignmentFinder);
+    Transformations::Run(spFunction, BranchAssignmentFinder);
 
     for each (auto itCondAssignment in BranchAssignmentFinder.mapConditionalAssignments)
     {

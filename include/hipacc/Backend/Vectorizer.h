@@ -298,6 +298,14 @@ namespace Vectorization
 
     class Transformations final
     {
+    public:
+
+      enum class DirectionType
+      {
+        BottomUp,
+        TopDown
+      };
+
     private:
 
       template < class TransformationType >
@@ -321,15 +329,73 @@ namespace Vectorization
         }
       }
 
+      class TransformationBase
+      {
+      public:
+
+        virtual ~TransformationBase()   {}
+
+        virtual DirectionType GetSearchDirection() const    { return DirectionType::BottomUp; }
+      };
+
+
+    public:
+
+      template < class TransformationType >
+      inline static void Run(AST::BaseClasses::NodePtr spCurrentNode, TransformationType &rTransformation)
+      {
+        typedef typename TransformationType::TargetType   TargetType;
+
+        static_assert(std::is_base_of< AST::BaseClasses::Node, TargetType >::value,     "The target type of the VAST transformation must be derived from class\"AST::BaseClasses::Node\"!");
+        static_assert(std::is_base_of< TransformationBase, TransformationType >::value, "The transformation class must be derived from class\"TransformationBase\"!");
+
+        // Skip unset children
+        if (! spCurrentNode)
+        {
+          return;
+        }
+
+        // Check if the current node is of the target type
+        const bool cbIsTarget = spCurrentNode->IsType<TargetType>();
+
+        // Get the search direction
+        DirectionType eSearchDirection  = rTransformation.GetSearchDirection();
+        if ((eSearchDirection != DirectionType::BottomUp) && (eSearchDirection != DirectionType::TopDown))
+        {
+          throw InternalErrorException("Invalid VAST transformation search direction type!");
+        }
+
+
+        // Execute the transformation before parsing the children for "top-down" search
+        if (cbIsTarget && (eSearchDirection == DirectionType::TopDown))
+        {
+          rTransformation.Execute( spCurrentNode->CastToType<TargetType>() );
+        }
+
+        // Parse all children of the current node
+        for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spCurrentNode->GetChildCount(); ++iChildIdx)
+        {
+          Run(spCurrentNode->GetChild(iChildIdx), rTransformation);
+        }
+
+        // Execute the transformation after parsing the children for "bottom-up" search
+        if (cbIsTarget && (eSearchDirection == DirectionType::BottomUp))
+        {
+          rTransformation.Execute( spCurrentNode->CastToType<TargetType>() );
+        }
+      }
+
 
     public:
 
       template < class NodeClass >
-      class FindNodes final
+      class FindNodes final : public TransformationBase
       {
       private:
 
         static_assert( std::is_base_of< AST::BaseClasses::Node, NodeClass >::value, "The NodeClass type must be derived from class \"AST::BaseClasses::Node\" !" );
+
+        const DirectionType _ceSearchDirection;
 
       public:
 
@@ -338,11 +404,17 @@ namespace Vectorization
 
         std::list< TargetTypePtr >  lstFoundNodes;
 
+
+        FindNodes(DirectionType eSearchDirection = DirectionType::BottomUp) : _ceSearchDirection(eSearchDirection)  {}
+
+        virtual DirectionType GetSearchDirection() const    { return _ceSearchDirection; }
+
+
         inline void Execute(TargetTypePtr spFoundNode)    { lstFoundNodes.push_back(spFoundNode); }
       };
 
 
-      class CheckInternalDeclaration final
+      class CheckInternalDeclaration final : public TransformationBase
       {
       public:
 
@@ -362,18 +434,7 @@ namespace Vectorization
         inline bool Found() const   { return _bFound; }
       };
 
-      class FindAssignments final
-      {
-      public:
-
-        typedef AST::Expressions::AssignmentOperator      TargetType;
-
-        std::list< AST::Expressions::AssignmentOperatorPtr >  lstAssignments;
-
-        inline void Execute(AST::Expressions::AssignmentOperatorPtr spAssignment)   { lstAssignments.push_back(spAssignment); }
-      };
-
-      class FindBranchingInternalAssignments final
+      class FindBranchingInternalAssignments final : public TransformationBase
       {
       public:
 
@@ -384,7 +445,7 @@ namespace Vectorization
         void Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt);
       };
 
-      class FindLoopInternalAssignments final
+      class FindLoopInternalAssignments final : public TransformationBase
       {
       public:
 
@@ -395,7 +456,7 @@ namespace Vectorization
         void Execute(AST::ControlFlow::LoopPtr spLoop);
       };
 
-      class FlattenMemoryAccesses final
+      class FlattenMemoryAccesses final : public TransformationBase
       {
       public:
 
@@ -404,7 +465,7 @@ namespace Vectorization
         void Execute(AST::Expressions::MemoryAccessPtr spMemoryAccess);
       };
 
-      class FlattenScopes final
+      class FlattenScopes final : public TransformationBase
       {
       public:
 
@@ -417,7 +478,7 @@ namespace Vectorization
         IndexType ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope);
       };
 
-      class RemoveUnnecessaryConversions final
+      class RemoveUnnecessaryConversions final : public TransformationBase
       {
       public:
 
@@ -430,7 +491,7 @@ namespace Vectorization
         IndexType ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion);
       };
 
-      class SeparateBranchingStatements final
+      class SeparateBranchingStatements final : public TransformationBase
       {
       public:
 
@@ -438,33 +499,12 @@ namespace Vectorization
 
         void Execute(AST::ControlFlow::BranchingStatementPtr spBranchingStmt);
       };
+
+
+    public:
+
+      typedef FindNodes< AST::Expressions::AssignmentOperator >   FindAssignments;
     };
-
-
-    template < class TransformationType >
-    inline static void _RunVASTTransformation(AST::BaseClasses::NodePtr spCurrentNode, TransformationType &rTransformation)
-    {
-      typedef typename TransformationType::TargetType   TargetType;
-      static_assert( std::is_base_of< AST::BaseClasses::Node, TargetType >::value, "The target type of the VAST transformation must be derived from class\"AST::BaseClasses::Node\"!" );
-
-      // Skip unset children
-      if (! spCurrentNode)
-      {
-        return;
-      }
-
-      // Run a depth-first search on the whole VAST tree
-      for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spCurrentNode->GetChildCount(); ++iChildIdx)
-      {
-        _RunVASTTransformation(spCurrentNode->GetChild(iChildIdx), rTransformation);
-      }
-
-      // Execute the transformation if the current node is of the target type
-      if (spCurrentNode->IsType<TargetType>())
-      {
-        rTransformation.Execute(spCurrentNode->CastToType<TargetType>());
-      }
-    }
 
 
     static AST::BaseClasses::VariableInfoPtr _GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment);
@@ -485,10 +525,10 @@ namespace Vectorization
     ::clang::FunctionDecl*      ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext, bool bUnrollVectorLoops);
 
 
-    inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { _RunVASTTransformation(spRootNode, Transformations::FlattenMemoryAccesses()); }
-    inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { _RunVASTTransformation(spRootNode, Transformations::FlattenScopes()); }
-    inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { _RunVASTTransformation(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
-    inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { _RunVASTTransformation(spRootNode, Transformations::SeparateBranchingStatements()); }
+    inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { Transformations::Run(spRootNode, Transformations::FlattenMemoryAccesses()); }
+    inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { Transformations::Run(spRootNode, Transformations::FlattenScopes()); }
+    inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { Transformations::Run(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
+    inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { Transformations::Run(spRootNode, Transformations::SeparateBranchingStatements()); }
 
 
     void RebuildControlFlow(AST::FunctionDeclarationPtr spFunction);
