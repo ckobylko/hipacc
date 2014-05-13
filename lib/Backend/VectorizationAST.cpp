@@ -1105,12 +1105,13 @@ AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType()
 
 
 // Implementation of class AST::Expressions::AssignmentOperator
-AST::Expressions::AssignmentOperatorPtr AST::Expressions::AssignmentOperator::Create(ExpressionPtr spLHS, ExpressionPtr spRHS)
+AST::Expressions::AssignmentOperatorPtr AST::Expressions::AssignmentOperator::Create(ExpressionPtr spLHS, ExpressionPtr spRHS, IdentifierPtr spMask)
 {
   AssignmentOperatorPtr spAssignment = AST::CreateNode<AssignmentOperator>();
 
   spAssignment->SetLHS(spLHS);
   spAssignment->SetRHS(spRHS);
+  spAssignment->SetMask(spMask);
 
   return spAssignment;
 }
@@ -1136,6 +1137,63 @@ AST::BaseClasses::TypeInfo AST::Expressions::AssignmentOperator::GetResultType()
   else
   {
     return BaseClasses::TypeInfo();
+  }
+}
+
+AST::BaseClasses::ExpressionPtr AST::Expressions::AssignmentOperator::GetSubExpression(IndexType SubExprIndex)
+{
+  const IndexType ciBaseSubExprCount = BaseType::GetSubExpressionCount();
+
+  if (SubExprIndex < ciBaseSubExprCount)
+  {
+    return BaseType::GetSubExpression(SubExprIndex);
+  }
+  else if (SubExprIndex == ciBaseSubExprCount)
+  {
+    return GetMask();
+  }
+  else
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
+  }
+}
+
+AST::IndexType AST::Expressions::AssignmentOperator::GetSubExpressionCount() const
+{
+  const IndexType ciBaseSubExprCount = BaseType::GetSubExpressionCount();
+
+  return IsMasked() ? (ciBaseSubExprCount + 1) : ciBaseSubExprCount;
+}
+
+void AST::Expressions::AssignmentOperator::SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr)
+{
+  const IndexType ciBaseSubExprCount = BaseType::GetSubExpressionCount();
+
+  if (SubExprIndex < ciBaseSubExprCount)
+  {
+    BaseType::SetSubExpression(SubExprIndex, spSubExpr);
+  }
+  else if (SubExprIndex == ciBaseSubExprCount)
+  {
+    IdentifierPtr spNewMask = nullptr;
+
+    if (spSubExpr)
+    {
+      if (spSubExpr->IsType<Identifier>())
+      {
+        SetMask( spSubExpr->CastToType<Identifier>() );
+      }
+      else
+      {
+        throw InternalErrorException("Expected an identifier expression for the mask parameter!");
+      }
+    }
+
+    SetMask(spNewMask);
+  }
+  else
+  {
+    throw ASTExceptions::ChildIndexOutOfRange();
   }
 }
 

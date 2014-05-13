@@ -1062,9 +1062,9 @@ namespace Vectorization
 
       public:
 
-        virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
-        virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
-        virtual void                        SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr) final override;
+        virtual ExpressionPtr GetSubExpression(IndexType SubExprIndex) override;
+        virtual IndexType     GetSubExpressionCount() const override      { return static_cast< IndexType >(2); }
+        virtual void          SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) override;
       };
 
       class ArithmeticOperator final : public BinaryOperator
@@ -1129,13 +1129,24 @@ namespace Vectorization
         typedef BinaryOperator            BaseType;
         typedef BaseType::ExpressionPtr   ExpressionPtr;
 
+      private:
+
+        IdentifierPtr   _spMask;
+
       public:
 
-        static AssignmentOperatorPtr Create(ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
+        static AssignmentOperatorPtr Create(ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr, IdentifierPtr spMask = nullptr);
 
-        inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator)  {}
+        inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator), _spMask(nullptr)  {}
 
         virtual ~AssignmentOperator() {}
+
+        inline IdentifierPtr        GetMask()                         { return _spMask; }
+        inline const IdentifierPtr  GetMask() const                   { return _spMask; }
+        inline void                 SetMask(IdentifierPtr spNewMask)  { _SetChildPtr(_spMask, spNewMask); }
+
+
+        inline bool IsMasked() const  { return static_cast<bool>( GetMask() ); }
 
 
       public:
@@ -1144,6 +1155,10 @@ namespace Vectorization
 
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
 
+
+        virtual ExpressionPtr GetSubExpression(IndexType SubExprIndex) final override;
+        virtual IndexType     GetSubExpressionCount() const final override;
+        virtual void          SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
       };
 
       class RelationalOperator final : public BinaryOperator
