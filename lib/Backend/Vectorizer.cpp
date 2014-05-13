@@ -564,6 +564,14 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
   {
     _BuildBranchingStatement(dyn_cast<::clang::IfStmt>(pStatement), spEnclosingScope);
   }
+  else if (isa<::clang::BreakStmt>(pStatement))
+  {
+    spStatement = AST::ControlFlow::LoopControlStatement::Create( AST::ControlFlow::LoopControlStatement::LoopControlType::Break );
+  }
+  else if (isa<::clang::ContinueStmt>(pStatement))
+  {
+    spStatement = AST::ControlFlow::LoopControlStatement::Create( AST::ControlFlow::LoopControlStatement::LoopControlType::Continue );
+  }
   else
   {
     throw ASTExceptions::UnknownStatementClass(pStatement->getStmtClassName());
@@ -889,6 +897,23 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
       if (spControlFlow->IsType<AST::ControlFlow::Loop>())
       {
         pChildStmt = _BuildLoop( spControlFlow->CastToType<AST::ControlFlow::Loop>() );
+      }
+      else if (spControlFlow->IsType<AST::ControlFlow::LoopControlStatement>())
+      {
+        typedef AST::ControlFlow::LoopControlStatement::LoopControlType   LoopControlType;
+
+        AST::ControlFlow::LoopControlStatementPtr spLoopCtrlStmt = spControlFlow->CastToType<AST::ControlFlow::LoopControlStatement>();
+        if (spLoopCtrlStmt->IsVectorized())
+        {
+          throw InternalErrorException("Cannot handle vectorized loop control statements!");
+        }
+
+        switch (spLoopCtrlStmt->GetControlType())
+        {
+        case LoopControlType::Break:      pChildStmt = _ASTHelper.CreateBreakStatement();     break;
+        case LoopControlType::Continue:   pChildStmt = _ASTHelper.CreateContinueStatement();  break;
+        default:                          throw InternalErrorException("Unknown VAST loop control statement detected!");
+        }
       }
       else if (spControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
@@ -2021,6 +2046,10 @@ void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string 
 
 void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 {
+  typedef map< AST::BaseClasses::NodePtr, list< string > >      ControlMaskMapType;
+  ControlMaskMapType  mapControlMasks;
+
+
   // Separate mixed branching statements into scalar and vectorized branching statements
   SeparateBranchingStatements(spFunction);
 
@@ -2055,11 +2084,8 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
   // Rebuild the control flow statements
   {
     typedef AST::VectorSupport::CheckActiveElements::CheckType    VectorCheckType;
-    typedef map< AST::BaseClasses::NodePtr, list< string > >      ControlMaskMapType;
 
     AST::BaseClasses::TypeInfo MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
-
-    ControlMaskMapType  mapControlMasks;
 
     for each (auto itControlFlow in lstControlFlowStatements)
     {
@@ -2123,32 +2149,75 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           AST::ScopePtr       spLoopParentScope = LoopScopePos.GetScope();
 
           strGlobalMaskName = VASTBuilder::GetNextFreeVariableName(spLoopParentScope, "_mask_loop_global");
-          strLocalMaskName  = VASTBuilder::GetNextFreeVariableName(spLoopParentScope, "_mask_loop_local");
 
           spLoopParentScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strGlobalMaskName, MaskTypeInfo, true) );
-          spLoopBody->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName, MaskTypeInfo, true) );
 
           // Create global mask assignment
-          spLoopParentScope->InsertChild( LoopScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
+          spLoopParentScope->InsertChild(LoopScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask));
 
-          // Insert the control masks into the map
-          mapControlMasks[ spLoop ].push_front( strGlobalMaskName );
-          mapControlMasks[ spLoop ].push_front( strLocalMaskName );
+          // Insert the global control mask into the map
+          mapControlMasks[spLoop].push_front(strGlobalMaskName);
 
-          strCurrentMaskName = strLocalMaskName;
+
+          // Check if a local control mask is required
+          bool bUseLocalMask = false;
+          {
+            Transformations::FindNodes< AST::ControlFlow::LoopControlStatement >  LoopControlFinder( Transformations::DirectionType::TopDown );
+            Transformations::Run(spLoopBody, LoopControlFinder);
+
+            // The local control mask is only required if "continue" statements are present for this loop
+            for each (auto itLoopControl in LoopControlFinder.lstFoundNodes)
+            {
+              if ((itLoopControl->GetControlledLoop() == spLoop) && (itLoopControl->GetControlType() == AST::ControlFlow::LoopControlStatement::LoopControlType::Continue))
+              {
+                bUseLocalMask = true;
+                break;
+              }
+            }
+          }
+
+          // Create the local control mask if required
+          if (bUseLocalMask)
+          {
+            strLocalMaskName = VASTBuilder::GetNextFreeVariableName(spLoopParentScope, "_mask_loop_local");
+
+            spLoopBody->AddVariableDeclaration(AST::BaseClasses::VariableInfo::Create(strLocalMaskName, MaskTypeInfo, true));
+
+            mapControlMasks[spLoop].push_front(strLocalMaskName);
+
+            strCurrentMaskName = strLocalMaskName;
+          }
+          else
+          {
+            strLocalMaskName    = "";
+            strCurrentMaskName  = strGlobalMaskName;
+          }
         }
 
         // Rebuild the loop
         if (spLoop->GetLoopType() == AST::ControlFlow::Loop::LoopType::TopControlled)
         {
-          AST::ScopePtr spTempScope = AST::Scope::Create();
-          _CreateLocalMaskComputation(spTempScope, spLoop->GetCondition(), strLocalMaskName, strGlobalMaskName, false);
-
-          spLoopBody->ImportVariableDeclarations(spTempScope);
-
-          for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spTempScope->GetChildCount(); ++iChildIdx)
+          if (strLocalMaskName.empty())
           {
-            spLoopBody->InsertChild( iChildIdx, spTempScope->GetChild(iChildIdx) );
+            // Only global control mask is used
+            AST::Expressions::AssignmentOperatorPtr spGlobalMaskUpdate = AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strGlobalMaskName),
+                                                                                                                       spLoop->GetCondition(),
+                                                                                                                       AST::Expressions::Identifier::Create(strGlobalMaskName) );
+
+            spLoopBody->InsertChild(0, spGlobalMaskUpdate);
+          }
+          else
+          {
+            // Local control is used
+            AST::ScopePtr spTempScope = AST::Scope::Create();
+            _CreateLocalMaskComputation(spTempScope, spLoop->GetCondition(), strLocalMaskName, strGlobalMaskName, false);
+
+            spLoopBody->ImportVariableDeclarations(spTempScope);
+
+            for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spTempScope->GetChildCount(); ++iChildIdx)
+            {
+              spLoopBody->InsertChild(iChildIdx, spTempScope->GetChild(iChildIdx));
+            }
           }
         }
         else
@@ -2221,6 +2290,91 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
       for each (auto itAssignment in lstInternalAssignments)
       {
         itAssignment->SetMask( AST::Expressions::Identifier::Create( strCurrentMaskName ) );
+      }
+    }
+  }
+
+
+  // Convert loop control statements
+  {
+    Transformations::FindNodes< AST::ControlFlow::LoopControlStatement >  LoopControlFinder;
+    Transformations::Run(spFunction, LoopControlFinder);
+
+    for each (auto itLoopControl in LoopControlFinder.lstFoundNodes)
+    {
+      AST::ControlFlow::LoopPtr spControlledLoop = itLoopControl->GetControlledLoop();
+
+      // Find the affected control masks of this loop control statement
+      list< string >  lstAffectedControlMasks;
+      {
+        AST::BaseClasses::NodePtr spCurrentNode = itLoopControl;
+        while (true)
+        {
+          spCurrentNode = spCurrentNode->GetParent();
+
+          const bool cbIsControlledLoop = (spCurrentNode == spControlledLoop);
+
+          auto itCurrentMaskList = mapControlMasks.find( spCurrentNode );
+          if (itCurrentMaskList != mapControlMasks.end())
+          {
+            if (cbIsControlledLoop && (itLoopControl->GetControlType() == AST::ControlFlow::LoopControlStatement::LoopControlType::Continue))
+            {
+              // The continue statement affects only the local mask of the controlled loop
+              lstAffectedControlMasks.push_back( itCurrentMaskList->second.front() );
+            }
+            else
+            {
+              lstAffectedControlMasks.insert( lstAffectedControlMasks.end(), itCurrentMaskList->second.begin(), itCurrentMaskList->second.end() );
+            }
+          }
+
+          if (cbIsControlledLoop)
+          {
+            break;
+          }
+        }
+      }
+
+      if (lstAffectedControlMasks.empty())
+      {
+        // Scalar loop => nothing to do
+        continue;
+      }
+      else
+      {
+        auto itLoopMaskList = mapControlMasks.find(spControlledLoop);
+
+        if (itLoopMaskList == mapControlMasks.end())
+        {
+          throw InternalErrorException("Found a vectorized loop control statement which controls a scalar loop => Please rewrite the kernel code!");
+        }
+        else if (itLoopMaskList->second.front() == lstAffectedControlMasks.front())
+        {
+          // Unconditional loop control statement inside a vectorized loop => statement affects ALL vector elements and thus does not need to be converted
+          continue;
+        }
+        else
+        {
+          // Conditional loop control statement (affects only some vector elements) => Update all relevant control masks and remove the statement
+          AST::ScopePosition  LoopControlPos  = itLoopControl->GetScopePosition();
+          IndexType           iCurrentIdx     = LoopControlPos.GetChildIndex();
+
+          // Remove the loop control statements
+          LoopControlPos.GetScope()->RemoveChild(iCurrentIdx);
+
+          // Add the mask updates
+          string strConditionMask = lstAffectedControlMasks.front();
+          for each (auto itMaskName in lstAffectedControlMasks)
+          {
+            typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
+
+            AST::Expressions::ArithmeticOperatorPtr spUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
+                                                                                                              AST::Expressions::Identifier::Create(itMaskName),
+                                                                                                              AST::Expressions::Identifier::Create(strConditionMask) );
+
+            LoopControlPos.GetScope()->InsertChild( iCurrentIdx++, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
+          }
+        }
       }
     }
   }
