@@ -1118,7 +1118,18 @@ AST::Expressions::AssignmentOperatorPtr AST::Expressions::AssignmentOperator::Cr
 
 string AST::Expressions::AssignmentOperator::DumpToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag( cszIntend, "AssignmentOperator", _DumpSubExpressionsToXML(cszIntend + 2) );
+  XMLSupport::AttributesMapType mapAttributes;
+
+  string strXmlString = _DumpSubExpressionsToXML(cszIntend + 2);
+
+  if (IsMasked())
+  {
+    mapAttributes["masked"] = XMLSupport::ToString( IsMasked() );
+
+    strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "Mask", _DumpChildToXml(GetMask(), cszIntend + 4) );
+  }
+
+  return XMLSupport::CreateXmlTag( cszIntend, "AssignmentOperator", strXmlString, mapAttributes );
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::AssignmentOperator::GetResultType() const
