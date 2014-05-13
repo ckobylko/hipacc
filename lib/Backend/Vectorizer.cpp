@@ -1900,10 +1900,34 @@ void Vectorizer::Transformations::SeparateBranchingStatements::Execute(AST::Cont
 }
 
 
+void Vectorizer::_CreateLocalMaskComputation(AST::ScopePtr spParentScope, AST::BaseClasses::ExpressionPtr spCondition, string strLocalMaskName, string strGlobalMaskName, bool bExclusiveBranches)
+{
+  typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
+
+  if (! spCondition->IsVectorized())
+  {
+    spCondition = AST::VectorSupport::BroadCast::Create( spCondition );
+  }
+
+  // Initialize with the global mask
+  spParentScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName),
+                                                                         AST::Expressions::Identifier::Create(strGlobalMaskName) ) );
+
+  // Assign the condition to the local mask and mask this with the global mask
+  spParentScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName), spCondition,
+                                                                         AST::Expressions::Identifier::Create(strGlobalMaskName) ) );
+
+  // Update global mask
+  ArithmeticOperatorType eOpType = bExclusiveBranches ? ArithmeticOperatorType::BitwiseXOr : ArithmeticOperatorType::BitwiseAnd;
+  AST::Expressions::ArithmeticOperatorPtr spGlobalUpdate = AST::Expressions::ArithmeticOperator::Create( eOpType, AST::Expressions::Identifier::Create(strGlobalMaskName),
+                                                                                                         AST::Expressions::Identifier::Create(strLocalMaskName) );
+
+  spParentScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strGlobalMaskName), spGlobalUpdate ) );
+}
 
 void Vectorizer::_CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope, AST::ScopePtr spBranchScope, string strMaskName)
 {
-  typedef AST::VectorSupport::CheckActiveElements::CheckType            VectorCheckType;
+  typedef AST::VectorSupport::CheckActiveElements::CheckType  VectorCheckType;
 
   if (! spBranchScope->IsEmpty())
   {
@@ -2038,11 +2062,49 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
     for each (auto itControlFlow in lstControlFlowStatements)
     {
+      // TODO: Fetch the parent mask somewhere
+      AST::BaseClasses::ExpressionPtr spParentMask = AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create(true) );
+
       if (itControlFlow->IsType<AST::ControlFlow::Loop>())
       {
-        AST::ControlFlow::LoopPtr spLoop = itControlFlow->CastToType<AST::ControlFlow::Loop>();
+        AST::ControlFlow::LoopPtr spLoop      = itControlFlow->CastToType<AST::ControlFlow::Loop>();
+        AST::ScopePtr             spLoopBody  = spLoop->GetBody();
 
-        spLoop->SetCondition( AST::VectorSupport::CheckActiveElements::Create(VectorCheckType::Any, spLoop->GetCondition()) );
+        string strGlobalMaskName, strLocalMaskName;
+        {
+          AST::ScopePosition  LoopScopePos      = spLoop->GetScopePosition();
+          AST::ScopePtr       spLoopParentScope = LoopScopePos.GetScope();
+
+          strGlobalMaskName = VASTBuilder::GetNextFreeVariableName(spLoopParentScope, "_mask_loop_global");
+          strLocalMaskName  = VASTBuilder::GetNextFreeVariableName(spLoopParentScope, "_mask_loop_local");
+
+          spLoopParentScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strGlobalMaskName, MaskTypeInfo, true) );
+          spLoopBody->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName, MaskTypeInfo, true) );
+
+          // Create global mask assignment
+          spLoopParentScope->InsertChild( LoopScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
+        }
+
+        if (spLoop->GetLoopType() == AST::ControlFlow::Loop::LoopType::TopControlled)
+        {
+          AST::ScopePtr spTempScope = AST::Scope::Create();
+          _CreateLocalMaskComputation(spTempScope, spLoop->GetCondition(), strLocalMaskName, strGlobalMaskName, false);
+
+          spLoopBody->ImportVariableDeclarations(spTempScope);
+
+          for (IndexType iChildIdx = static_cast<IndexType>(0); iChildIdx < spTempScope->GetChildCount(); ++iChildIdx)
+          {
+            spLoopBody->InsertChild( iChildIdx, spTempScope->GetChild(iChildIdx) );
+          }
+        }
+        else
+        {
+          throw InternalErrorException("Only top controlled VAST loop can be vectorized => please rewrite the kernel code!");
+        }
+
+        spLoop->SetCondition( AST::VectorSupport::CheckActiveElements::Create(VectorCheckType::Any, AST::Expressions::Identifier::Create(strGlobalMaskName)) );
+
+        // TODO: Mask all assignments inside the loop body
       }
       else if (itControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
@@ -2061,9 +2123,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName,  MaskTypeInfo, true) );
 
           // Create global mask assignment
-          // TODO: Inititialize the global mask with the parent mask
-          AST::VectorSupport::BroadCastPtr  spBroadCast = AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create(true) );
-          spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spBroadCast) );
+          spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
         }
 
 
@@ -2073,30 +2133,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           AST::ControlFlow::ConditionalBranchPtr spBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
 
           // Add local mask assignment
-          {
-            AST::BaseClasses::ExpressionPtr spCondition = spBranch->GetCondition();
-            if (! spCondition->IsVectorized())
-            {
-              spCondition = AST::VectorSupport::BroadCast::Create( spCondition );
-            }
-
-            // Initialize with the global mask
-            spBranchingScope->AddChild(AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName),
-                                                                                     AST::Expressions::Identifier::Create(strGlobalMaskName) ));
-
-            // Assign the condition to the local mask and mask this with the global mask
-            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName), spBranch->GetCondition(),
-                                                                                      AST::Expressions::Identifier::Create(strGlobalMaskName) ));
-          }
-
-          // Add unmasking of the global mask
-          {
-            AST::Expressions::ArithmeticOperatorPtr spGlobalUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
-                                                                                                                    AST::Expressions::Identifier::Create(strGlobalMaskName),
-                                                                                                                    AST::Expressions::Identifier::Create(strLocalMaskName) );
-
-            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spGlobalUnsetOp) );
-          }
+          _CreateLocalMaskComputation( spBranchingScope, spBranch->GetCondition(), strLocalMaskName, strGlobalMaskName, true );
 
           // Add a single branch branching statement
           _CreateVectorizedConditionalBranch(spBranchingScope, spBranch->GetBody(), strLocalMaskName);

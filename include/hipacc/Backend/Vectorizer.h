@@ -504,6 +504,7 @@ namespace Vectorization
 
     static AST::BaseClasses::VariableInfoPtr _GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment);
 
+    static void _CreateLocalMaskComputation(AST::ScopePtr spParentScope, AST::BaseClasses::ExpressionPtr spCondition, std::string strLocalMaskName, std::string strGlobalMaskName, bool bExclusiveBranches);
 
     static void _CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope, AST::ScopePtr spBranchScope, std::string strMaskName);
 
