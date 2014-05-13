@@ -2054,22 +2054,69 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
   // Rebuild the control flow statements
   {
-    typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
-    typedef AST::VectorSupport::CheckActiveElements::CheckType            VectorCheckType;
+    typedef AST::VectorSupport::CheckActiveElements::CheckType    VectorCheckType;
+    typedef map< AST::BaseClasses::NodePtr, list< string > >      ControlMaskMapType;
 
     AST::BaseClasses::TypeInfo MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
 
+    ControlMaskMapType  mapControlMasks;
 
     for each (auto itControlFlow in lstControlFlowStatements)
     {
-      // TODO: Fetch the parent mask somewhere
-      AST::BaseClasses::ExpressionPtr spParentMask = AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create(true) );
+      // Fetch the parent mask
+      AST::BaseClasses::ExpressionPtr spParentMask = nullptr;
+      {
+        AST::BaseClasses::NodePtr spCurrentNode = itControlFlow;
+        while (true)
+        {
+          spCurrentNode = spCurrentNode->GetParent();
+          if (! spCurrentNode)
+          {
+            break;
+          }
 
+          auto itCurrentMaskList = mapControlMasks.find( spCurrentNode );
+          if (itCurrentMaskList != mapControlMasks.end())
+          {
+            // Found the parent mask => Create a corresponding identifier to the first mask in this stack
+            spParentMask = AST::Expressions::Identifier::Create( itCurrentMaskList->second.front() );
+          }
+        }
+
+        if (! spParentMask)
+        {
+          // There is no parent mask => Create a fully active control mask
+          spParentMask = AST::VectorSupport::BroadCast::Create(AST::Expressions::Constant::Create(true));
+        }
+      }
+
+
+      // Definitions for the latter assignment masking
+      string                                          strCurrentMaskName;
+      list< AST::Expressions::AssignmentOperatorPtr > lstInternalAssignments;
+
+
+      // Rebuild the corresponding control flow statement
       if (itControlFlow->IsType<AST::ControlFlow::Loop>())
       {
         AST::ControlFlow::LoopPtr spLoop      = itControlFlow->CastToType<AST::ControlFlow::Loop>();
-        AST::ScopePtr             spLoopBody  = spLoop->GetBody();
+        AST::ScopePtr             spLoopBody = spLoop->GetBody();
 
+        // Find all internal vectorized assignments for latter masking
+        {
+          Transformations::FindAssignments  AssignmentFinder;
+          Transformations::Run( spLoopBody, AssignmentFinder );
+
+          for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
+          {
+            if (itAssignment->IsVectorized())
+            {
+              lstInternalAssignments.push_back( itAssignment );
+            }
+          }
+        }
+
+        // Create the control masks
         string strGlobalMaskName, strLocalMaskName;
         {
           AST::ScopePosition  LoopScopePos      = spLoop->GetScopePosition();
@@ -2083,8 +2130,15 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
           // Create global mask assignment
           spLoopParentScope->InsertChild( LoopScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
+
+          // Insert the control masks into the map
+          mapControlMasks[ spLoop ].push_front( strGlobalMaskName );
+          mapControlMasks[ spLoop ].push_front( strLocalMaskName );
+
+          strCurrentMaskName = strLocalMaskName;
         }
 
+        // Rebuild the loop
         if (spLoop->GetLoopType() == AST::ControlFlow::Loop::LoopType::TopControlled)
         {
           AST::ScopePtr spTempScope = AST::Scope::Create();
@@ -2099,17 +2153,30 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
         }
         else
         {
-          throw InternalErrorException("Only top controlled VAST loop can be vectorized => please rewrite the kernel code!");
+          throw InternalErrorException("Only top controlled VAST loops can be vectorized => please rewrite the kernel code!");
         }
 
         spLoop->SetCondition( AST::VectorSupport::CheckActiveElements::Create(VectorCheckType::Any, AST::Expressions::Identifier::Create(strGlobalMaskName)) );
-
-        // TODO: Mask all assignments inside the loop body
       }
       else if (itControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
         AST::ControlFlow::BranchingStatementPtr spBranchingStatement  = itControlFlow->CastToType<AST::ControlFlow::BranchingStatement>();
 
+        // Find all internal vectorized assignments for latter masking
+        {
+          Transformations::FindAssignments  AssignmentFinder;
+          Transformations::Run(spBranchingStatement, AssignmentFinder);
+
+          for each (auto itAssignment in AssignmentFinder.lstFoundNodes)
+          {
+            if (itAssignment->IsVectorized())
+            {
+              lstInternalAssignments.push_back( itAssignment );
+            }
+          }
+        }
+
+        // Create the control masks
         string strGlobalMaskName, strLocalMaskName;
         AST::ScopePtr spBranchingScope = AST::Scope::Create();
         {
@@ -2124,6 +2191,12 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
           // Create global mask assignment
           spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
+
+          // Insert the control masks into the map
+          mapControlMasks[ spBranchingScope ].push_front( strGlobalMaskName );
+          mapControlMasks[ spBranchingScope ].push_front( strLocalMaskName );
+
+          strCurrentMaskName = strLocalMaskName;
         }
 
 
@@ -2141,6 +2214,13 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
         // Convert default branch
         _CreateVectorizedConditionalBranch(spBranchingScope, spBranchingStatement->GetDefaultBranch(), strGlobalMaskName);
+      }
+
+
+      // Mask all internal vectorized assignments
+      for each (auto itAssignment in lstInternalAssignments)
+      {
+        itAssignment->SetMask( AST::Expressions::Identifier::Create( strCurrentMaskName ) );
       }
     }
   }
