@@ -115,6 +115,9 @@ namespace Backend
      *  \param  bValue  The value of the bool literal. */
     ::clang::CXXBoolLiteralExpr*      CreateBoolLiteral(bool bValue);
 
+    /** \brief  Creates a <b>break</b> statement. */
+    ::clang::BreakStmt*               CreateBreakStatement();
+
     /** \brief  Wraps a statement object into a compound statement object.
      *  \param  pStatement  A pointer to the statement object, which shall be encapsulated into an compound statement. */
     ::clang::CompoundStmt*            CreateCompoundStatement(::clang::Stmt *pStatement);
@@ -129,6 +132,9 @@ namespace Backend
      *  \param  pElseExpr     A pointer to the expression object, which will be returned when the condition is evaluated to <b>false</b>.
      *  \param  crReturnType  The return type of the operator expression. */
     ::clang::ConditionalOperator*     CreateConditionalOperator(::clang::Expr *pCondition, ::clang::Expr *pThenExpr, ::clang::Expr *pElseExpr, const ::clang::QualType &crReturnType);
+
+    /** \brief  Creates a <b>continue</b> statement. */
+    ::clang::ContinueStmt*            CreateContinueStatement();
 
     /** \brief  Constructs a declaration reference expression which points to a specific declaration.
      *  \param  pValueDecl  A pointer to the value declaration object. */

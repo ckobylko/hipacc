@@ -97,6 +97,11 @@ CXXBoolLiteralExpr* ClangASTHelper::CreateBoolLiteral(bool bValue)
   return new (GetASTContext()) CXXBoolLiteralExpr(bValue, GetASTContext().BoolTy, SourceLocation());
 }
 
+BreakStmt* ClangASTHelper::CreateBreakStatement()
+{
+  return new (GetASTContext()) BreakStmt(SourceLocation());
+}
+
 CompoundStmt* ClangASTHelper::CreateCompoundStatement(Stmt *pStatement)
 {
   StatementVectorType vecStatements;
@@ -114,6 +119,11 @@ CompoundStmt* ClangASTHelper::CreateCompoundStatement(const StatementVectorType 
 ConditionalOperator* ClangASTHelper::CreateConditionalOperator(Expr *pCondition, Expr *pThenExpr, Expr *pElseExpr, const QualType &crReturnType)
 {
   return new (GetASTContext()) ConditionalOperator(pCondition, SourceLocation(), pThenExpr, SourceLocation(), pElseExpr, crReturnType, VK_RValue, OK_Ordinary);
+}
+
+ContinueStmt* ClangASTHelper::CreateContinueStatement()
+{
+  return new (GetASTContext()) ContinueStmt(SourceLocation());
 }
 
 DeclRefExpr* ClangASTHelper::CreateDeclarationReferenceExpression(ValueDecl *pValueDecl)
