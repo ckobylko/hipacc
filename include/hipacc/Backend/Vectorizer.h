@@ -140,11 +140,6 @@ namespace Vectorization
       AST::FunctionDeclarationPtr BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration);
 
 
-      static AST::Expressions::AssignmentOperatorPtr  CreateAssignmentOperator(AST::BaseClasses::ExpressionPtr spLHS, AST::BaseClasses::ExpressionPtr spRHS);
-
-      static AST::Expressions::IdentifierPtr          CreateIdentifier(std::string strIdentifierName);
-
-
       static std::string          GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, std::string strRootName);
 
       inline static std::string   GetTemporaryNamePrefix()   { return "_temp"; }
@@ -509,6 +504,8 @@ namespace Vectorization
 
     static AST::BaseClasses::VariableInfoPtr _GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment);
 
+
+    static void _CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope, AST::ScopePtr spBranchScope, std::string strMaskName);
 
 
   public:

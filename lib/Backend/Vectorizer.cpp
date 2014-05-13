@@ -300,7 +300,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
     case BO_XorAssign:  eOpKind = BO_Xor;   break;
     }
 
-    spReturnExpression = CreateAssignmentOperator( _BuildExpression(pExprLHS), _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
+    spReturnExpression = AST::Expressions::AssignmentOperator::Create( _BuildExpression(pExprLHS), _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
   }
   else if (isa<::clang::BinaryOperator>(pExpression))
   {
@@ -402,7 +402,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 
 AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::_BuildIdentifier(string strIdentifierName)
 {
-  return CreateIdentifier( _VarTranslator.TranslateName(strIdentifierName) );
+  return AST::Expressions::Identifier::Create( _VarTranslator.TranslateName(strIdentifierName) );
 }
 
 void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope)
@@ -748,24 +748,6 @@ AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::
   return spFunctionDecl;
 }
 
-AST::Expressions::AssignmentOperatorPtr Vectorizer::VASTBuilder::CreateAssignmentOperator(AST::BaseClasses::ExpressionPtr spLHS, AST::BaseClasses::ExpressionPtr spRHS)
-{
-  AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
-
-  spAssignment->SetLHS( spLHS );
-  spAssignment->SetRHS( spRHS );
-
-  return spAssignment;
-}
-
-AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::CreateIdentifier(string strIdentifierName)
-{
-  AST::Expressions::IdentifierPtr spIdentifier = AST::CreateNode<AST::Expressions::Identifier>();
-
-  spIdentifier->SetName(strIdentifierName);
-
-  return spIdentifier;
-}
 
 string Vectorizer::VASTBuilder::GetNextFreeVariableName(AST::IVariableContainerPtr spVariableContainer, string strRootName)
 {
@@ -1796,10 +1778,10 @@ void Vectorizer::Transformations::FlattenMemoryAccesses::Execute(AST::Expression
       }
 
       // Create the assignment expression for the new index variable
-      spCurrentScope->InsertChild( ScopePos.GetChildIndex(), VASTBuilder::CreateAssignmentOperator( VASTBuilder::CreateIdentifier(strIndexVariableName), spIndexExpr ) );
+      spCurrentScope->InsertChild( ScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strIndexVariableName), spIndexExpr ) );
 
       // Set the new index variable as index expression for the memory access
-      spMemoryAccess->SetIndexExpression( VASTBuilder::CreateIdentifier( strIndexVariableName ) );
+      spMemoryAccess->SetIndexExpression( AST::Expressions::Identifier::Create( strIndexVariableName ) );
     }
   }
 }
@@ -1906,6 +1888,26 @@ void Vectorizer::Transformations::SeparateBranchingStatements::Execute(AST::Cont
 
 
 
+void Vectorizer::_CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope, AST::ScopePtr spBranchScope, string strMaskName)
+{
+  typedef AST::VectorSupport::CheckActiveElements::CheckType            VectorCheckType;
+
+  if (! spBranchScope->IsEmpty())
+  {
+    // Create new branching statement
+    AST::ControlFlow::BranchingStatementPtr spBranchingStatement = AST::ControlFlow::BranchingStatement::Create();
+    spParentScope->AddChild(spBranchingStatement);
+
+    // Create new conditional branch
+    AST::VectorSupport::CheckActiveElementsPtr  spCheckMask = AST::VectorSupport::CheckActiveElements::Create( VectorCheckType::Any, AST::Expressions::Identifier::Create(strMaskName) );
+    AST::ControlFlow::ConditionalBranchPtr      spNewBranch = AST::ControlFlow::ConditionalBranch::Create( spCheckMask );
+    spBranchingStatement->AddConditionalBranch(spNewBranch);
+
+    spNewBranch->GetBody()->ImportScope(spBranchScope);
+
+    // TODO: Mask all assignments inside the vectorized branch
+  }
+}
 
 AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment)
 {
@@ -1982,51 +1984,114 @@ void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string 
 
 void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 {
-  // TODO: Quick and dirty implementation => Do this correctly
+  // Separate mixed branching statements into scalar and vectorized branching statements
+  SeparateBranchingStatements(spFunction);
 
+
+  // Find all vectorized loops and branching statements in hierarchical order
+  list< AST::BaseClasses::ControlFlowStatementPtr >  lstControlFlowStatements;
   {
-    Transformations::FindNodes< AST::ControlFlow::Loop >  LoopFinder;
-    Transformations::Run(spFunction, LoopFinder);
+    Transformations::FindNodes< AST::BaseClasses::ControlFlowStatement >  ControlFlowFinder( Transformations::DirectionType::TopDown );
 
-    for each (auto itLoop in LoopFinder.lstFoundNodes)
+    Transformations::Run(spFunction, ControlFlowFinder);
+
+    for each (auto itControlFlow in ControlFlowFinder.lstFoundNodes)
     {
-      if (itLoop->IsVectorized())
+      bool bAddNode = false;
+
+      if (itControlFlow->IsType<AST::ControlFlow::Loop>())
       {
-        AST::VectorSupport::CheckActiveElementsPtr spElementCheck = AST::CreateNode< AST::VectorSupport::CheckActiveElements >();
+        bAddNode = itControlFlow->CastToType<AST::ControlFlow::Loop>()->IsVectorized();
+      }
+      else if (itControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
+      {
+        bAddNode = itControlFlow->CastToType<AST::ControlFlow::BranchingStatement>()->IsVectorized();
+      }
 
-        spElementCheck->SetCheckType( AST::VectorSupport::CheckActiveElements::CheckType::Any );
-        spElementCheck->SetSubExpression( itLoop->GetCondition() );
-
-        itLoop->SetCondition( spElementCheck );
+      if (bAddNode)
+      {
+        lstControlFlowStatements.push_back(itControlFlow);
       }
     }
   }
 
+  // Rebuild the control flow statements
   {
-    SeparateBranchingStatements(spFunction);
+    typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
+    typedef AST::VectorSupport::CheckActiveElements::CheckType            VectorCheckType;
 
-    Transformations::FindNodes< AST::ControlFlow::BranchingStatement >  BranchingStatementFinder;
+    AST::BaseClasses::TypeInfo MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
 
-    Transformations::Run(spFunction, BranchingStatementFinder);
 
-    for each (auto itBranchingStmt in BranchingStatementFinder.lstFoundNodes)
+    for each (auto itControlFlow in lstControlFlowStatements)
     {
-      if (itBranchingStmt->IsVectorized())
+      if (itControlFlow->IsType<AST::ControlFlow::Loop>())
       {
-        for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < itBranchingStmt->GetConditionalBranchesCount(); ++iBranchIdx)
+        AST::ControlFlow::LoopPtr spLoop = itControlFlow->CastToType<AST::ControlFlow::Loop>();
+
+        spLoop->SetCondition( AST::VectorSupport::CheckActiveElements::Create(VectorCheckType::Any, spLoop->GetCondition()) );
+      }
+      else if (itControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
+      {
+        AST::ControlFlow::BranchingStatementPtr spBranchingStatement  = itControlFlow->CastToType<AST::ControlFlow::BranchingStatement>();
+
+        string strGlobalMaskName, strLocalMaskName;
+        AST::ScopePtr spBranchingScope = AST::Scope::Create();
         {
-          AST::ControlFlow::ConditionalBranchPtr spBranch = itBranchingStmt->GetConditionalBranch(iBranchIdx);
+          AST::ScopePosition BranchingScopePos = spBranchingStatement->GetScopePosition();
+          BranchingScopePos.GetScope()->SetChild( BranchingScopePos.GetChildIndex(), spBranchingScope );
 
-          if (spBranch->IsVectorized())
-          {
-            AST::VectorSupport::CheckActiveElementsPtr spElementCheck = AST::CreateNode< AST::VectorSupport::CheckActiveElements >();
+          strGlobalMaskName = VASTBuilder::GetNextFreeVariableName(spBranchingScope, "_mask_branch_global");
+          strLocalMaskName  = VASTBuilder::GetNextFreeVariableName(spBranchingScope, "_mask_branch_local");
 
-            spElementCheck->SetCheckType(AST::VectorSupport::CheckActiveElements::CheckType::Any);
-            spElementCheck->SetSubExpression(spBranch->GetCondition());
+          spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strGlobalMaskName, MaskTypeInfo, true) );
+          spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName,  MaskTypeInfo, true) );
 
-            spBranch->SetCondition(spElementCheck);
-          }
+          // Create global mask assignment
+          // TODO: Inititialize the global mask with the parent mask
+          AST::VectorSupport::BroadCastPtr  spBroadCast = AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create(true) );
+          spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spBroadCast) );
         }
+
+
+        // Convert all conditional branches
+        for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < spBranchingStatement->GetConditionalBranchesCount(); ++iBranchIdx)
+        {
+          AST::ControlFlow::ConditionalBranchPtr spBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
+
+          // Add local mask assignment
+          {
+            // TODO: Exchange this by initializing the local mask with the global mask and a masked condition assignment
+            AST::BaseClasses::ExpressionPtr spCondition = spBranch->GetCondition();
+            if (! spCondition->IsVectorized())
+            {
+              spCondition = AST::VectorSupport::BroadCast::Create( spCondition );
+            }
+
+            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strLocalMaskName), spBranch->GetCondition()) );
+
+            AST::Expressions::ArithmeticOperatorPtr spLocalUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseAnd,
+                                                                                                                    AST::Expressions::Identifier::Create(strGlobalMaskName),
+                                                                                                                    AST::Expressions::Identifier::Create(strLocalMaskName) );
+
+            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strLocalMaskName), spLocalUnsetOp) );
+          }
+
+          // Add unmasking of the global mask
+          {
+            AST::Expressions::ArithmeticOperatorPtr spGlobalUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
+                                                                                                                    AST::Expressions::Identifier::Create(strGlobalMaskName),
+                                                                                                                    AST::Expressions::Identifier::Create(strLocalMaskName) );
+
+            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spGlobalUnsetOp) );
+          }
+
+          // Add a single branch branching statement
+          _CreateVectorizedConditionalBranch(spBranchingScope, spBranch->GetBody(), strLocalMaskName);
+        }
+
+        // Convert default branch
+        _CreateVectorizedConditionalBranch(spBranchingScope, spBranchingStatement->GetDefaultBranch(), strGlobalMaskName);
       }
     }
   }
