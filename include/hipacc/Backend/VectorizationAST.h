@@ -398,7 +398,8 @@ namespace Vectorization
         {
           BranchingStatement,
           ConditionalBranch,
-          Loop
+          Loop,
+          LoopControlStatement
         };
         
       private:
@@ -471,12 +472,14 @@ namespace Vectorization
     public:
 
       class Loop;
+      class LoopControlStatement;
       class ConditionalBranch;
       class BranchingStatement;
 
-      typedef std::shared_ptr< Loop >                 LoopPtr;
-      typedef std::shared_ptr< ConditionalBranch >    ConditionalBranchPtr;
-      typedef std::shared_ptr< BranchingStatement >   BranchingStatementPtr;
+      typedef std::shared_ptr< Loop >                   LoopPtr;
+      typedef std::shared_ptr< LoopControlStatement >   LoopControlStatementPtr;
+      typedef std::shared_ptr< ConditionalBranch >      ConditionalBranchPtr;
+      typedef std::shared_ptr< BranchingStatement >     BranchingStatementPtr;
 
     public:
 
@@ -533,6 +536,51 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return static_cast< IndexType >( 3 ); }
+
+        virtual bool IsVectorized() const final override;
+      };
+
+      class LoopControlStatement final : public BaseClasses::ControlFlowStatement
+      {
+      private:
+
+        typedef BaseClasses::ControlFlowStatement   BaseType;
+
+      public:
+
+        enum class LoopControlType
+        {
+          Break,
+          Continue
+        };
+
+
+      private:
+
+        LoopControlType _eControlType;
+
+        static std::string _GetLoopControlTypeString(LoopControlType eType);
+
+      public:
+
+        static LoopControlStatementPtr Create(LoopControlType eCtrlType);
+
+        inline LoopControlStatement() : BaseType(BaseType::ControlFlowType::LoopControlStatement), _eControlType(LoopControlType::Break)  {}
+
+        virtual ~LoopControlStatement() {}
+
+
+        inline LoopControlType  GetControlType() const                        { return _eControlType; }
+        inline void             SetControlType(LoopControlType eNewCtrlType)  { _eControlType = eNewCtrlType; }
+
+        LoopPtr GetControlledLoop() const;
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override   { throw ASTExceptions::ChildIndexOutOfRange(); }
+        virtual IndexType             GetChildCount() const final override            { return static_cast< IndexType >(0); }
 
         virtual bool IsVectorized() const final override;
       };

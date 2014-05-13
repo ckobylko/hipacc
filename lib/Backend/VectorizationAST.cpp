@@ -498,6 +498,72 @@ bool AST::ControlFlow::Loop::IsVectorized() const
 }
 
 
+// Implementation of class AST::ControlFlow::LoopControlStatement
+string AST::ControlFlow::LoopControlStatement::_GetLoopControlTypeString(LoopControlType eType)
+{
+  switch (eType)
+  {
+  case LoopControlType::Break:      return "Break";
+  case LoopControlType::Continue:   return "Continue";
+  default:                          throw InternalErrorException("Unknown loop control statement type!");
+  }
+}
+
+AST::ControlFlow::LoopControlStatementPtr AST::ControlFlow::LoopControlStatement::Create(LoopControlType eCtrlType)
+{
+  LoopControlStatementPtr spLoopCtrlStatement = AST::CreateNode<LoopControlStatement>();
+
+  spLoopCtrlStatement->SetControlType(eCtrlType);
+
+  return spLoopCtrlStatement;
+}
+
+string AST::ControlFlow::LoopControlStatement::DumpToXML(const size_t cszIntend) const
+{
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["type"]       = _GetLoopControlTypeString( GetControlType() );
+  mapAttributes["vectorize"]  = XMLSupport::ToString( IsVectorized() );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "LoopControlStatement", "", mapAttributes);
+}
+
+AST::ControlFlow::LoopPtr AST::ControlFlow::LoopControlStatement::GetControlledLoop() const
+{
+  AST::BaseClasses::NodePtr spCurrentNode = GetThis();
+  while (true)
+  {
+    spCurrentNode = spCurrentNode->GetParent();
+    CHECK_NULL_POINTER( spCurrentNode );
+
+    if (spCurrentNode->IsType<AST::ControlFlow::Loop>())
+    {
+      return spCurrentNode->CastToType<AST::ControlFlow::Loop>();
+    }
+  }
+}
+
+bool AST::ControlFlow::LoopControlStatement::IsVectorized() const
+{
+  LoopPtr spControlledLoop = GetControlledLoop();
+  bool bVectorized = false;
+
+  AST::BaseClasses::NodePtr spCurrentNode = GetThis();
+  while (spCurrentNode != spControlledLoop)
+  {
+    spCurrentNode = spCurrentNode->GetParent();
+    CHECK_NULL_POINTER( spCurrentNode );
+
+    if (spCurrentNode->IsType<AST::BaseClasses::ControlFlowStatement>())
+    {
+      bVectorized |= spCurrentNode->CastToType<AST::BaseClasses::ControlFlowStatement>()->IsVectorized();
+    }
+  }
+
+  return bVectorized;
+}
+
+
 // Implementation of class AST::ControlFlow::ConditionalBranch
 AST::ControlFlow::ConditionalBranchPtr AST::ControlFlow::ConditionalBranch::Create(ExpressionPtr spCondition)
 {
