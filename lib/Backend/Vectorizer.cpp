@@ -1117,6 +1117,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     ::clang::Expr *pExprRHS = _BuildExpression( spBinaryOperator->GetRHS(), crVectorIndex );
 
     ::clang::BinaryOperatorKind eOpCode;
+    bool bIsMaskedAssignment = false;
 
     if (spBinaryOperator->IsType<AST::Expressions::ArithmeticOperator>())
     {
@@ -1141,7 +1142,8 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
     else if (spBinaryOperator->IsType<AST::Expressions::AssignmentOperator>())
     {
-      eOpCode = ::clang::BO_Assign;
+      eOpCode             = ::clang::BO_Assign;
+      bIsMaskedAssignment = spBinaryOperator->CastToType<AST::Expressions::AssignmentOperator>()->IsMasked();
     }
     else if (spBinaryOperator->IsType<AST::Expressions::RelationalOperator>())
     {
@@ -1165,6 +1167,17 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     else
     {
       throw InternalErrorException("Unknown VAST binary operator node detected!");
+    }
+
+    if (bIsMaskedAssignment)
+    {
+      AST::Expressions::AssignmentOperatorPtr spAssignment = spBinaryOperator->CastToType<AST::Expressions::AssignmentOperator>();
+
+      ::clang::Expr *pExprMaskCond  = _ASTHelper.CreateParenthesisExpression( _BuildExpression(spAssignment->GetMask(), crVectorIndex) );
+      ::clang::Expr *pExprLHSParen  = _ASTHelper.CreateParenthesisExpression( pExprLHS );
+
+      pExprRHS = _ASTHelper.CreateParenthesisExpression( pExprRHS );
+      pExprRHS = _ASTHelper.CreateConditionalOperator( pExprMaskCond, pExprRHS, pExprLHSParen, pExprRHS->getType() );
     }
 
     pReturnExpr = _ASTHelper.CreateBinaryOperator( pExprLHS, pExprRHS, eOpCode, _ConvertTypeInfo(spBinaryOperator->GetResultType()) );
@@ -2061,20 +2074,19 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
           // Add local mask assignment
           {
-            // TODO: Exchange this by initializing the local mask with the global mask and a masked condition assignment
             AST::BaseClasses::ExpressionPtr spCondition = spBranch->GetCondition();
             if (! spCondition->IsVectorized())
             {
               spCondition = AST::VectorSupport::BroadCast::Create( spCondition );
             }
 
-            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strLocalMaskName), spBranch->GetCondition()) );
+            // Initialize with the global mask
+            spBranchingScope->AddChild(AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName),
+                                                                                     AST::Expressions::Identifier::Create(strGlobalMaskName) ));
 
-            AST::Expressions::ArithmeticOperatorPtr spLocalUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseAnd,
-                                                                                                                    AST::Expressions::Identifier::Create(strGlobalMaskName),
-                                                                                                                    AST::Expressions::Identifier::Create(strLocalMaskName) );
-
-            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strLocalMaskName), spLocalUnsetOp) );
+            // Assign the condition to the local mask and mask this with the global mask
+            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName), spBranch->GetCondition(),
+                                                                                      AST::Expressions::Identifier::Create(strGlobalMaskName) ));
           }
 
           // Add unmasking of the global mask
