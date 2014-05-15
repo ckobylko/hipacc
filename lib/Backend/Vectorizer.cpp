@@ -572,6 +572,17 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
   {
     spStatement = AST::ControlFlow::LoopControlStatement::Create( AST::ControlFlow::LoopControlStatement::LoopControlType::Continue );
   }
+  else if (isa<::clang::ReturnStmt>(pStatement))
+  {
+    ::clang::ReturnStmt *pRetStmt = dyn_cast<::clang::ReturnStmt>(pStatement);
+
+    if (pRetStmt->getRetValue() != nullptr)
+    {
+      throw InternalErrorException("Currently only return statements without a return value allowed!");
+    }
+
+    spStatement = AST::ControlFlow::ReturnStatement::Create();
+  }
   else
   {
     throw ASTExceptions::UnknownStatementClass(pStatement->getStmtClassName());
@@ -918,6 +929,10 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
       else if (spControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
         pChildStmt = _BuildIfStatement( spControlFlow->CastToType<AST::ControlFlow::BranchingStatement>() );
+      }
+      else if (spControlFlow->IsType<AST::ControlFlow::ReturnStatement>())
+      {
+        pChildStmt = _ASTHelper.CreateReturnStatement();
       }
       else
       {
@@ -2047,11 +2062,37 @@ void Vectorizer::DumpVASTNodeToXML(AST::BaseClasses::NodePtr spVastNode, string 
 void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 {
   typedef map< AST::BaseClasses::NodePtr, list< string > >      ControlMaskMapType;
-  ControlMaskMapType  mapControlMasks;
+
+  const AST::BaseClasses::TypeInfo  MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
+  ControlMaskMapType                mapControlMasks;
 
 
   // Separate mixed branching statements into scalar and vectorized branching statements
   SeparateBranchingStatements(spFunction);
+
+
+  // Find all return statements and create a function control mask if required
+  Transformations::FindNodes< AST::ControlFlow::ReturnStatement >   ReturnStmtFinder(Transformations::DirectionType::TopDown);
+  {
+    Transformations::Run(spFunction, ReturnStmtFinder);
+
+    for each (auto itReturnStmt in ReturnStmtFinder.lstFoundNodes)
+    {
+      if (itReturnStmt->IsVectorized())
+      {
+        // Found a return statement in a vectorized context => Create a function control mask
+        string strFunctionMaskName = VASTBuilder::GetNextFreeVariableName(spFunction, "_mask_function");
+
+        spFunction->GetBody()->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create( strFunctionMaskName, MaskTypeInfo, true ) );
+        spFunction->GetBody()->InsertChild( 0, AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create( strFunctionMaskName ),
+                                                                                             AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create( true ) ) ) );
+
+        mapControlMasks[spFunction].push_front(strFunctionMaskName);
+
+        break;
+      }
+    }
+  }
 
 
   // Find all vectorized loops and branching statements in hierarchical order
@@ -2085,8 +2126,6 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
   {
     typedef AST::VectorSupport::CheckActiveElements::CheckType    VectorCheckType;
 
-    AST::BaseClasses::TypeInfo MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
-
     for each (auto itControlFlow in lstControlFlowStatements)
     {
       // Fetch the parent mask
@@ -2106,6 +2145,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           {
             // Found the parent mask => Create a corresponding identifier to the first mask in this stack
             spParentMask = AST::Expressions::Identifier::Create( itCurrentMaskList->second.front() );
+            break;
           }
         }
 
@@ -2374,6 +2414,62 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
             LoopControlPos.GetScope()->InsertChild( iCurrentIdx++, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
           }
+        }
+      }
+    }
+  }
+
+
+  // Convert return statements
+  if (mapControlMasks.find(spFunction) != mapControlMasks.end())
+  {
+    for each (auto itReturnStmt in ReturnStmtFinder.lstFoundNodes)
+    {
+      // Find the affected control masks of this loop control statement
+      list< string >  lstAffectedControlMasks;
+      {
+        AST::BaseClasses::NodePtr spCurrentNode = itReturnStmt;
+        while (true)
+        {
+          spCurrentNode = spCurrentNode->GetParent();
+          if (! spCurrentNode)
+          {
+            break;
+          }
+
+          auto itCurrentMaskList = mapControlMasks.find(spCurrentNode);
+          if (itCurrentMaskList != mapControlMasks.end())
+          {
+            lstAffectedControlMasks.insert(lstAffectedControlMasks.end(), itCurrentMaskList->second.begin(), itCurrentMaskList->second.end());
+          }
+        }
+      }
+
+      if (lstAffectedControlMasks.empty())
+      {
+        // Unconditional return statement => nothing to do
+        continue;
+      }
+      else if (lstAffectedControlMasks.front() != mapControlMasks[spFunction].front())
+      {
+        // Found a return statement inside a conditional context => Eliminate the currently active control mask from the WHOLE control mask stack
+        AST::ScopePosition  ReturnPos   = itReturnStmt->GetScopePosition();
+        IndexType           iCurrentIdx = ReturnPos.GetChildIndex();
+
+        // Remove the return statement
+        ReturnPos.GetScope()->RemoveChild(iCurrentIdx);
+
+        // Add the mask updates
+        string strConditionMask = lstAffectedControlMasks.front();
+        for each (auto itMaskName in lstAffectedControlMasks)
+        {
+          typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
+
+          AST::Expressions::ArithmeticOperatorPtr spUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
+                                                                                                            AST::Expressions::Identifier::Create(itMaskName),
+                                                                                                            AST::Expressions::Identifier::Create(strConditionMask) );
+
+          ReturnPos.GetScope()->InsertChild( iCurrentIdx++, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
         }
       }
     }
