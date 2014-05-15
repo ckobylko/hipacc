@@ -235,6 +235,10 @@ namespace Backend
      *  \param  bIsLValue           Specifies, whether the reinterpret cast expression is used as a L-value of another expression. */
     ::clang::CXXReinterpretCastExpr*  CreateReinterpretCast(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
+    /** \brief  Creates a <b>return</b> statement. 
+     *  \param  pReturnValue  A pointer to an expression object whose result shall be returned by the <b>return</b> statement (if set to <b>nullptr</b>, nothing will be returned). */
+    ::clang::ReturnStmt*              CreateReturnStatement(::clang::Expr *pReturnValue = nullptr);
+
     /** \brief  Creates a static cast expression object.
      *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
      *  \param  crReturnType        The qualified return type of the cast.

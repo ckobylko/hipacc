@@ -203,6 +203,11 @@ CXXReinterpretCastExpr* ClangASTHelper::CreateReinterpretCast(Expr *pOperandExpr
   return CXXReinterpretCastExpr::Create(GetASTContext(), crReturnType, eValueKind, eCastKind, pOperandExpression, &CastPath, GetASTContext().getTrivialTypeSourceInfo(crReturnType), SourceLocation(), SourceLocation(), SourceRange());
 }
 
+ReturnStmt* ClangASTHelper::CreateReturnStatement(Expr *pReturnValue)
+{
+  return new (GetASTContext()) ReturnStmt(SourceLocation(), pReturnValue, nullptr);
+}
+
 CXXStaticCastExpr* ClangASTHelper::CreateStaticCast(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)
 {
   ExprValueKind  eValueKind = true ? VK_LValue : VK_RValue;
