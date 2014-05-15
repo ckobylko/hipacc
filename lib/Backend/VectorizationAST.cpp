@@ -442,6 +442,20 @@ string AST::ControlFlow::Loop::_GetLoopTypeString(LoopType eType)
   }
 }
 
+AST::ControlFlow::LoopPtr AST::ControlFlow::Loop::Create(LoopType eType, BaseClasses::ExpressionPtr spCondition, BaseClasses::ExpressionPtr spIncrement)
+{
+  LoopPtr spNewLoop = AST::CreateNode< Loop >();
+
+  spNewLoop->SetLoopType(eType);
+  spNewLoop->SetCondition(spCondition);
+  spNewLoop->SetIncrement(spIncrement);
+
+  // Initialize loop body
+  spNewLoop->GetBody();
+
+  return spNewLoop;
+}
+
 string AST::ControlFlow::Loop::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -463,7 +477,7 @@ AST::ScopePtr AST::ControlFlow::Loop::GetBody()
 {
   if (! _spBody)
   {
-    _SetChildPtr(_spBody, AST::CreateNode<AST::Scope>());
+    _SetChildPtr(_spBody, Scope::Create());
   }
 
   return _spBody;
@@ -595,7 +609,7 @@ AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody()
 {
   if (! _spBody)
   {
-    _SetChildPtr(_spBody, AST::CreateNode<AST::Scope>());
+    _SetChildPtr(_spBody, Scope::Create());
   }
 
   return _spBody;
@@ -703,7 +717,7 @@ AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch()
 {
   if (! _spDefaultBranch)
   {
-    _SetChildPtr(_spDefaultBranch, AST::CreateNode<AST::Scope>());
+    _SetChildPtr(_spDefaultBranch, Scope::Create());
   }
 
   return _spDefaultBranch;
@@ -910,6 +924,16 @@ AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableIn
 
 
 // Implementation of class AST::Expressions::MemoryAccess
+AST::Expressions::MemoryAccessPtr AST::Expressions::MemoryAccess::Create(ExpressionPtr spMemoryReference, ExpressionPtr spIndexExpression)
+{
+  MemoryAccessPtr spNewMemAccess = AST::CreateNode< MemoryAccess >();
+
+  spNewMemAccess->SetMemoryReference(spMemoryReference);
+  spNewMemAccess->SetIndexExpression(spIndexExpression);
+
+  return spNewMemAccess;
+}
+
 string AST::Expressions::MemoryAccess::DumpToXML(const size_t cszIntend) const
 {
   string strXmlString  = _DumpResultTypeToXML(cszIntend + 2);
@@ -980,6 +1004,16 @@ void AST::Expressions::UnaryExpression::SetSubExpression(IndexType SubExprIndex,
 
 
 // Implementation of class AST::Expressions::Conversion
+AST::Expressions::ConversionPtr AST::Expressions::Conversion::Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression)
+{
+  ConversionPtr spNewConversion = AST::CreateNode<Conversion>();
+
+  spNewConversion->SetConvertType(crConvertType);
+  spNewConversion->SetSubExpression(spSubExpression);
+
+  return spNewConversion;
+}
+
 string AST::Expressions::Conversion::DumpToXML(const size_t cszIntend) const
 {
   return XMLSupport::CreateXmlTag(cszIntend, "Conversion", _DumpSubExpressionToXML(cszIntend + 2));
@@ -987,6 +1021,15 @@ string AST::Expressions::Conversion::DumpToXML(const size_t cszIntend) const
 
 
 // Implementation of class AST::Expressions::Parenthesis
+AST::Expressions::ParenthesisPtr AST::Expressions::Parenthesis::Create(BaseClasses::ExpressionPtr spSubExpression)
+{
+  ParenthesisPtr spNewParenthesis = AST::CreateNode<Parenthesis>();
+
+  spNewParenthesis->SetSubExpression(spSubExpression);
+
+  return spNewParenthesis;
+}
+
 string AST::Expressions::Parenthesis::DumpToXML(const size_t cszIntend) const
 {
   return XMLSupport::CreateXmlTag(cszIntend, "Parenthesis", _DumpSubExpressionToXML(cszIntend + 2));
@@ -1021,6 +1064,16 @@ string AST::Expressions::UnaryOperator::_GetOperatorTypeString(UnaryOperatorType
   case UnaryOperatorType::PreIncrement:     return "PreIncrement";
   default:                                  throw InternalErrorException("Unknown unary operator type!");
   }
+}
+
+AST::Expressions::UnaryOperatorPtr AST::Expressions::UnaryOperator::Create(UnaryOperatorType eType, BaseClasses::ExpressionPtr spSubExpression)
+{
+  UnaryOperatorPtr spNewUnaryOp = AST::CreateNode<UnaryOperator>();
+
+  spNewUnaryOp->SetOperatorType(eType);
+  spNewUnaryOp->SetSubExpression(spSubExpression);
+
+  return spNewUnaryOp;
 }
 
 string AST::Expressions::UnaryOperator::DumpToXML(const size_t cszIntend) const
@@ -1329,6 +1382,17 @@ string AST::Expressions::RelationalOperator::_GetOperatorTypeString(RelationalOp
   }
 }
 
+AST::Expressions::RelationalOperatorPtr AST::Expressions::RelationalOperator::Create(RelationalOperatorType eOpType, ExpressionPtr spLHS, ExpressionPtr spRHS)
+{
+  RelationalOperatorPtr spNewRelOp = AST::CreateNode< RelationalOperator >();
+
+  spNewRelOp->SetOperatorType(eOpType);
+  spNewRelOp->SetLHS(spLHS);
+  spNewRelOp->SetRHS(spRHS);
+
+  return spNewRelOp;
+}
+
 string AST::Expressions::RelationalOperator::DumpToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -1351,6 +1415,16 @@ void AST::Expressions::FunctionCall::AddCallParameter(ExpressionPtr spCallParam)
 
   _SetParentToChild(spCallParam);
   _vecCallParams.push_back(spCallParam);
+}
+
+AST::Expressions::FunctionCallPtr AST::Expressions::FunctionCall::Create(std::string strFunctionName, const BaseClasses::TypeInfo &crReturnType)
+{
+  FunctionCallPtr spNewFunctionCall = AST::CreateNode<FunctionCall>();
+
+  spNewFunctionCall->SetName(strFunctionName);
+  spNewFunctionCall->SetReturnType(crReturnType);
+
+  return spNewFunctionCall;
 }
 
 string AST::Expressions::FunctionCall::DumpToXML(const size_t cszIntend) const
@@ -1514,6 +1588,15 @@ void AST::VectorSupport::CheckActiveElements::SetSubExpression(IndexType SubExpr
 
 
 // Implementation of class AST::VectorSupport::VectorIndex
+AST::VectorSupport::VectorIndexPtr AST::VectorSupport::VectorIndex::Create(KnownTypes eType)
+{
+  VectorIndexPtr spNewVecIndex = AST::CreateNode<VectorIndex>();
+
+  spNewVecIndex->SetType(eType);
+
+  return spNewVecIndex;
+}
+
 string AST::VectorSupport::VectorIndex::DumpToXML(const size_t cszIntend) const
 {
   return XMLSupport::CreateXmlTag(cszIntend, "VectorIndex", _DumpResultTypeToXML(cszIntend + 2));
@@ -1649,8 +1732,7 @@ AST::Scope::VariableDeclarationVectorType AST::Scope::GetVariableDeclarations() 
 
   for (auto itVariable = _setDeclaredVariables.begin(); itVariable != _setDeclaredVariables.end(); itVariable++)
   {
-    Expressions::IdentifierPtr spVariable = AST::CreateNode< Expressions::Identifier >();
-    spVariable->SetName( *itVariable );
+    Expressions::IdentifierPtr spVariable = Expressions::Identifier::Create( *itVariable );
 
     _SetParentToChild(spVariable);
     vecDeclarations.push_back(spVariable);
@@ -1758,8 +1840,7 @@ void AST::FunctionDeclaration::AddParameter(BaseClasses::VariableInfoPtr spVaria
 
   AddVariable(spVariableInfo);
 
-  Expressions::IdentifierPtr spParameter = AST::CreateNode<Expressions::Identifier>();
-  spParameter->SetName(spVariableInfo->GetName());
+  Expressions::IdentifierPtr spParameter = Expressions::Identifier::Create( spVariableInfo->GetName() );
 
   _SetParentToChild(spParameter);
   _Parameters.push_back(spParameter);
@@ -1777,6 +1858,18 @@ void AST::FunctionDeclaration::AddVariable(BaseClasses::VariableInfoPtr spVariab
   }
 
   _mapKnownVariables[strVariableName] = spVariableInfo;
+}
+
+AST::FunctionDeclarationPtr AST::FunctionDeclaration::Create(string strFunctionName)
+{
+  FunctionDeclarationPtr spNewFunction = AST::CreateNode<FunctionDeclaration>();
+
+  spNewFunction->SetName(strFunctionName);
+
+  // Initialize function body
+  spNewFunction->GetBody();
+
+  return spNewFunction;
 }
 
 string AST::FunctionDeclaration::DumpToXML(const size_t cszIntend) const
@@ -1821,7 +1914,7 @@ AST::ScopePtr AST::FunctionDeclaration::GetBody()
 {
   if (!_spBody)
   {
-    _SetChildPtr(_spBody, AST::CreateNode<Scope>());
+    _SetChildPtr(_spBody, Scope::Create());
   }
 
   return _spBody;
@@ -1892,8 +1985,7 @@ void AST::FunctionDeclaration::SetParameter(IndexType iParamIndex, BaseClasses::
   _mapKnownVariables.erase( _mapKnownVariables.find(spOldParam->GetName()) );
 
   // Set the new parameter
-  Expressions::IdentifierPtr spNewParameter = AST::CreateNode<Expressions::Identifier>();
-  spNewParameter->SetName(strNewParamName);
+  Expressions::IdentifierPtr spNewParameter = Expressions::Identifier::Create( strNewParamName );
 
   _SetParentToChild(spNewParameter);
   _Parameters[iParamIndex] = spNewParameter;

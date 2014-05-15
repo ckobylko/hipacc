@@ -514,6 +514,8 @@ namespace Vectorization
 
       public:
 
+        static LoopPtr Create(LoopType eType = LoopType::TopControlled, BaseClasses::ExpressionPtr spCondition = nullptr, BaseClasses::ExpressionPtr spIncrement = nullptr);
+
         inline Loop() : BaseType(BaseType::ControlFlowType::Loop)   {}
 
         virtual ~Loop() {}
@@ -603,7 +605,7 @@ namespace Vectorization
 
       public:
 
-        static ConditionalBranchPtr Create(ExpressionPtr spCondition);
+        static ConditionalBranchPtr Create(ExpressionPtr spCondition = nullptr);
 
         ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
 
@@ -935,6 +937,8 @@ namespace Vectorization
 
       public:
 
+        static MemoryAccessPtr Create(ExpressionPtr spMemoryReference = nullptr, ExpressionPtr spIndexExpression = nullptr);
+
         inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
 
         virtual ~MemoryAccess() {}
@@ -1011,6 +1015,8 @@ namespace Vectorization
 
       public:
 
+        static ConversionPtr Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression = nullptr);
+
         inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion)   {}
 
         virtual ~Conversion() {}
@@ -1033,6 +1039,8 @@ namespace Vectorization
         typedef UnaryExpression   BaseType;
 
       public:
+
+        static ParenthesisPtr Create(BaseClasses::ExpressionPtr spSubExpression = nullptr);
 
         inline Parenthesis() : BaseType(BaseType::UnaryExpressionType::Parenthesis)   {}
 
@@ -1077,7 +1085,9 @@ namespace Vectorization
 
       public:
 
-        inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator)  {}
+        static UnaryOperatorPtr Create(UnaryOperatorType eType = UnaryOperatorType::Plus, BaseClasses::ExpressionPtr spSubExpression = nullptr);
+
+        inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator), _eOpType(UnaryOperatorType::Plus)  {}
 
         virtual ~UnaryOperator()  {}
 
@@ -1266,6 +1276,8 @@ namespace Vectorization
 
       public:
 
+        static RelationalOperatorPtr  Create(RelationalOperatorType eOpType = RelationalOperatorType::Equal, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
+
         inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator), _eOpType(RelationalOperatorType::Equal)  {}
 
         virtual ~RelationalOperator() {}
@@ -1299,6 +1311,8 @@ namespace Vectorization
 
       public:
 
+        static FunctionCallPtr Create(std::string strFunctionName, const BaseClasses::TypeInfo &crReturnType);
+
         inline FunctionCall() : BaseType(BaseType::ExpressionType::FunctionCall)    {}
 
         virtual ~FunctionCall() {}
@@ -1313,8 +1327,8 @@ namespace Vectorization
         inline std::string  GetName() const                   { return _strName; }
         inline void         SetName(std::string strNewName)   { _strName = strNewName; }
 
-        inline BaseClasses::TypeInfo GetReturnType() const                            { return _ReturnType; }
-        inline void                  SetReturnType(BaseClasses::TypeInfo ReturnType)  { _ReturnType = ReturnType; }
+        inline BaseClasses::TypeInfo GetReturnType() const                                      { return _ReturnType; }
+        inline void                  SetReturnType(const BaseClasses::TypeInfo &crReturnType)   { _ReturnType = crReturnType; }
 
 
       public:
@@ -1481,6 +1495,8 @@ namespace Vectorization
 
       public:
 
+        static VectorIndexPtr Create(KnownTypes eType = KnownTypes::Int32);
+
         inline VectorIndex() : BaseType(BaseType::VectorExpressionType::VectorIndex), _eType(KnownTypes::Int32)  {}
 
         virtual ~VectorIndex()  {}
@@ -1609,6 +1625,8 @@ namespace Vectorization
 
 
     public:
+
+      static FunctionDeclarationPtr Create(std::string strFunctionName);
 
       inline FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)  {}
 
