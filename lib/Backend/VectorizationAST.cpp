@@ -525,7 +525,7 @@ string AST::ControlFlow::LoopControlStatement::DumpToXML(const size_t cszIntend)
   mapAttributes["type"]       = _GetLoopControlTypeString( GetControlType() );
   mapAttributes["vectorize"]  = XMLSupport::ToString( IsVectorized() );
 
-  return XMLSupport::CreateXmlTag(cszIntend, "LoopControlStatement", "", mapAttributes);
+  return XMLSupport::CreateXmlTag(cszIntend, "LoopControlStatement", mapAttributes);
 }
 
 AST::ControlFlow::LoopPtr AST::ControlFlow::LoopControlStatement::GetControlledLoop() const
@@ -736,6 +736,43 @@ void AST::ControlFlow::BranchingStatement::RemoveConditionalBranch(IndexType Bra
   }
 
   _vecBranches.erase( _vecBranches.begin() + BranchIndex );
+}
+
+
+// Implementation of class AST::ControlFlow::ReturnStatement
+AST::ControlFlow::ReturnStatementPtr AST::ControlFlow::ReturnStatement::Create()
+{
+  return AST::CreateNode< ReturnStatement >();
+}
+
+string AST::ControlFlow::ReturnStatement::DumpToXML(const size_t cszIntend) const
+{
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["vectorize"] = XMLSupport::ToString( IsVectorized() );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "ReturnStatement", mapAttributes);
+}
+
+bool AST::ControlFlow::ReturnStatement::IsVectorized() const
+{
+  AST::BaseClasses::NodePtr spCurrentNode = GetThis();
+  while (true)
+  {
+    spCurrentNode = spCurrentNode->GetParent();
+    if (! spCurrentNode)
+    {
+      return false;
+    }
+
+    if (spCurrentNode->IsType<AST::BaseClasses::ControlFlowStatement>())
+    {
+      if (spCurrentNode->CastToType<AST::BaseClasses::ControlFlowStatement>()->IsVectorized())
+      {
+        return true;
+      }
+    }
+  }
 }
 
 

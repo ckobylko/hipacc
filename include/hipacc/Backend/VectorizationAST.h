@@ -399,7 +399,8 @@ namespace Vectorization
           BranchingStatement,
           ConditionalBranch,
           Loop,
-          LoopControlStatement
+          LoopControlStatement,
+          ReturnStatement
         };
         
       private:
@@ -475,11 +476,14 @@ namespace Vectorization
       class LoopControlStatement;
       class ConditionalBranch;
       class BranchingStatement;
+      class ReturnStatement;
 
       typedef std::shared_ptr< Loop >                   LoopPtr;
       typedef std::shared_ptr< LoopControlStatement >   LoopControlStatementPtr;
       typedef std::shared_ptr< ConditionalBranch >      ConditionalBranchPtr;
       typedef std::shared_ptr< BranchingStatement >     BranchingStatementPtr;
+      typedef std::shared_ptr< ReturnStatement >        ReturnStatementPtr;
+
 
     public:
 
@@ -659,6 +663,31 @@ namespace Vectorization
 
         virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override;
         virtual IndexType             GetChildCount() const final override    { return GetConditionalBranchesCount() + 1; }
+
+        virtual bool IsVectorized() const final override;
+      };
+
+      class ReturnStatement final : public BaseClasses::ControlFlowStatement
+      {
+      private:
+
+        typedef BaseClasses::ControlFlowStatement   BaseType;
+
+      public:
+
+        static ReturnStatementPtr Create();
+
+        ReturnStatement() : BaseType(BaseType::ControlFlowType::ReturnStatement)   {}
+
+        virtual ~ReturnStatement() {}
+
+
+      public:
+
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        virtual BaseClasses::NodePtr  GetChild(IndexType ChildIndex) final override   { throw ASTExceptions::ChildIndexOutOfRange(); }
+        virtual IndexType             GetChildCount() const final override            { return static_cast< IndexType >( 0 ); }
 
         virtual bool IsVectorized() const final override;
       };
