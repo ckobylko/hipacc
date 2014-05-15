@@ -82,16 +82,6 @@ namespace Vectorization
 
     private:
 
-      template <typename ValueType>
-      inline static AST::Expressions::ConstantPtr _CreateConstant(ValueType TValue)
-      {
-        AST::Expressions::ConstantPtr spConstant = AST::CreateNode< AST::Expressions::Constant >();
-
-        spConstant->SetValue( TValue );
-
-        return spConstant;
-      }
-
       inline static AST::BaseClasses::TypeInfo _ConvertTypeInfo(::clang::QualType qtSourceType)
       {
         AST::BaseClasses::TypeInfo ReturnType;

@@ -82,49 +82,49 @@ AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperato
 
   if (eOpKind == ::clang::BO_Assign)
   {
-    spReturnOperator = AST::CreateNode<AST::Expressions::AssignmentOperator>();
+    spReturnOperator = AST::Expressions::AssignmentOperator::Create();
   }
   else if (::clang::BinaryOperator::isComparisonOp(eOpKind) || ::clang::BinaryOperator::isLogicalOp(eOpKind))
   {
     typedef AST::Expressions::RelationalOperator::RelationalOperatorType  OperatorType;
-
-    AST::Expressions::RelationalOperatorPtr spRelationalOp = AST::CreateNode< AST::Expressions::RelationalOperator >();
-    spReturnOperator = spRelationalOp;
+    OperatorType eOperatorType = OperatorType::Equal;
 
     switch (eOpKind)
     {
-    case BO_EQ:     spRelationalOp->SetOperatorType(OperatorType::Equal);         break;
-    case BO_GT:     spRelationalOp->SetOperatorType(OperatorType::Greater);       break;
-    case BO_GE:     spRelationalOp->SetOperatorType(OperatorType::GreaterEqual);  break;
-    case BO_LT:     spRelationalOp->SetOperatorType(OperatorType::Less);          break;
-    case BO_LE:     spRelationalOp->SetOperatorType(OperatorType::LessEqual);     break;
-    case BO_LAnd:   spRelationalOp->SetOperatorType(OperatorType::LogicalAnd);    break;
-    case BO_LOr:    spRelationalOp->SetOperatorType(OperatorType::LogicalOr);     break;
-    case BO_NE:     spRelationalOp->SetOperatorType(OperatorType::NotEqual);      break;
+    case BO_EQ:     eOperatorType = OperatorType::Equal;          break;
+    case BO_GT:     eOperatorType = OperatorType::Greater;        break;
+    case BO_GE:     eOperatorType = OperatorType::GreaterEqual;   break;
+    case BO_LT:     eOperatorType = OperatorType::Less;           break;
+    case BO_LE:     eOperatorType = OperatorType::LessEqual;      break;
+    case BO_LAnd:   eOperatorType = OperatorType::LogicalAnd;     break;
+    case BO_LOr:    eOperatorType = OperatorType::LogicalOr;      break;
+    case BO_NE:     eOperatorType = OperatorType::NotEqual;       break;
     default:        throw RuntimeErrorException("Invalid relational operator type!");
     }
+
+    spReturnOperator = AST::Expressions::RelationalOperator::Create( eOperatorType );
   }
   else
   {
     typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  OperatorType;
-
-    AST::Expressions::ArithmeticOperatorPtr spArithmeticOp = AST::CreateNode< AST::Expressions::ArithmeticOperator >();
-    spReturnOperator = spArithmeticOp;
+    OperatorType eOperatorType = OperatorType::Add;
 
     switch (eOpKind)
     {
-    case BO_Add:    spArithmeticOp->SetOperatorType(OperatorType::Add);         break;
-    case BO_And:    spArithmeticOp->SetOperatorType(OperatorType::BitwiseAnd);  break;
-    case BO_Or:     spArithmeticOp->SetOperatorType(OperatorType::BitwiseOr);   break;
-    case BO_Xor:    spArithmeticOp->SetOperatorType(OperatorType::BitwiseXOr);  break;
-    case BO_Div:    spArithmeticOp->SetOperatorType(OperatorType::Divide);      break;
-    case BO_Rem:    spArithmeticOp->SetOperatorType(OperatorType::Modulo);      break;
-    case BO_Mul:    spArithmeticOp->SetOperatorType(OperatorType::Multiply);    break;
-    case BO_Shl:    spArithmeticOp->SetOperatorType(OperatorType::ShiftLeft);   break;
-    case BO_Shr:    spArithmeticOp->SetOperatorType(OperatorType::ShiftRight);  break;
-    case BO_Sub:    spArithmeticOp->SetOperatorType(OperatorType::Subtract);    break;
+    case BO_Add:    eOperatorType = OperatorType::Add;          break;
+    case BO_And:    eOperatorType = OperatorType::BitwiseAnd;   break;
+    case BO_Or:     eOperatorType = OperatorType::BitwiseOr;    break;
+    case BO_Xor:    eOperatorType = OperatorType::BitwiseXOr;   break;
+    case BO_Div:    eOperatorType = OperatorType::Divide;       break;
+    case BO_Rem:    eOperatorType = OperatorType::Modulo;       break;
+    case BO_Mul:    eOperatorType = OperatorType::Multiply;     break;
+    case BO_Shl:    eOperatorType = OperatorType::ShiftLeft;    break;
+    case BO_Shr:    eOperatorType = OperatorType::ShiftRight;   break;
+    case BO_Sub:    eOperatorType = OperatorType::Subtract;     break;
     default:        throw RuntimeErrorException("Invalid arithmetic operator type!");
     }
+
+    spReturnOperator = AST::Expressions::ArithmeticOperator::Create( eOperatorType );
   }
 
 
@@ -136,7 +136,7 @@ AST::Expressions::BinaryOperatorPtr Vectorizer::VASTBuilder::_BuildBinaryOperato
 
 void Vectorizer::VASTBuilder::_BuildBranchingStatement(::clang::IfStmt *pIfStmt, AST::ScopePtr spEnclosingScope)
 {
-  AST::ControlFlow::BranchingStatementPtr spBranchingStmt = AST::CreateNode<AST::ControlFlow::BranchingStatement>();
+  AST::ControlFlow::BranchingStatementPtr spBranchingStmt = AST::ControlFlow::BranchingStatement::Create();
   spEnclosingScope->AddChild(spBranchingStmt);
 
   // Unroll the "if-else"-cascade in the clang AST
@@ -171,10 +171,8 @@ void Vectorizer::VASTBuilder::_BuildBranchingStatement(::clang::IfStmt *pIfStmt,
 
 ::clang::Stmt* Vectorizer::VASTBuilder::_BuildConditionalBranch(::clang::IfStmt *pIfStmt, AST::ControlFlow::BranchingStatementPtr spBranchingStatement)
 {
-  AST::ControlFlow::ConditionalBranchPtr spBranch = AST::CreateNode< AST::ControlFlow::ConditionalBranch >();
+  AST::ControlFlow::ConditionalBranchPtr spBranch = AST::ControlFlow::ConditionalBranch::Create( _BuildExpression(pIfStmt->getCond()) );
   spBranchingStatement->AddConditionalBranch(spBranch);
-
-  spBranch->SetCondition( _BuildExpression(pIfStmt->getCond()) );
 
   AST::ScopePtr spBranchBody  = spBranch->GetBody();
   ::clang::Stmt *pIfBody      = pIfStmt->getThen();
@@ -211,23 +209,23 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
 
     if (uiBitWidth <= 8)
     {
-      if (bSigned)  return _CreateConstant( static_cast<int8_t >(ui64Value) );
-      else          return _CreateConstant( static_cast<uint8_t>(ui64Value) );
+      if (bSigned)  return AST::Expressions::Constant::Create( static_cast<int8_t >(ui64Value) );
+      else          return AST::Expressions::Constant::Create( static_cast<uint8_t>(ui64Value) );
     }
     else if (uiBitWidth <= 16)
     {
-      if (bSigned)  return _CreateConstant( static_cast<int16_t >(ui64Value) );
-      else          return _CreateConstant( static_cast<uint16_t>(ui64Value) );
+      if (bSigned)  return AST::Expressions::Constant::Create( static_cast<int16_t >(ui64Value) );
+      else          return AST::Expressions::Constant::Create( static_cast<uint16_t>(ui64Value) );
     }
     else if (uiBitWidth <= 32)
     {
-      if (bSigned)  return _CreateConstant( static_cast<int32_t >(ui64Value) );
-      else          return _CreateConstant( static_cast<uint32_t>(ui64Value) );
+      if (bSigned)  return AST::Expressions::Constant::Create( static_cast<int32_t >(ui64Value) );
+      else          return AST::Expressions::Constant::Create( static_cast<uint32_t>(ui64Value) );
     }
     else
     {
-      if (bSigned)  return _CreateConstant( static_cast<int64_t >(ui64Value) );
-      else          return _CreateConstant( static_cast<uint64_t>(ui64Value) );
+      if (bSigned)  return AST::Expressions::Constant::Create( static_cast<int64_t >(ui64Value) );
+      else          return AST::Expressions::Constant::Create( static_cast<uint64_t>(ui64Value) );
     }
   }
   else if (isa<::clang::FloatingLiteral>(pExpression))
@@ -237,16 +235,16 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
     if ( (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEhalf)) ||
          (llvm::APFloat::semanticsPrecision(llvmFloatValue.getSemantics()) == llvm::APFloat::semanticsPrecision(llvm::APFloat::IEEEsingle)) )
     {
-      return _CreateConstant( llvmFloatValue.convertToFloat() );
+      return AST::Expressions::Constant::Create( llvmFloatValue.convertToFloat() );
     }
     else
     {
-      return _CreateConstant( llvmFloatValue.convertToDouble() );
+      return AST::Expressions::Constant::Create( llvmFloatValue.convertToDouble() );
     }
   }
   else if (isa<::clang::CXXBoolLiteralExpr>(pExpression))
   {
-    return _CreateConstant( dyn_cast<::clang::CXXBoolLiteralExpr>(pExpression)->getValue() );
+    return AST::Expressions::Constant::Create( dyn_cast<::clang::CXXBoolLiteralExpr>(pExpression)->getValue() );
   }
   else
   {
@@ -256,15 +254,7 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
 
 AST::Expressions::ConversionPtr Vectorizer::VASTBuilder::_BuildConversionExpression(::clang::CastExpr *pCastExpr)
 {
-  AST::Expressions::ConversionPtr spConversion = AST::CreateNode< AST::Expressions::Conversion >();
-
-  AST::BaseClasses::TypeInfo CastType;
-  _ConvertTypeInfo( CastType, pCastExpr->getType() );
-
-  spConversion->SetConvertType( CastType );
-  spConversion->SetSubExpression( _BuildExpression(pCastExpr->getSubExpr()) );
-
-  return spConversion;
+  return AST::Expressions::Conversion::Create( _ConvertTypeInfo(pCastExpr->getType()), _BuildExpression(pCastExpr->getSubExpr()) );
 }
 
 AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clang::Expr *pExpression)
@@ -314,20 +304,13 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   }
   else if (isa<::clang::ParenExpr>(pExpression))
   {
-    AST::Expressions::ParenthesisPtr  spParenthesis = AST::CreateNode< AST::Expressions::Parenthesis >();
-    spReturnExpression = spParenthesis;
-
-    spParenthesis->SetSubExpression( _BuildExpression(dyn_cast<::clang::ParenExpr>(pExpression)->getSubExpr()) );
+    spReturnExpression = AST::Expressions::Parenthesis::Create( _BuildExpression(dyn_cast<::clang::ParenExpr>(pExpression)->getSubExpr()) );
   }
   else if (isa<::clang::ArraySubscriptExpr>(pExpression))
   {
     ::clang::ArraySubscriptExpr *pArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pExpression);
 
-    AST::Expressions::MemoryAccessPtr spMemoryAccess = AST::CreateNode< AST::Expressions::MemoryAccess >();
-    spReturnExpression = spMemoryAccess;
-
-    spMemoryAccess->SetMemoryReference( _BuildExpression(pArraySubscript->getLHS()) );
-    spMemoryAccess->SetIndexExpression( _BuildExpression(pArraySubscript->getRHS()) );
+    spReturnExpression = AST::Expressions::MemoryAccess::Create( _BuildExpression(pArraySubscript->getLHS()), _BuildExpression(pArraySubscript->getRHS()) );
   }
   else if (isa<::clang::UnaryOperator>(pExpression))
   {
@@ -337,11 +320,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 
     if (eOpCode == ::clang::UO_Deref)
     {
-      AST::Expressions::MemoryAccessPtr spMemoryAccess = AST::CreateNode< AST::Expressions::MemoryAccess >();
-      spReturnExpression = spMemoryAccess;
-
-      spMemoryAccess->SetMemoryReference( _BuildExpression(pSubExpr) );
-      spMemoryAccess->SetIndexExpression( _CreateConstant< int32_t >( 0 ) );
+      spReturnExpression = AST::Expressions::MemoryAccess::Create( _BuildExpression(pSubExpr), AST::Expressions::Constant::Create< int32_t >( 0 ) );
     }
     else
     {
@@ -352,11 +331,10 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
   {
     ::clang::CallExpr *pCallExpr  = dyn_cast<::clang::CallExpr>(pExpression);
 
-    AST::Expressions::FunctionCallPtr spFunctionCall = AST::CreateNode< AST::Expressions::FunctionCall >();
-    spReturnExpression = spFunctionCall;
-
-    // Set the function name
+    // Build the function call node
+    AST::Expressions::FunctionCallPtr spFunctionCall(nullptr);
     {
+      // Get the function name
       ::clang::FunctionDecl *pCalleeDecl = pCallExpr->getDirectCallee();
       if (pCalleeDecl == nullptr)
       {
@@ -365,18 +343,15 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
 
       std::string strFunctionName = ClangASTHelper::GetFullyQualifiedFunctionName( pCalleeDecl );
 
-      spFunctionCall->SetName(strFunctionName);
-    }
-
-    // Set the return type
-    {
-      AST::BaseClasses::TypeInfo  ReturnType = _ConvertTypeInfo(pCallExpr->getCallReturnType());
+      // Convert the return type
+      AST::BaseClasses::TypeInfo  ReturnType = _ConvertTypeInfo( pCallExpr->getCallReturnType() );
       if (ReturnType.IsSingleValue())
       {
         ReturnType.SetConst(true);
       }
 
-      spFunctionCall->SetReturnType(ReturnType);
+      spFunctionCall = AST::Expressions::FunctionCall::Create( strFunctionName, ReturnType );
+      spReturnExpression = spFunctionCall;
     }
 
 
@@ -407,7 +382,7 @@ AST::Expressions::IdentifierPtr Vectorizer::VASTBuilder::_BuildIdentifier(string
 
 void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::ScopePtr spEnclosingScope)
 {
-  AST::ControlFlow::LoopPtr spLoop = AST::CreateNode< AST::ControlFlow::Loop >();
+  AST::ControlFlow::LoopPtr spLoop = AST::ControlFlow::Loop::Create();
 
   ::clang::Stmt   *pLoopBody  = nullptr;
   ::clang::Expr   *pCondition = nullptr;
@@ -421,7 +396,7 @@ void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::Sco
     // If we have an init statement, create a container scope around the loop and add the init statement
     if (pForLoop->getInit())
     {
-      AST::ScopePtr spLoopHolderScope = AST::CreateNode< AST::Scope >();
+      AST::ScopePtr spLoopHolderScope = AST::Scope::Create();
       spEnclosingScope->AddChild(spLoopHolderScope);
 
       AST::BaseClasses::NodePtr spInitStatement = _BuildStatement(pForLoop->getInit(), spLoopHolderScope);
@@ -477,9 +452,10 @@ void Vectorizer::VASTBuilder::_BuildLoop(::clang::Stmt *pLoopStatement, AST::Sco
   spLoop->SetCondition( _BuildExpression(pCondition) );
 
   // Build loop body if it is present
-  AST::ScopePtr spLoopBody = spLoop->GetBody();  // Must be called in every case, so that the loop body node is created
   if (pLoopBody != nullptr)
   {
+    AST::ScopePtr spLoopBody = spLoop->GetBody();
+
     if (isa<::clang::CompoundStmt>(pLoopBody))
     {
       _ConvertScope(spLoopBody, dyn_cast<::clang::CompoundStmt>(pLoopBody));
@@ -503,7 +479,7 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
   {
     ::clang::CompoundStmt *pCurrentCompound = dyn_cast<::clang::CompoundStmt>(pStatement);
 
-    AST::ScopePtr spChildScope = AST::CreateNode<AST::Scope>();
+    AST::ScopePtr spChildScope = AST::Scope::Create();
     spEnclosingScope->AddChild( spChildScope );
 
     _ConvertScope(spChildScope, pCurrentCompound);
@@ -536,12 +512,7 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
         continue;
       }
 
-      AST::Expressions::AssignmentOperatorPtr spAssignment = AST::CreateNode< AST::Expressions::AssignmentOperator >();
-
-      spAssignment->SetLHS( _BuildIdentifier(pVarDecl->getNameAsString()) );
-      spAssignment->SetRHS( _BuildExpression(pInitExpr) );
-
-      spEnclosingScope->AddChild(spAssignment);
+      spEnclosingScope->AddChild( AST::Expressions::AssignmentOperator::Create( _BuildIdentifier(pVarDecl->getNameAsString()), _BuildExpression(pInitExpr) ) );
     }
 
     spStatement = nullptr;
@@ -594,32 +565,27 @@ AST::BaseClasses::NodePtr Vectorizer::VASTBuilder::_BuildStatement(::clang::Stmt
 AST::Expressions::UnaryOperatorPtr Vectorizer::VASTBuilder::_BuildUnaryOperatorExpression(::clang::Expr *pSubExpr, ::clang::UnaryOperatorKind eOpKind)
 {
   typedef AST::Expressions::UnaryOperator::UnaryOperatorType OperatorType;
-
-  AST::Expressions::UnaryOperatorPtr spReturnOperator = AST::CreateNode< AST::Expressions::UnaryOperator >();
+  OperatorType eOperatorType = OperatorType::AddressOf;
 
   switch (eOpKind)
   {
-  case UO_AddrOf:   spReturnOperator->SetOperatorType(OperatorType::AddressOf);       break;
-  case UO_Not:      spReturnOperator->SetOperatorType(OperatorType::BitwiseNot);      break;
-  case UO_LNot:     spReturnOperator->SetOperatorType(OperatorType::LogicalNot);      break;
-  case UO_Minus:    spReturnOperator->SetOperatorType(OperatorType::Minus);           break;
-  case UO_Plus:     spReturnOperator->SetOperatorType(OperatorType::Plus);            break;
-  case UO_PostDec:  spReturnOperator->SetOperatorType(OperatorType::PostDecrement);   break;
-  case UO_PostInc:  spReturnOperator->SetOperatorType(OperatorType::PostIncrement);   break;
-  case UO_PreDec:   spReturnOperator->SetOperatorType(OperatorType::PreDecrement);    break;
-  case UO_PreInc:   spReturnOperator->SetOperatorType(OperatorType::PreIncrement);    break;
+  case UO_AddrOf:   eOperatorType = OperatorType::AddressOf;      break;
+  case UO_Not:      eOperatorType = OperatorType::BitwiseNot;     break;
+  case UO_LNot:     eOperatorType = OperatorType::LogicalNot;     break;
+  case UO_Minus:    eOperatorType = OperatorType::Minus;          break;
+  case UO_Plus:     eOperatorType = OperatorType::Plus;           break;
+  case UO_PostDec:  eOperatorType = OperatorType::PostDecrement;  break;
+  case UO_PostInc:  eOperatorType = OperatorType::PostIncrement;  break;
+  case UO_PreDec:   eOperatorType = OperatorType::PreDecrement;   break;
+  case UO_PreInc:   eOperatorType = OperatorType::PreIncrement;   break;
   default:          throw RuntimeErrorException("Invalid unary operator type!");
   }
 
-  spReturnOperator->SetSubExpression( _BuildExpression(pSubExpr) );
-
-  return spReturnOperator;
+  return AST::Expressions::UnaryOperator::Create( eOperatorType, _BuildExpression(pSubExpr) );
 }
 
 AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::clang::VarDecl *pVarDecl, AST::IVariableContainerPtr spVariableContainer)
 {
-  AST::BaseClasses::VariableInfoPtr spVariableInfo = std::make_shared< AST::BaseClasses::VariableInfo >();
-
   string strVariableName = pVarDecl->getNameAsString();
 
   if ( spVariableContainer->IsVariableUsed(strVariableName) )
@@ -631,12 +597,7 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::VASTBuilder::_BuildVariableInfo(::
     strVariableName = strNewName;
   }
 
-
-  spVariableInfo->SetName( strVariableName );
-
-  _ConvertTypeInfo( spVariableInfo->GetTypeInfo(), pVarDecl->getType() );
-
-  return spVariableInfo;
+  return AST::BaseClasses::VariableInfo::Create( strVariableName, _ConvertTypeInfo(pVarDecl->getType()), false );
 }
 
 void Vectorizer::VASTBuilder::_ConvertScope(AST::ScopePtr spScope, ::clang::CompoundStmt *pCompoundStatement)
@@ -741,12 +702,9 @@ void Vectorizer::VASTBuilder::_ConvertTypeInfo(AST::BaseClasses::TypeInfo &rType
 }
 
 
-
 AST::FunctionDeclarationPtr Vectorizer::VASTBuilder::BuildFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
-  AST::FunctionDeclarationPtr spFunctionDecl = AST::CreateNode< AST::FunctionDeclaration >();
-
-  spFunctionDecl->SetName(pFunctionDeclaration->getName());
+  AST::FunctionDeclarationPtr spFunctionDecl = AST::FunctionDeclaration::Create( pFunctionDeclaration->getName() );
 
   for (size_t i = 0; i < pFunctionDeclaration->getNumParams(); ++i)
   {
@@ -967,8 +925,8 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
   case KnownTypes::UInt64:    return _ASTHelper.CreateLiteral( spConstant->GetValue< uint64_t >() );
   case KnownTypes::Float:     return _ASTHelper.CreateLiteral( spConstant->GetValue< float    >() );
   case KnownTypes::Double:    return _ASTHelper.CreateLiteral( spConstant->GetValue< double   >() );
-  case KnownTypes::Unknown:   throw RuntimeErrorException("VAST element type is unknown!");
-  default:                    throw InternalErrorException("Unsupported VAST element type detected!");
+  case KnownTypes::Unknown:   throw RuntimeErrorException("VAST constant type is unknown!");
+  default:                    throw InternalErrorException("Unsupported VAST constant type detected!");
   }
 }
 
@@ -1409,10 +1367,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
   if (ciBranchesCount == static_cast<IndexType>(0))
   {
-    AST::Expressions::ConstantPtr spTrueCondition = AST::CreateNode<AST::Expressions::Constant>();
-    spTrueCondition->SetValue(true);
-
-    return _ASTHelper.CreateIfStatement( _BuildConstant(spTrueCondition), _BuildCompoundStatement(spDefaultBranch) );
+    return _ASTHelper.CreateIfStatement( _BuildConstant( AST::Expressions::Constant::Create(true) ), _BuildCompoundStatement(spDefaultBranch) );
   }
   else
   {
@@ -1821,14 +1776,7 @@ void Vectorizer::Transformations::FlattenMemoryAccesses::Execute(AST::Expression
       string strIndexVariableName = VASTBuilder::GetNextFreeVariableName(spCurrentScope, VASTBuilder::GetTemporaryNamePrefix() + string("_index"));
 
       // Create the new index variable declaration
-      {
-        AST::BaseClasses::VariableInfoPtr spVariableInfo = std::make_shared< AST::BaseClasses::VariableInfo >();
-        spVariableInfo->GetTypeInfo() = spIndexExpr->GetResultType();
-        spVariableInfo->SetName(strIndexVariableName);
-        spVariableInfo->SetVectorize(spIndexExpr->IsVectorized());
-
-        spCurrentScope->AddVariableDeclaration(spVariableInfo);
-      }
+      spCurrentScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strIndexVariableName, spIndexExpr->GetResultType(), spIndexExpr->IsVectorized()) );
 
       // Create the assignment expression for the new index variable
       spCurrentScope->InsertChild( ScopePos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strIndexVariableName), spIndexExpr ) );
@@ -1914,7 +1862,7 @@ void Vectorizer::Transformations::SeparateBranchingStatements::Execute(AST::Cont
     }
 
 
-    AST::ControlFlow::BranchingStatementPtr spVecBranchStatement = AST::CreateNode< AST::ControlFlow::BranchingStatement >();
+    AST::ControlFlow::BranchingStatementPtr spVecBranchStatement = AST::ControlFlow::BranchingStatement::Create();
 
     while (iFirstVecBranch < spBranchingStmt->GetConditionalBranchesCount())
     {

@@ -836,34 +836,23 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
           string strParamName = spParam->GetName();
 
           // Replace parameter
-          Vectorization::AST::Expressions::IdentifierPtr   spNewParam     = Vectorization::AST::CreateNode<Vectorization::AST::Expressions::Identifier>();
-          Vectorization::AST::BaseClasses::VariableInfoPtr spNewParamInfo = std::make_shared<Vectorization::AST::BaseClasses::VariableInfo>();
-
-          spNewParamInfo->GetTypeInfo() = spParamInfo->GetTypeInfo();
-          spNewParamInfo->SetName(spParamInfo->GetName() + string("_base"));
-          spNewParamInfo->SetVectorize(false);
-
-          spNewParam->SetName(spNewParamInfo->GetName());
+          Vectorization::AST::BaseClasses::VariableInfoPtr spNewParamInfo = Vectorization::AST::BaseClasses::VariableInfo::Create( spParamInfo->GetName() + string("_base"), spParamInfo->GetTypeInfo(), false );
+          Vectorization::AST::Expressions::IdentifierPtr   spNewParam     = Vectorization::AST::Expressions::Identifier::Create( spNewParamInfo->GetName() );
 
           spVecFunction->SetParameter(iParamIdx, spNewParamInfo);
 
 
           // Create the assignment expression for the new variable
-          Vectorization::AST::Expressions::AssignmentOperatorPtr  spAssignment    = Vectorization::AST::CreateNode< Vectorization::AST::Expressions::AssignmentOperator >();
-          Vectorization::AST::VectorSupport::BroadCastPtr         spBaseBroadCast = Vectorization::AST::CreateNode< Vectorization::AST::VectorSupport::BroadCast        >();
-
-          spAssignment->SetLHS(spParam);
-          spBaseBroadCast->SetSubExpression(spNewParam);
+          Vectorization::AST::Expressions::AssignmentOperatorPtr  spAssignment    = Vectorization::AST::Expressions::AssignmentOperator::Create( spParam );
+          Vectorization::AST::VectorSupport::BroadCastPtr         spBaseBroadCast = Vectorization::AST::VectorSupport::BroadCast::Create( spNewParam );
 
           if (strParamName == HipaccHelper::GlobalIdX())
           {
-            // The horizontal global id must be incremental vector
-            Vectorization::AST::Expressions::ArithmeticOperatorPtr  spAddOperator = Vectorization::AST::CreateNode< Vectorization::AST::Expressions::ArithmeticOperator >();
-            Vectorization::AST::VectorSupport::VectorIndexPtr       spVectorIndex = Vectorization::AST::CreateNode< Vectorization::AST::VectorSupport::VectorIndex      >();
+            typedef Vectorization::AST::Expressions::ArithmeticOperator::ArithmeticOperatorType   OperatorType;
 
-            spAddOperator->SetOperatorType( Vectorization::AST::Expressions::ArithmeticOperator::ArithmeticOperatorType::Add );
-            spAddOperator->SetLHS( spBaseBroadCast );
-            spAddOperator->SetRHS( spVectorIndex );
+            // The horizontal global id must be incremental vector
+            Vectorization::AST::VectorSupport::VectorIndexPtr       spVectorIndex = Vectorization::AST::VectorSupport::VectorIndex::Create( spParamInfo->GetTypeInfo().GetType() );
+            Vectorization::AST::Expressions::ArithmeticOperatorPtr  spAddOperator = Vectorization::AST::Expressions::ArithmeticOperator::Create( OperatorType::Add, spBaseBroadCast, spVectorIndex );
 
             spAssignment->SetRHS(spAddOperator);
           }
