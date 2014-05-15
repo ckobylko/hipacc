@@ -1008,22 +1008,26 @@ namespace Vectorization
       {
       private:
 
-        typedef UnaryExpression           BaseType;
+        typedef UnaryExpression   BaseType;
 
 
         BaseClasses::TypeInfo   _ConvertType;
+        bool                    _bIsExplicit;
 
       public:
 
-        static ConversionPtr Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression = nullptr);
+        static ConversionPtr Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression = nullptr, bool bExplicit = true);
 
-        inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion)   {}
+        inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion), _bIsExplicit(true)   {}
 
         virtual ~Conversion() {}
 
 
         inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
         inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
+
+        inline bool GetExplicit() const             { return _bIsExplicit; }
+        inline void SetExplicit(bool bIsExplicit)   { _bIsExplicit = bIsExplicit; }
 
       public:
 

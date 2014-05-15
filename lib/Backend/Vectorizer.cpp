@@ -254,7 +254,7 @@ AST::Expressions::ConstantPtr Vectorizer::VASTBuilder::_BuildConstantExpression(
 
 AST::Expressions::ConversionPtr Vectorizer::VASTBuilder::_BuildConversionExpression(::clang::CastExpr *pCastExpr)
 {
-  return AST::Expressions::Conversion::Create( _ConvertTypeInfo(pCastExpr->getType()), _BuildExpression(pCastExpr->getSubExpr()) );
+  return AST::Expressions::Conversion::Create( _ConvertTypeInfo(pCastExpr->getType()), _BuildExpression(pCastExpr->getSubExpr()), (! isa<::clang::ImplicitCastExpr>(pCastExpr)) );
 }
 
 AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clang::Expr *pExpression)
@@ -1835,6 +1835,23 @@ Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions:
 
     if (bRemoveConversion)
     {
+      if (spParentExpression->IsType<AST::Expressions::Conversion>())
+      {
+        AST::Expressions::ConversionPtr spParentConversion = spParentExpression->CastToType<AST::Expressions::Conversion>();
+
+        spParentConversion->SetExplicit( spParentConversion->GetExplicit() || spConversion->GetExplicit() );
+      }
+      else
+      {
+        AST::BaseClasses::ExpressionPtr spSubExpr = spConversion->GetSubExpression();
+        if (spSubExpr && spSubExpr->IsType<AST::Expressions::Conversion>())
+        {
+          AST::Expressions::ConversionPtr spChildConversion = spSubExpr->CastToType<AST::Expressions::Conversion>();
+
+          spChildConversion->SetExplicit( spChildConversion->GetExplicit() || spConversion->GetExplicit() );
+        }
+      }
+
       spParentExpression->SetSubExpression(iChildIndex, spConversion->GetSubExpression());
     }
   }

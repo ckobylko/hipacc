@@ -1004,11 +1004,12 @@ void AST::Expressions::UnaryExpression::SetSubExpression(IndexType SubExprIndex,
 
 
 // Implementation of class AST::Expressions::Conversion
-AST::Expressions::ConversionPtr AST::Expressions::Conversion::Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression)
+AST::Expressions::ConversionPtr AST::Expressions::Conversion::Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression, bool bExplicit)
 {
   ConversionPtr spNewConversion = AST::CreateNode<Conversion>();
 
   spNewConversion->SetConvertType(crConvertType);
+  spNewConversion->SetExplicit(bExplicit);
   spNewConversion->SetSubExpression(spSubExpression);
 
   return spNewConversion;
@@ -1016,7 +1017,11 @@ AST::Expressions::ConversionPtr AST::Expressions::Conversion::Create(const BaseC
 
 string AST::Expressions::Conversion::DumpToXML(const size_t cszIntend) const
 {
-  return XMLSupport::CreateXmlTag(cszIntend, "Conversion", _DumpSubExpressionToXML(cszIntend + 2));
+  XMLSupport::AttributesMapType mapAttributes;
+
+  mapAttributes["explicit"] = XMLSupport::ToString( GetExplicit() );
+
+  return XMLSupport::CreateXmlTag(cszIntend, "Conversion", _DumpSubExpressionToXML(cszIntend + 2), mapAttributes);
 }
 
 
