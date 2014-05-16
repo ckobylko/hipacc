@@ -870,6 +870,9 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     }
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_7.xml");
 
+    Vectorizer.RebuildDataFlow(spVecFunction);
+    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_8.xml");
+
 
     return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext(), _bUnrollVectorLoops);
   }
