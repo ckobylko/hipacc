@@ -529,6 +529,7 @@ namespace Vectorization
 
     static void _CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope, AST::ScopePtr spBranchScope, std::string strMaskName);
 
+    static void _FlattenSubExpression(const std::string &crstrTempVarNameRoot, AST::BaseClasses::ExpressionPtr spSubExpression);
 
   public:
 
@@ -552,7 +553,7 @@ namespace Vectorization
 
     void RebuildControlFlow(AST::FunctionDeclarationPtr spFunction);
 
-    void RebuildDataFlow(AST::FunctionDeclarationPtr spFunction);
+    void RebuildDataFlow(AST::FunctionDeclarationPtr spFunction, bool bEnsureMonoTypeVectorExpressions = false);
 
     void VectorizeFunction(AST::FunctionDeclarationPtr spFunction);
 

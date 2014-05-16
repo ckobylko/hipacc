@@ -1889,7 +1889,17 @@ void Vectorizer::Transformations::InsertRequiredConversions::Execute(AST::Expres
   }
   else if (spCurrentBinOp->IsType<AST::Expressions::RelationalOperator>())
   {
-    // TODO: Implement
+    AST::BaseClasses::TypeInfo ComparisonType = spCurrentBinOp->CastToType< AST::Expressions::RelationalOperator >()->GetComparisonType();
+
+    if (! spLHS->GetResultType().IsEqual(ComparisonType, true))
+    {
+      spCurrentBinOp->SetLHS( AST::Expressions::Conversion::Create(ComparisonType, spLHS, false) );
+    }
+
+    if (! spRHS->GetResultType().IsEqual(ComparisonType, true))
+    {
+      spCurrentBinOp->SetRHS( AST::Expressions::Conversion::Create(ComparisonType, spRHS, false) );
+    }
   }
   else
   {
@@ -2047,6 +2057,27 @@ void Vectorizer::_CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope,
 
     // TODO: Mask all assignments inside the vectorized branch
   }
+}
+
+void Vectorizer::_FlattenSubExpression(const string &crstrTempVarNameRoot, AST::BaseClasses::ExpressionPtr spSubExpression)
+{
+  if (! spSubExpression->IsSubExpression())
+  {
+    return; // Nothing to do, expression is not a sub-expression
+  }
+
+  AST::BaseClasses::ExpressionPtr spParentExpr  = spSubExpression->GetParent()->CastToType<AST::BaseClasses::Expression>();
+  AST::ScopePosition              SubExprPos    = spSubExpression->GetScopePosition();
+
+  string strTempVarName = VASTBuilder::GetNextFreeVariableName( SubExprPos.GetScope(), crstrTempVarNameRoot );
+
+  AST::BaseClasses::TypeInfo VarInfo = spSubExpression->GetResultType();
+  VarInfo.SetConst(true);
+  SubExprPos.GetScope()->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strTempVarName, VarInfo, spSubExpression->IsVectorized()) );
+
+  spParentExpr->SetSubExpression( spSubExpression->GetParentIndex(), AST::Expressions::Identifier::Create(strTempVarName) );
+
+  SubExprPos.GetScope()->InsertChild( SubExprPos.GetChildIndex(), AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strTempVarName), spSubExpression) );
 }
 
 AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions::AssignmentOperatorPtr spAssignment)
@@ -2539,13 +2570,55 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
   }
 }
 
-void Vectorizer::RebuildDataFlow(AST::FunctionDeclarationPtr spFunction)
+void Vectorizer::RebuildDataFlow(AST::FunctionDeclarationPtr spFunction, bool bEnsureMonoTypeVectorExpressions)
 {
   Transformations::Run( spFunction, Transformations::RemoveImplicitConversions() );
 
   Transformations::Run( spFunction, Transformations::InsertRequiredConversions() );
 
-  Transformations::Run( spFunction, Transformations::InsertRequiredBroadcasts() );
+  RemoveUnnecessaryConversions( spFunction );
+
+  Transformations::Run(spFunction, Transformations::InsertRequiredBroadcasts());
+
+  if (bEnsureMonoTypeVectorExpressions)
+  {
+    // Remove all vector conversion expressions from all expressions except direct assignments => All vector expressions will have only a single vector type now
+    {
+      Transformations::FindNodes< AST::Expressions::Conversion >  ConversionFinder( Transformations::DirectionType::BottomUp );
+      Transformations::Run( spFunction, ConversionFinder );
+
+      for each (auto itConversion in ConversionFinder.lstFoundNodes)
+      {
+        if ( itConversion->IsVectorized() && (! itConversion->GetParent()->IsType<AST::Expressions::AssignmentOperator>()) )
+        {
+          // Extract conversion into an own assignment to a temporary variable
+          _FlattenSubExpression( VASTBuilder::GetTemporaryNamePrefix() + string("_conv"), itConversion );
+
+          // If the sub-expression of the conversion is not a leaf expression (i.e. identifier, constant etc.) extract it too
+          AST::BaseClasses::ExpressionPtr spSubExpression = itConversion->GetSubExpression();
+          if ( spSubExpression && (! spSubExpression->IsLeafNode()) )
+          {
+            _FlattenSubExpression( VASTBuilder::GetTemporaryNamePrefix() + string("_conv_sub"), spSubExpression );
+          }
+        }
+      }
+    }
+
+    // Re-arrange broadcast expressions => avoid unnecessary computations
+    {
+      Transformations::FindNodes< AST::VectorSupport::BroadCast >  BroadCastFinder(Transformations::DirectionType::BottomUp);
+      Transformations::Run( spFunction, BroadCastFinder );
+
+      for each (auto itBroadCast in BroadCastFinder.lstFoundNodes)
+      {
+        AST::BaseClasses::ExpressionPtr spSubExpression = itBroadCast->GetSubExpression();
+        if ( spSubExpression && (! spSubExpression->IsLeafNode()) )
+        {
+          _FlattenSubExpression(VASTBuilder::GetTemporaryNamePrefix() + string("_broadcast"), spSubExpression);
+        }
+      }
+    }
+  }
 }
 
 
