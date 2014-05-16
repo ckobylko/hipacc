@@ -226,6 +226,10 @@ AST::BaseClasses::TypeInfo::KnownTypes AST::BaseClasses::TypeInfo::GetPromotedTy
   {
     return KnownTypes::Float;
   }
+  else if ((eTypeLHS == KnownTypes::Bool)    && (eTypeRHS == KnownTypes::Bool))
+  {
+    return KnownTypes::Bool;
+  }
   else
   {
     // We have an integer type => Promote to the larger type and keep the sign
@@ -424,6 +428,19 @@ AST::ScopePosition AST::BaseClasses::Node::GetScopePosition() const
 
 
 // Implementation of class AST::BaseClasses::Expression
+AST::IndexType AST::BaseClasses::Expression::_FindSubExpressionIndex(ExpressionPtr spSubExpression) const
+{
+  for (IndexType iExprIndex = static_cast<IndexType>(0); iExprIndex < GetSubExpressionCount(); ++iExprIndex)
+  {
+    if (spSubExpression == GetSubExpression(iExprIndex))
+    {
+      return iExprIndex;
+    }
+  }
+
+  throw InternalErrorException("Could not find the specified expression in the list of sub-expressions!");
+}
+
 string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend) const
 {
   XMLSupport::AttributesMapType mapAttributes;
@@ -431,6 +448,28 @@ string AST::BaseClasses::Expression::_DumpResultTypeToXML(const size_t cszIntend
   mapAttributes["vectorize"] = XMLSupport::ToString( IsVectorized() );
 
   return XMLSupport::CreateXmlTag(cszIntend, "ResultType", GetResultType().DumpToXML(cszIntend + 2), mapAttributes);
+}
+
+AST::IndexType AST::BaseClasses::Expression::GetParentIndex() const
+{
+  if (! IsSubExpression())
+  {
+    throw InternalErrorException("The current expression is not a sub-expression of another expression!");
+  }
+
+  return GetParent()->CastToType<Expression>()->_FindSubExpressionIndex( GetThis()->CastToType<Expression>() );
+}
+
+bool AST::BaseClasses::Expression::IsSubExpression() const
+{
+  if (! GetParent())
+  {
+    return false;
+  }
+  else
+  {
+    return GetParent()->IsType<Expression>();
+  }
 }
 
 bool AST::BaseClasses::Expression::IsVectorized()

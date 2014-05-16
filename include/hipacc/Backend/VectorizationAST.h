@@ -351,13 +351,15 @@ namespace Vectorization
 
         inline NodeType GetNodeType() const    { return _ceNodeType; }
 
-        NodePtr       GetParent();
-        const NodePtr GetParent() const;
+        NodePtr               GetParent();
+        inline const NodePtr  GetParent() const   { return const_cast<Node*>(this)->GetParent(); }
 
         ScopePosition GetScopePosition() const;
 
         inline NodePtr        GetThis()         { return _wpThis.lock(); }
         inline const NodePtr  GetThis() const   { return _wpThis.lock(); }
+
+        inline bool IsLeafNode() const  { return (GetChildCount() == static_cast<IndexType>(0)); }
 
 
         template <class NodeClass>
@@ -449,6 +451,8 @@ namespace Vectorization
 
         inline Expression(ExpressionType eExprType) : BaseType(Node::NodeType::Expression), _ceExprType(eExprType)  {}
 
+        IndexType _FindSubExpressionIndex(ExpressionPtr spSubExpression) const;
+
       public:
 
         virtual ~Expression() {}
@@ -456,6 +460,9 @@ namespace Vectorization
 
         virtual NodePtr   GetChild(IndexType ChildIndex) final override   { return GetSubExpression(ChildIndex); }
         virtual IndexType GetChildCount() const final override            { return GetSubExpressionCount(); }
+
+        IndexType GetParentIndex() const;
+        bool      IsSubExpression() const;
 
         virtual bool      IsVectorized();
         inline  bool      IsVectorized() const  { return const_cast< Expression* >(this)->IsVectorized(); }
@@ -465,6 +472,8 @@ namespace Vectorization
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) = 0;
         virtual IndexType       GetSubExpressionCount() const = 0;
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) = 0;
+
+        inline const ExpressionPtr  GetSubExpression(IndexType SubExprIndex) const  { return const_cast< Expression* >(this)->GetSubExpression(SubExprIndex); }
       };
     };
 
