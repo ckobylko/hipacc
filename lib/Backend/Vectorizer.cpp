@@ -1812,6 +1812,104 @@ Vectorizer::IndexType Vectorizer::Transformations::FlattenScopes::ProcessChild(A
   return iChildIndex;
 }
 
+void Vectorizer::Transformations::InsertRequiredBroadcasts::Execute(AST::Expressions::BinaryOperatorPtr spCurrentBinOp)
+{
+  if (! spCurrentBinOp->IsVectorized())
+  {
+    return; // Broadcasts only required for vectorized expressions
+  }
+
+  AST::BaseClasses::ExpressionPtr spLHS = spCurrentBinOp->GetLHS();
+  AST::BaseClasses::ExpressionPtr spRHS = spCurrentBinOp->GetRHS();
+
+  if ((! spLHS) || (! spRHS))
+  {
+    return; // Nothing to do for incomplete binary operator expressions
+  }
+
+  if (spCurrentBinOp->IsType<AST::Expressions::AssignmentOperator>())
+  {
+    AST::BaseClasses::TypeInfo AssigneeType = spLHS->GetResultType();
+
+    if (! spRHS->IsVectorized())
+    {
+      spCurrentBinOp->SetRHS( AST::VectorSupport::BroadCast::Create(spRHS) );
+    }
+  }
+  else if (spCurrentBinOp->IsType<AST::Expressions::ArithmeticOperator>() || spCurrentBinOp->IsType<AST::Expressions::RelationalOperator>())
+  {
+    if (! spLHS->IsVectorized())
+    {
+      spCurrentBinOp->SetLHS( AST::VectorSupport::BroadCast::Create(spLHS) );
+    }
+
+    if (! spRHS->IsVectorized())
+    {
+      spCurrentBinOp->SetRHS( AST::VectorSupport::BroadCast::Create(spRHS) );
+    }
+  }
+  else
+  {
+    throw InternalErrorException("Unknown VAST binary operator type detected!");
+  }
+}
+
+void Vectorizer::Transformations::InsertRequiredConversions::Execute(AST::Expressions::BinaryOperatorPtr spCurrentBinOp)
+{
+  AST::BaseClasses::ExpressionPtr spLHS = spCurrentBinOp->GetLHS();
+  AST::BaseClasses::ExpressionPtr spRHS = spCurrentBinOp->GetRHS();
+
+  if ((! spLHS) || (! spRHS))
+  {
+    return; // Nothing to do for incomplete binary operator expressions
+  }
+
+  if (spCurrentBinOp->IsType<AST::Expressions::ArithmeticOperator>())
+  {
+    AST::BaseClasses::TypeInfo ResultType = spCurrentBinOp->CastToType< AST::Expressions::ArithmeticOperator >()->GetResultType();
+
+    if (! spLHS->GetResultType().IsEqual(ResultType, true))
+    {
+      spCurrentBinOp->SetLHS( AST::Expressions::Conversion::Create(ResultType, spLHS, false) );
+    }
+
+    if (! spRHS->GetResultType().IsEqual(ResultType, true))
+    {
+      spCurrentBinOp->SetRHS( AST::Expressions::Conversion::Create(ResultType, spRHS, false) );
+    }
+  }
+  else if (spCurrentBinOp->IsType<AST::Expressions::AssignmentOperator>())
+  {
+    AST::BaseClasses::TypeInfo AssigneeType = spLHS->GetResultType();
+
+    if (! spRHS->GetResultType().IsEqual(AssigneeType, true))
+    {
+      spCurrentBinOp->SetRHS( AST::Expressions::Conversion::Create(AssigneeType, spRHS, false) );
+    }
+  }
+  else if (spCurrentBinOp->IsType<AST::Expressions::RelationalOperator>())
+  {
+    // TODO: Implement
+  }
+  else
+  {
+    throw InternalErrorException("Unknown VAST binary operator type detected!");
+  }
+}
+
+Vectorizer::IndexType Vectorizer::Transformations::RemoveImplicitConversions::ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion)
+{
+  AST::BaseClasses::ExpressionPtr spSubExpression = spConversion->GetSubExpression();
+  AST::BaseClasses::TypeInfo      ConvertType = spConversion->GetResultType();
+
+  if (! spConversion->GetExplicit())
+  {
+    spParentExpression->SetSubExpression(iChildIndex, spConversion->GetSubExpression());
+  }
+
+  return iChildIndex;
+}
+
 Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions::ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion)
 {
   AST::BaseClasses::ExpressionPtr spSubExpression = spConversion->GetSubExpression();
@@ -2440,6 +2538,16 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
     }
   }
 }
+
+void Vectorizer::RebuildDataFlow(AST::FunctionDeclarationPtr spFunction)
+{
+  Transformations::Run( spFunction, Transformations::RemoveImplicitConversions() );
+
+  Transformations::Run( spFunction, Transformations::InsertRequiredConversions() );
+
+  Transformations::Run( spFunction, Transformations::InsertRequiredBroadcasts() );
+}
+
 
 void Vectorizer::VectorizeFunction(AST::FunctionDeclarationPtr spFunction)
 {

@@ -463,6 +463,37 @@ namespace Vectorization
         IndexType ProcessChild(AST::ScopePtr spParentScope, IndexType iChildIndex, AST::ScopePtr spChildScope);
       };
 
+      class InsertRequiredBroadcasts final : public TransformationBase
+      {
+      public:
+
+        typedef AST::Expressions::BinaryOperator    TargetType;
+
+        void Execute(AST::Expressions::BinaryOperatorPtr spCurrentBinOp);
+      };
+
+      class InsertRequiredConversions final : public TransformationBase
+      {
+      public:
+
+        typedef AST::Expressions::BinaryOperator    TargetType;
+
+        void Execute(AST::Expressions::BinaryOperatorPtr spCurrentBinOp);
+      };
+
+      class RemoveImplicitConversions final : public TransformationBase
+      {
+      public:
+
+        typedef AST::BaseClasses::Expression      TargetType;
+        typedef AST::BaseClasses::ExpressionPtr   TargetTypePtr;
+        typedef AST::Expressions::Conversion      ChildTargetType;
+
+        void Execute(AST::BaseClasses::ExpressionPtr spCurrentExpression)   { _ParseChildren(spCurrentExpression, *this); }
+
+        IndexType ProcessChild(AST::BaseClasses::ExpressionPtr spParentExpression, IndexType iChildIndex, AST::Expressions::ConversionPtr spConversion);
+      };
+
       class RemoveUnnecessaryConversions final : public TransformationBase
       {
       public:
@@ -520,6 +551,8 @@ namespace Vectorization
 
 
     void RebuildControlFlow(AST::FunctionDeclarationPtr spFunction);
+
+    void RebuildDataFlow(AST::FunctionDeclarationPtr spFunction);
 
     void VectorizeFunction(AST::FunctionDeclarationPtr spFunction);
 
