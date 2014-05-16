@@ -251,6 +251,8 @@ namespace Vectorization
 
         static TypeInfo     CreateSizedIntegerType(size_t szTypeSize, bool bSigned);
 
+        static KnownTypes   GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS);
+
         static size_t       GetTypeSize(KnownTypes eType);
         static std::string  GetTypeString(KnownTypes eType);
 
@@ -1189,8 +1191,6 @@ namespace Vectorization
 
         static std::string _GetOperatorTypeString(ArithmeticOperatorType eType);
 
-        static KnownTypes _GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS);
-
 
       public:
 
@@ -1286,6 +1286,8 @@ namespace Vectorization
 
         virtual ~RelationalOperator() {}
 
+
+        BaseClasses::TypeInfo GetComparisonType() const;
 
         inline RelationalOperatorType GetOperatorType() const                           { return _eOpType; }
         inline void                   SetOperatorType(RelationalOperatorType eOpType)   { _eOpType = eOpType; }

@@ -212,6 +212,31 @@ string AST::BaseClasses::TypeInfo::DumpToXML(const size_t cszIntend) const
   return XMLSupport::CreateXmlTag(cszIntend, "TypeInfo", mapAttributes);
 }
 
+AST::BaseClasses::TypeInfo::KnownTypes AST::BaseClasses::TypeInfo::GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS)
+{
+  if      ((eTypeLHS == KnownTypes::Unknown) || (eTypeRHS == KnownTypes::Unknown))
+  {
+    return KnownTypes::Unknown;
+  }
+  else if ((eTypeLHS == KnownTypes::Double)  || (eTypeRHS == KnownTypes::Double))
+  {
+    return KnownTypes::Double;
+  }
+  else if ((eTypeLHS == KnownTypes::Float)   || (eTypeRHS == KnownTypes::Float))
+  {
+    return KnownTypes::Float;
+  }
+  else
+  {
+    // We have an integer type => Promote to the larger type and keep the sign
+    size_t  szTypeSize  = std::max( TypeInfo::GetTypeSize(eTypeLHS), TypeInfo::GetTypeSize(eTypeRHS) );
+    bool    bSigned     = TypeInfo::IsSigned(eTypeLHS) | TypeInfo::IsSigned(eTypeRHS);
+
+    return TypeInfo::CreateSizedIntegerType(szTypeSize, bSigned).GetType();
+  }
+}
+
+
 size_t AST::BaseClasses::TypeInfo::GetTypeSize(KnownTypes eType)
 {
   switch (eType)
@@ -1168,30 +1193,6 @@ string AST::Expressions::ArithmeticOperator::_GetOperatorTypeString(ArithmeticOp
   }
 }
 
-AST::BaseClasses::TypeInfo::KnownTypes AST::Expressions::ArithmeticOperator::_GetPromotedType(KnownTypes eTypeLHS, KnownTypes eTypeRHS)
-{
-  if      ((eTypeLHS == KnownTypes::Unknown) || (eTypeRHS == KnownTypes::Unknown))
-  {
-    return KnownTypes::Unknown;
-  }
-  else if ((eTypeLHS == KnownTypes::Double)  || (eTypeRHS == KnownTypes::Double))
-  {
-    return KnownTypes::Double;
-  }
-  else if ((eTypeLHS == KnownTypes::Float)   || (eTypeRHS == KnownTypes::Float))
-  {
-    return KnownTypes::Float;
-  }
-  else
-  {
-    // We have an integer type => Promote to the larger type and keep the sign
-    size_t  szTypeSize  = std::max( TypeInfo::GetTypeSize(eTypeLHS), TypeInfo::GetTypeSize(eTypeRHS) );
-    bool    bSigned     = TypeInfo::IsSigned(eTypeLHS) | TypeInfo::IsSigned(eTypeRHS);
-
-    return TypeInfo::CreateSizedIntegerType(szTypeSize, bSigned).GetType();
-  }
-}
-
 AST::Expressions::ArithmeticOperatorPtr AST::Expressions::ArithmeticOperator::Create(ArithmeticOperatorType eOpType, ExpressionPtr spLHS, ExpressionPtr spRHS)
 {
   ArithmeticOperatorPtr spArithmeticOp = AST::CreateNode<ArithmeticOperator>();
@@ -1253,7 +1254,7 @@ AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType()
 
       ReturnType.SetConst(true);
       ReturnType.SetPointer(false);
-      ReturnType.SetType( _GetPromotedType(TypeLHS.GetType(), TypeRHS.GetType()) );
+      ReturnType.SetType( BaseClasses::TypeInfo::GetPromotedType(TypeLHS.GetType(), TypeRHS.GetType()) );
 
       return ReturnType;
     }
@@ -1400,11 +1401,42 @@ AST::Expressions::RelationalOperatorPtr AST::Expressions::RelationalOperator::Cr
 
 string AST::Expressions::RelationalOperator::DumpToXML(const size_t cszIntend) const
 {
+  string strXmlString("");
+  
+  strXmlString  += XMLSupport::CreateXmlTag(cszIntend + 2, "ComparisonType", GetComparisonType().DumpToXML(cszIntend + 4));
+  strXmlString  += _DumpSubExpressionsToXML(cszIntend + 2);
+
   XMLSupport::AttributesMapType mapAttributes;
 
   mapAttributes["type"] = _GetOperatorTypeString(_eOpType);
 
-  return XMLSupport::CreateXmlTag( cszIntend, "RelationalOperator", _DumpSubExpressionsToXML(cszIntend + 2), mapAttributes );
+  return XMLSupport::CreateXmlTag( cszIntend, "RelationalOperator", strXmlString, mapAttributes );
+}
+
+AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetComparisonType() const
+{
+  typedef BaseClasses::TypeInfo::KnownTypes  KnownTypes;
+
+  if ((! GetLHS()) || (! GetRHS()))
+  {
+    return BaseClasses::TypeInfo();
+  }
+
+  BaseClasses::TypeInfo TypeLHS = GetLHS()->GetResultType();
+  BaseClasses::TypeInfo TypeRHS = GetRHS()->GetResultType();
+
+  if ( (TypeLHS.GetType() == KnownTypes::Unknown) || (TypeRHS.GetType() == KnownTypes::Unknown) )
+  {
+    return BaseClasses::TypeInfo();
+  }
+  else if ( (! TypeLHS.IsSingleValue()) || (! TypeRHS.IsSingleValue()) )
+  {
+    return BaseClasses::TypeInfo();
+  }
+
+  KnownTypes eCompType = BaseClasses::TypeInfo::GetPromotedType(TypeLHS.GetType(), TypeRHS.GetType());
+
+  return BaseClasses::TypeInfo(eCompType, true, false);
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType() const
