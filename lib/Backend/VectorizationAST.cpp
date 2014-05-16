@@ -830,8 +830,8 @@ string AST::Expressions::Constant::GetAsString() const
   switch (_eType)
   {
   case KnownTypes::Bool:    return XMLSupport::ToString( GetValue< bool     >() );
-  case KnownTypes::Int8:    return XMLSupport::ToString( GetValue< int8_t   >() );
-  case KnownTypes::UInt8:   return XMLSupport::ToString( GetValue< uint8_t  >() );
+  case KnownTypes::Int8:    return XMLSupport::ToString( GetValue< int16_t  >() );  // Avoid automatic char conversion
+  case KnownTypes::UInt8:   return XMLSupport::ToString( GetValue< uint16_t >() );  // Avoid automatic char conversion
   case KnownTypes::Int16:   return XMLSupport::ToString( GetValue< int16_t  >() );
   case KnownTypes::UInt16:  return XMLSupport::ToString( GetValue< uint16_t >() );
   case KnownTypes::Int32:   return XMLSupport::ToString( GetValue< int32_t  >() );
