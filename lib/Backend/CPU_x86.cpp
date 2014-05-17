@@ -599,13 +599,15 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageDeclarations(:
 // Implementation of class CPU_x86::CodeGenerator
 CPU_x86::CodeGenerator::CodeGenerator(::clang::hipacc::CompilerOptions *pCompilerOptions) : BaseType(pCompilerOptions, Descriptor())
 {
-  _InitSwitch< KnownSwitches::ArrayExport       >( CompilerSwitchTypeEnum::ArrayExport );
+  _InitSwitch< KnownSwitches::InstructionSet    >( CompilerSwitchTypeEnum::InstructionSet );
   _InitSwitch< KnownSwitches::UnrollVectorLoops >( CompilerSwitchTypeEnum::UnrollVectorLoops );
   _InitSwitch< KnownSwitches::VectorizeKernel   >( CompilerSwitchTypeEnum::VectorizeKernel );
+  _InitSwitch< KnownSwitches::VectorWidth       >( CompilerSwitchTypeEnum::VectorWidth );
 
+  _eInstructionSet    = InstructionSetEnum::Array;
   _bUnrollVectorLoops = true;
   _bVectorizeKernel   = false;
-  _szVectorWidth      = static_cast< size_t >(4);
+  _szVectorWidth      = static_cast< size_t >(0);
 }
 
 size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurrentIndex)
@@ -615,17 +617,9 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 
   switch (eSwitch)
   {
-  case CompilerSwitchTypeEnum::ArrayExport:
-    {
-      int iArraySize = _ParseOption< KnownSwitches::ArrayExport >(rvecArguments, szCurrentIndex);
-      if (iArraySize <= 0)
-      {
-        throw RuntimeErrors::InvalidOptionException(KnownSwitches::ArrayExport::Key(), rvecArguments[szCurrentIndex + 1]);
-      }
-
-      _szVectorWidth = static_cast< size_t >( iArraySize );
-      ++szReturnIndex;
-    }
+  case CompilerSwitchTypeEnum::InstructionSet:
+    _eInstructionSet = _ParseOption< KnownSwitches::InstructionSet >(rvecArguments, szCurrentIndex);
+    ++szReturnIndex;
     break;
   case CompilerSwitchTypeEnum::UnrollVectorLoops:
     {
@@ -638,6 +632,18 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
     break;
   case CompilerSwitchTypeEnum::VectorizeKernel:
     _bVectorizeKernel = true;
+    break;
+  case CompilerSwitchTypeEnum::VectorWidth:
+    {
+      int iRequestedVecWidth = _ParseOption< KnownSwitches::VectorWidth >(rvecArguments, szCurrentIndex);
+      if (iRequestedVecWidth <= 0)
+      {
+        throw RuntimeErrors::InvalidOptionException(KnownSwitches::VectorWidth::Key(), rvecArguments[szCurrentIndex + 1]);
+      }
+
+      _szVectorWidth = static_cast< size_t >( iRequestedVecWidth );
+      ++szReturnIndex;
+    }
     break;
   default:  throw InternalErrors::UnhandledSwitchException(strCurrentSwitch, GetName());
   }
@@ -761,6 +767,80 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   return OutputStream.str();
 }
 
+size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDeclarationPtr spVecFunction)
+{
+  if (_eInstructionSet == InstructionSetEnum::Array)
+  {
+    if (_szVectorWidth == static_cast<size_t>(0))
+    {
+      llvm::errs() << "\nNOTE: No vector width for array export selected => Set default value \"4\"\n\n";
+      return static_cast< size_t >( 4 );
+    }
+    else
+    {
+      return _szVectorWidth;
+    }
+  }
+  else
+  {
+    const size_t cszMaxVecWidth = static_cast< size_t >( 16 );
+
+    if (_szVectorWidth > cszMaxVecWidth)
+    {
+      llvm::errs() << "\nWARNING: Selected vector width exceeds the maximum width for the SSE instruction set => Clipping vector width to \"" << cszMaxVecWidth << "\"\n\n";
+      return cszMaxVecWidth;
+    }
+
+    // Compute the minimum width dependend on the size of the image element types
+    size_t szMinVecWidth = static_cast<size_t>(1);
+    {
+      size_t szMinTypeSize = cszMaxVecWidth;
+
+      for (Vectorization::AST::IndexType iParamIdx = static_cast<Vectorization::AST::IndexType>(0); iParamIdx < spVecFunction->GetParameterCount(); ++iParamIdx)
+      {
+        Vectorization::AST::BaseClasses::VariableInfoPtr spParamInfo = spVecFunction->GetParameter(iParamIdx)->LookupVariableInfo();
+
+        if (spParamInfo->GetVectorize() && spParamInfo->GetTypeInfo().IsDereferencable())
+        {
+          size_t szCurrentTypeSize  = Vectorization::AST::BaseClasses::TypeInfo::GetTypeSize( spParamInfo->GetTypeInfo().GetType() );
+          szMinTypeSize             = std::min( szMinTypeSize, szCurrentTypeSize );
+        }
+      }
+
+      szMinVecWidth = cszMaxVecWidth / szMinTypeSize;
+    }
+
+    if (_szVectorWidth == static_cast<size_t>(0))
+    {
+      llvm::errs() << "\nNOTE: No vector width for SSE instruction set selected => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+      return szMinVecWidth;
+    }
+    else if (_szVectorWidth < szMinVecWidth)
+    {
+      llvm::errs() << "\nWARNING: Selected vector width is below the minimum width for the SSE instruction set => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+      return szMinVecWidth;
+    }
+    else
+    {
+      for (size_t szCurWidth = szMinVecWidth; szCurWidth <= cszMaxVecWidth; szCurWidth <<= 1)
+      {
+        if (_szVectorWidth == szCurWidth)
+        {
+          break;
+        }
+        else if (_szVectorWidth < szCurWidth)
+        {
+          llvm::errs() << "\nWARNING: The selected vector width for the SSE instruction set must be a power of 2 => Promote width \"" << _szVectorWidth << "\" to \"" << szCurWidth << "\"\n\n";
+          _szVectorWidth = szCurWidth;
+          break;
+        }
+      }
+
+      return _szVectorWidth;
+    }
+  }
+}
+
 ::clang::FunctionDecl* CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
 {
   try
@@ -870,11 +950,11 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
     }
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_7.xml");
 
-    Vectorizer.RebuildDataFlow(spVecFunction);
+    Vectorizer.RebuildDataFlow(spVecFunction, _eInstructionSet != InstructionSetEnum::Array);
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_8.xml");
 
 
-    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _szVectorWidth, pSubFunction->getASTContext(), _bUnrollVectorLoops);
+    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _GetVectorWidth(spVecFunction), pSubFunction->getASTContext(), _bUnrollVectorLoops);
   }
   catch (std::exception &e)
   {

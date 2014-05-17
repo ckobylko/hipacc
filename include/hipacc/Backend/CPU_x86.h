@@ -33,10 +33,11 @@
 #ifndef _BACKEND_CPU_X86_H_
 #define _BACKEND_CPU_X86_H_
 
+#include "hipacc/DSL/ClassRepresentation.h"
 #include "ClangASTHelper.h"
 #include "CodeGeneratorBaseImplT.h"
-#include "hipacc/DSL/ClassRepresentation.h"
 #include "OptionParsers.h"
+#include "VectorizationAST.h"
 #include <list>
 #include <utility>
 #include <vector>
@@ -55,9 +56,17 @@ namespace Backend
     /** \brief  Contains the IDs of all supported specific compiler switches for this backend. */
     enum class CompilerSwitchTypeEnum
     {
-      ArrayExport,
-      UnrollVectorLoops,
-      VectorizeKernel
+      InstructionSet,       //!< ID of the "select instruction set" switch.
+      UnrollVectorLoops,    //!< ID of the "unroll vector array loops" switch.
+      VectorizeKernel,      //!< ID of the "kernel function vectorization" switch.
+      VectorWidth           //!< ID of the "set vector width" switch.
+    };
+
+    /** \brief  Contains the IDs of all supported vector instruction sets. */
+    enum class InstructionSetEnum
+    {
+      Array,  //!< ID of the array-based vector export.
+      SSE_4   //!< ID of the "Streaming SIMD Extensions 4" instruction set.
     };
 
 
@@ -66,28 +75,46 @@ namespace Backend
     {
     public:
 
-      /** \brief  The switch type for the "vector to array export" switch. */
-      struct ArrayExport final
+      /** \brief  The switch type for the "select instruction set" switch. */
+      struct InstructionSet final
       {
         /** \brief  Returns the command argument for this switch. */
-        inline static std::string Key()                 { return "-a"; }
+        inline static std::string Key()                 { return "-i-s"; }
 
         /** \brief  Returns the additional options string for this switch. */
-        inline static std::string AdditionalOptions()   { return "<n>"; }
+        inline static std::string AdditionalOptions()   { return "<o>"; }
 
         /** \brief  Returns the description for this switch. */
         inline static std::string Description()
         {
           std::string strDescription("");
 
-          strDescription += "Exports all vectorized variables into arrays of size \"<n>\" (must be a positive integer).\n";
-          strDescription += "This is meant for academic purposes, not for productive use!";
+          strDescription += "Selects the instruction set for the generation of vectorized code. Valid values for \"<o>\" are:\n";
+          strDescription += "  array  -  Translates vectors into native data type arrays (can be used to trigger the vectorization of the host compiler).\n";
+          strDescription += "  sse4   -  Uses the intrinsic functions of the SSE 4 vector instruction set.";
 
           return strDescription;
         }
 
 
-        typedef CommonDefines::OptionParsers::Integer   OptionParser;   //!< Type definition for the option parser for this switch.
+        /** \brief  The option parser for this switch. */
+        struct OptionParser final
+        {
+          typedef InstructionSetEnum  ReturnType;   //!< The type of the parsed option.
+
+          /** \brief  Converts the name of the selected instruction set into the internal ID.
+           *  \param  strOption   The command line option as a string.
+           *  \return If successful, the internal ID of the selected instruction set. */
+          inline static ReturnType Parse(std::string strOption)
+          {
+            if      (strOption == "array")  return InstructionSetEnum::Array;
+            else if (strOption == "sse4")   return InstructionSetEnum::SSE_4;
+            else
+            {
+              throw RuntimeErrors::InvalidOptionException(Key(), strOption);
+            }
+          }
+        };
       };
 
       /** \brief  The switch type for the "unroll vector array loops" switch. */
@@ -126,6 +153,32 @@ namespace Backend
         /** \brief  Returns the description for this switch. */
         inline static std::string Description()         { return "Run a whole function vectorization on the kernel function"; }
       };
+
+      /** \brief  The switch type for the "set vector width" switch. */
+      struct VectorWidth final
+      {
+        /** \brief  Returns the command argument for this switch. */
+        inline static std::string Key()                 { return "-v-w"; }
+
+        /** \brief  Returns the additional options string for this switch. */
+        inline static std::string AdditionalOptions()   { return "<n>"; }
+
+        /** \brief  Returns the description for this switch. */
+        inline static std::string Description()
+        {
+          std::string strDescription("");
+
+          strDescription += "Sets the requested vector width \"<n>\" for the kernel function vectorization (\"<n>\" must be positive).\n";
+          strDescription += "NOTE: Since the requested vector width depends on the capabilities of the instruction set,\n";
+          strDescription += "      this value is only a hint for the compiler (except for the instruction set \"array\")!";
+
+          return strDescription;
+        }
+
+
+        typedef CommonDefines::OptionParsers::Integer   OptionParser;   //!< Type definition for the option parser for this switch.
+      };
+
     };
 
 
@@ -387,6 +440,12 @@ namespace Backend
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
       std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bPrintActualImageType = false);
 
+      /** \brief    Returns the vector width which shall be used for the code generation.
+       *  \param    spVecFunction   A shared pointer to the vectorized function for which the vector width shall be returned.
+       *  \remarks  The actually used vector width depends on the user-specified value and the selected instruction set as well as
+       *            the pixel types of all used HIPAcc images in the vectorized function. */
+      size_t      _GetVectorWidth(Vectorization::AST::FunctionDeclarationPtr spVecFunction);
+
       /** \brief    Vectorizes a kernel sub-function.
        *  \param    pSubFunction    A pointer to the function which shall be vectorized.
        *  \param    rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel.
@@ -396,9 +455,10 @@ namespace Backend
 
     private:
 
-      bool    _bUnrollVectorLoops;  //!< Specifies, whether loops over vector array expressions shall be unrolled.
-      bool    _bVectorizeKernel;    //!< Specifies, whether the kernel function shall be vectorized.
-      size_t  _szVectorWidth;       //!< The width of the vectors inside the kernel function in pixels (only relevant if vectorization is turned on).
+      InstructionSetEnum  _eInstructionSet;     //!< The selected vector instruction set for the code generation.
+      bool                _bUnrollVectorLoops;  //!< Specifies, whether loops over vector array expressions shall be unrolled.
+      bool                _bVectorizeKernel;    //!< Specifies, whether the kernel function shall be vectorized.
+      size_t              _szVectorWidth;       //!< The width of the vectors inside the kernel function in pixels (only relevant if vectorization is turned on).
 
     protected:
 
