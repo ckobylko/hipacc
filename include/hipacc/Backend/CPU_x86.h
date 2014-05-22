@@ -479,6 +479,8 @@ namespace Backend
       /** \name ICodeGenerator members */
       //@{
 
+      virtual CommonDefines::ArgumentVectorType GetAdditionalClangArguments() const final override;
+
       virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) final override;
 
       //@}

@@ -964,6 +964,26 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
 }
 
 
+CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArguments() const
+{
+  CommonDefines::ArgumentVectorType vecArguments;
+
+  if (_eInstructionSet == InstructionSetEnum::SSE_4)
+  {
+    // Add the common intrinsics header
+    vecArguments.push_back("-includeimminintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
+
+    // Add required macro definition which toggle the correct include files
+    vecArguments.push_back("-D __SSE4_1__");
+    vecArguments.push_back("-D __SSSE3__");
+    vecArguments.push_back("-D __SSE3__");
+    vecArguments.push_back("-D __SSE2__");
+    vecArguments.push_back("-D __SSE__");
+    vecArguments.push_back("-D __MMX__");
+  }
+
+  return std::move( vecArguments );
+}
 
 bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream)
 {

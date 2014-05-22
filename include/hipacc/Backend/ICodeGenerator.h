@@ -85,6 +85,9 @@ namespace Backend
     /** \name Methods for the actual code generation */
     //@{
 
+    /** \brief  Returns additional arguments for the Clang front-end, which are required for correct bahavior of the code generator. */
+    virtual CommonDefines::ArgumentVectorType GetAdditionalClangArguments() const = 0;
+
     /** \brief  Prints a kernel function to an output stream.
      *  \param  pKernelFunction   A pointer to the AST object declaring the kernel function.
      *  \param  pKernel           A pointer to the <b>HipaccKernel</b> object containing semantical meta-information about the kernel.

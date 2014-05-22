@@ -301,6 +301,10 @@ namespace Backend
       _CheckConfiguration();
     }
 
+    virtual CommonDefines::ArgumentVectorType GetAdditionalClangArguments() const override
+    {
+      return CommonDefines::ArgumentVectorType();  // By default no additional arguments required
+    }
 
     // Default override for code generators which do not print the kernel function themselves
     virtual bool PrintKernelFunction(FunctionDecl *pKernelFunction, HipaccKernel *pKernel, llvm::raw_ostream &rOutputStream) override

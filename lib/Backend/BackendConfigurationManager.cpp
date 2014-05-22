@@ -388,6 +388,14 @@ CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments
   // Add Clang library include path (required for e.g. intrinsics)
   vecClangArguments.push_back(string("-I") + string(CLANG_LIB_INCLUDE_DIR));
 
+  // Add code generator specific additional arguments
+  if (_spSelectedCodeGenerator)
+  {
+    CommonDefines::ArgumentVectorType vecCodeGenArgs = _spSelectedCodeGenerator->GetAdditionalClangArguments();
+
+    vecClangArguments.insert( vecClangArguments.end(), vecCodeGenArgs.begin(), vecCodeGenArgs.end() );
+  }
+
 
 #ifdef USE_MINGW
   // Add MinGW system include paths
