@@ -13,12 +13,13 @@ SET(Backend_Generators_Base_HEADERS "${CURRENT_HEADER_DIR}/AcceleratorDeviceBase
                                     "${CURRENT_HEADER_DIR}/AndroidBase.h"
                                     "${CURRENT_HEADER_DIR}/CodeGeneratorBaseImplT.h")
 
-SET(Backend_Common_SOURCES ClangASTHelper.cpp)
+SET(Backend_Common_SOURCES ClangASTHelper.cpp InstructionSets.cpp)
 
 SET(Backend_Common_HEADERS "${CURRENT_HEADER_DIR}/BackendExceptions.h"
                            "${CURRENT_HEADER_DIR}/ClangASTHelper.h"
                            "${CURRENT_HEADER_DIR}/CommonDefines.h"
                            "${CURRENT_HEADER_DIR}/ICodeGenerator.h"
+                           "${CURRENT_HEADER_DIR}/InstructionSets.h"
                            "${CURRENT_HEADER_DIR}/OptionParsers.h"
                            "${CURRENT_HEADER_DIR}/VectorizationAST.h"
                            "${CURRENT_HEADER_DIR}/Vectorizer.h")
