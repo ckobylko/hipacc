@@ -971,7 +971,7 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
   if (_eInstructionSet == InstructionSetEnum::SSE_4)
   {
     // Add the common intrinsics header
-    vecArguments.push_back("-includeimminintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
+    vecArguments.push_back("-includeimmintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
 
     // Add required macro definition which toggle the correct include files
     vecArguments.push_back("-D __SSE4_1__");
