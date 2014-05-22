@@ -1,12 +1,13 @@
 # Find the native LLVM includes and library
 #
-#  LLVM_INCLUDE_DIR - where to find llvm include files
-#  LLVM_LIBRARY_DIR - where to find llvm libs
-#  LLVM_CFLAGS      - llvm C compiler flags
-#  LLVM_CXXFLAGS    - llvm C++ compiler flags
-#  LLVM_LFLAGS      - llvm linker flags
-#  LLVM_MODULE_LIBS - list of llvm libs for working with modules.
-#  LLVM_FOUND       - True if llvm found.
+#  CLANG_LIB_INCLUDE_DIR - where to find the exported library include files of clang
+#  LLVM_INCLUDE_DIR      - where to find llvm include files
+#  LLVM_LIBRARY_DIR      - where to find llvm libs
+#  LLVM_CFLAGS           - llvm C compiler flags
+#  LLVM_CXXFLAGS         - llvm C++ compiler flags
+#  LLVM_LFLAGS           - llvm linker flags
+#  LLVM_MODULE_LIBS      - list of llvm libs for working with modules.
+#  LLVM_FOUND            - True if llvm found.
 
 FIND_PACKAGE(PackageHandleStandardArgs)
 
@@ -61,6 +62,16 @@ EXECUTE_PROCESS(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+
+# Find the clang library include directory
+EXECUTE_PROCESS(
+    COMMAND ${LLVM_CONFIG_EXECUTABLE} --bindir
+    OUTPUT_VARIABLE LLVM_BIN_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+FIND_PATH(CLANG_LIB_INCLUDE_DIR immintrin.h PATHS "${LLVM_BIN_DIR}lib/clang/*/include" NO_DEFAULT_PATH)
+
+
 # Additional paths for Visual Studio build
 IF(MSVC)
     EXECUTE_PROCESS(
@@ -76,6 +87,6 @@ IF(MSVC)
     )
 ENDIF()
 
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(LLVM DEFAULT_MSG LLVM_INCLUDE_DIR
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(LLVM DEFAULT_MSG CLANG_LIB_INCLUDE_DIR LLVM_INCLUDE_DIR
     LLVM_LIBRARY_DIR LLVM_CFLAGS LLVM_CXXFLAGS LLVM_LFLAGS LLVM_MODULE_LIBS)
 

@@ -385,6 +385,9 @@ CommonDefines::ArgumentVectorType BackendConfigurationManager::GetClangArguments
   vecClangArguments.push_back(string("-I") + string(RUNTIME_INCLUDES));
   vecClangArguments.push_back(string("-I") + string(RUNTIME_INCLUDES) + string("/dsl"));
 
+  // Add Clang library include path (required for e.g. intrinsics)
+  vecClangArguments.push_back(string("-I") + string(CLANG_LIB_INCLUDE_DIR));
+
 
 #ifdef USE_MINGW
   // Add MinGW system include paths
