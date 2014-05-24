@@ -177,6 +177,7 @@ namespace Vectorization
       SetFloat,
       SetReverseFloat,
       SetZeroFloat,
+      ShuffleFloat,
       SqrtFloat,
       StoreFloat,
       SubtractFloat,
@@ -232,8 +233,41 @@ namespace Vectorization
 
     enum class IntrinsicsSSE2Enum
     {
-      AddDouble, AddInt8,    AddInt16,     AddInt32, AddInt64,
-      AndDouble, AndInteger, AndNotDouble, AndNotInteger
+      AddDouble,                    AddInt8,                AddInt16,                AddInt32,                AddInt64,
+      AndDouble,                    AndInteger,             AndNotDouble,            AndNotInteger,
+      BroadCastDouble,              BroadCastInt8,          BroadCastInt16,          BroadCastInt32,          BroadCastInt64,
+      CastDoubleToFloat,            CastDoubleToInteger,    CastFloatToDouble,       CastFloatToInteger,      CastIntegerToDouble, CastIntegerToFloat,
+      CompareEqualDouble,           CompareEqualInt8,       CompareEqualInt16,       CompareEqualInt32,
+      CompareGreaterEqualDouble,
+      CompareGreaterThanDouble,     CompareGreaterThanInt8, CompareGreaterThanInt16, CompareGreaterThanInt32,
+      CompareLessEqualDouble,
+      CompareLessThanDouble,        CompareLessThanInt8,    CompareLessThanInt16,    CompareLessThanInt32,
+      CompareNotEqualDouble,
+      CompareNotGreaterEqualDouble,
+      CompareNotGreaterThanDouble,
+      CompareNotLessEqualDouble,
+      CompareNotLessThanDouble,
+      ConvertDoubleFloat,           ConvertDoubleInt32,     ConvertFloatDouble,      ConvertFloatInt32,       ConvertInt32Double,  ConvertInt32Float,
+      DivideDouble,
+      ExtractInt16,
+      InsertInt16,
+      LoadDouble,                   LoadInteger,
+      MaxDouble,                    MaxUInt8,               MaxInt16,
+      MinDouble,                    MinUInt8,               MinInt16,
+      MoveMaskDouble,               MoveMaskInt8,
+      MultiplyDouble,               MultiplyInt16,
+      OrDouble,                     OrInteger,
+      PackInt16ToInt8,              PackInt16ToUInt8,       PackInt32ToInt16,
+      SetDouble,                    SetInt8,                SetInt16,                SetInt32,                SetInt64,
+      SetReverseDouble,             SetReverseInt8,         SetReverseInt16,         SetReverseInt32,
+      SetZeroDouble,                SetZeroInteger,
+      ShiftLeftInt16,               ShiftLeftInt32,         ShiftLeftVectorBytes,
+      ShiftRightInt16,              ShiftRightInt32,        ShiftRightVectorBytes,
+      ShuffleInt16High,             ShuffleInt16Low,        ShuffleInt32,
+      SqrtDouble,
+      StoreDouble,                  StoreInteger,           StoreConditionalInteger,
+      SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,
+      XorDouble,                    XorInteger
     };
 
     typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE2Enum >  IntrinsicMapType;

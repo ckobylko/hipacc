@@ -121,6 +121,7 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::SetFloat,                    "set_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::SetReverseFloat,             "setr_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::SetZeroFloat,                "setzero_ps"  );
+//_InitIntrinsic( IntrinsicsSSEEnum::ShuffleFloat,                "shuffle_ps"  );  // TODO: Clang sucks => this must be created if not existent
   _InitIntrinsic( IntrinsicsSSEEnum::SqrtFloat,                   "sqrt_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::StoreFloat,                  "storeu_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::SubtractFloat,               "sub_ps"      );
@@ -150,6 +151,148 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::AndInteger,    "and_si128"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::AndNotDouble,  "andnot_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::AndNotInteger, "andnot_si128" );
+
+  // Broadcast functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::BroadCastDouble, "set1_pd"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::BroadCastInt8,   "set1_epi8"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::BroadCastInt16,  "set1_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::BroadCastInt32,  "set1_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::BroadCastInt64,  "set1_epi64x" );
+
+  // Vector cast functions (change bit-representation, no conversion)
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastDoubleToFloat,   "castpd_ps"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastDoubleToInteger, "castpd_si128" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastFloatToDouble,   "castps_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastFloatToInteger,  "castps_si128" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastIntegerToDouble, "castsi128_pd" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::CastIntegerToFloat,  "castsi128_ps" );
+
+  // Comparison methods
+  {
+    // Compare equal
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareEqualDouble, "cmpeq_pd"    );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareEqualInt8,   "cmpeq_epi8"  );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareEqualInt16,  "cmpeq_epi16" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareEqualInt32,  "cmpeq_epi32" );
+
+    // Compare "greater equal"
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareGreaterEqualDouble, "cmpge_pd" );
+
+    // Compare "greater than"
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareGreaterThanDouble, "cmpgt_pd"    );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareGreaterThanInt8,   "cmpgt_epi8"  );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareGreaterThanInt16,  "cmpgt_epi16" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareGreaterThanInt32,  "cmpgt_epi32" );
+
+    // Compare "less equal"
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareLessEqualDouble, "cmple_pd" );
+
+    // Compare "less than"
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareLessThanDouble, "cmplt_pd"    );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareLessThanInt8,   "cmplt_epi8"  );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareLessThanInt16,  "cmplt_epi16" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareLessThanInt32,  "cmplt_epi32" );
+
+    // Negated comparison methods
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareNotEqualDouble,        "cmpneq_pd" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareNotGreaterEqualDouble, "cmpnge_pd" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareNotGreaterThanDouble,  "cmpngt_pd" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareNotLessEqualDouble,    "cmpnle_pd" );
+    _InitIntrinsic( IntrinsicsSSE2Enum::CompareNotLessThanDouble,     "cmpnlt_pd" );
+  }
+
+  // Convert functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleFloat, "cvtpd_ps"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleInt32, "cvttpd_epi32" );   // Use truncation
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatDouble, "cvtps_pd"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatInt32,  "cvttps_epi32" );   // Use truncation
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Double, "cvtepi32_pd"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Float,  "cvtepi32_ps"  );
+
+  // Division functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::DivideDouble, "div_pd" );
+
+  // Extract / Insert functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractInt16, "extract_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::InsertInt16,  "insert_epi16"  );
+
+  // Load functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::LoadDouble,  "loadu_pd"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::LoadInteger, "loadu_si128" );
+
+  // Maximum / Minimum functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::MaxDouble, "max_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MaxUInt8,  "max_epu8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MaxInt16,  "max_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MinDouble, "min_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MinUInt8,  "min_epu8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MinInt16,  "min_epi16" );
+
+  // Mask conversion functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskDouble, "movemask_epi8" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskInt8,   "movemask_pd"   );
+
+  // Multiplication functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyDouble, "mul_pd"      );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyInt16,  "mullo_epi16" );
+
+  // Bitwise "or" functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::OrDouble,  "or_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::OrInteger, "or_si128" );
+
+  // Integer packing functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::PackInt16ToInt8,  "packs_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::PackInt16ToUInt8, "packus_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::PackInt32ToInt16, "packs_epi32"  );
+
+  // Set methods
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetDouble, "set_pd"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetInt8,   "set_epi8"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetInt16,  "set_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetInt32,  "set_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetInt64,  "set_epi64x" );
+
+  // Set reverse methods
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseDouble, "setr_pd"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt8,   "setr_epi8"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt16,  "setr_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt32,  "setr_epi32"  );
+
+  // Zero vector creation functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetZeroDouble,  "setzero_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SetZeroInteger, "setzero_si128" );
+
+  // Shift functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt16,        "sll_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt32,        "sll_epi32"  );
+//_InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftVectorBytes,  "slli_si128" );  // TODO: Clang sucks => this must be created if not existent
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt16,       "sra_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt32,       "sra_epi32"  );
+//_InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightVectorBytes, "srli_si128" );  // TODO: Clang sucks => this must be created if not existent
+
+  // Shuffle functions
+//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16High, "shufflehi_epi32" );  // TODO: Clang sucks => this must be created if not existent
+//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16Low,  "shufflelo_epi32" );  // TODO: Clang sucks => this must be created if not existent
+//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt32,     "shuffle_epi32"   );  // TODO: Clang sucks => this must be created if not existent
+
+  // Square root functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::SqrtDouble, "sqrt_pd" );
+
+  // Store functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::StoreDouble,             "storeu_pd"       );
+  _InitIntrinsic( IntrinsicsSSE2Enum::StoreInteger,            "storeu_si128"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::StoreConditionalInteger, "maskmoveu_si128" );
+
+  // Subtraction functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::SubtractDouble, "sub_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt8,   "sub_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt16,  "sub_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt32,  "sub_epi32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt64,  "sub_epi64" );
+
+  // Bitwise "xor" functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::XorInteger, "xor_si128" );
 }
 
 
