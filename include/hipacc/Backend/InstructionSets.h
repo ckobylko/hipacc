@@ -40,6 +40,12 @@
 #include <string>
 #include <utility>
 
+#define VERBOSE_INIT_MODE 1   // Uncomment this for a print-out of the inited intrinsic functions
+
+#ifdef VERBOSE_INIT_MODE
+#include "llvm/Support/raw_ostream.h"
+#endif
+
 
 namespace clang
 {
@@ -54,6 +60,12 @@ namespace Vectorization
 
   class InstructionSetBase
   {
+  protected:
+
+    typedef std::pair< std::string, ::clang::FunctionDecl* >      IntrinsicInfoPairType;
+
+    template < typename IntrinsicIDType >   using IntrinsicMapTemplateType = std::map< IntrinsicIDType, IntrinsicInfoPairType >;
+
   private:
 
     typedef std::map< std::string, ClangASTHelper::FunctionDeclarationVectorType >   FunctionDeclMapType;
@@ -61,9 +73,58 @@ namespace Vectorization
     ClangASTHelper        _ASTHelper;
     FunctionDeclMapType   _mapKnownFuncDecls;
 
+    std::string           _strIntrinsicPrefix;
+
   protected:
 
     ClangASTHelper::FunctionDeclarationVectorType _GetFunctionDecl(std::string strFunctionName);
+
+    template < typename IntrinsicIDType >
+    inline void _InitIntrinsic(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, IntrinsicIDType eIntrinType, std::string strIntrinName)
+    {
+      rIntrinMap[eIntrinType] = IntrinsicInfoPairType(_strIntrinsicPrefix + strIntrinName, nullptr);
+    }
+
+    template < typename IntrinsicIDType >
+    inline void _LookupIntrinsics(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, std::string strInstructionSetName)
+    {
+      #ifdef VERBOSE_INIT_MODE
+      llvm::errs() << "\n\nIntrinsic functions for instruction set \"" << strInstructionSetName << "\" (" << rIntrinMap.size() << " methods):\n";
+      #endif
+
+      for each (auto itIntrinsic in rIntrinMap)
+      {
+        IntrinsicInfoPairType &rIntrinsicInfo = itIntrinsic.second;
+
+        auto vecFunctions = _GetFunctionDecl(rIntrinsicInfo.first);
+
+        if (vecFunctions.size() != static_cast<size_t>(1))
+        {
+          throw InternalErrorException(string("Found ambiguous entry for intrinsic function \"") + rIntrinsicInfo.first + string("\" !"));
+        }
+
+        rIntrinsicInfo.second = vecFunctions.front();
+
+        #ifdef VERBOSE_INIT_MODE
+        llvm::errs() << "\n" << rIntrinsicInfo.second->getResultType().getAsString() << " " << rIntrinsicInfo.second->getNameAsString() << "(";
+        for (unsigned int uiParam = 0; uiParam < rIntrinsicInfo.second->getNumParams(); ++uiParam)
+        {
+          ParmVarDecl *pParam = rIntrinsicInfo.second->getParamDecl(uiParam);
+          llvm::errs() << pParam->getType().getAsString();
+          if ((uiParam + 1) < rIntrinsicInfo.second->getNumParams())
+          {
+            llvm::errs() << ", ";
+          }
+        }
+        llvm::errs() << ")";
+        #endif
+      }
+
+      #ifdef VERBOSE_INIT_MODE
+      llvm::errs() << "\n\n";
+      #endif
+    }
+
 
   public:
 
@@ -84,7 +145,7 @@ namespace Vectorization
   typedef std::shared_ptr< InstructionSetBase >   InstructionSetBasePtr;
 
 
-  class InstructionSetSSE final : public InstructionSetBase
+  class InstructionSetSSE : public InstructionSetBase
   {
   private:
 
@@ -123,8 +184,7 @@ namespace Vectorization
     };
 
 
-    typedef std::pair< std::string, ::clang::FunctionDecl* >      IntrinsicInfoPairType;
-    typedef std::map< IntrinsicsSSEEnum, IntrinsicInfoPairType >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSEEnum >   IntrinsicMapType;
 
 
   private:
@@ -133,15 +193,21 @@ namespace Vectorization
 
     inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinType, std::string strIntrinName)
     {
-      _mapIntrinsicsSSE[eIntrinType] = IntrinsicInfoPairType(_GetIntrinsicPrefix() + strIntrinName, nullptr);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE, eIntrinType, strIntrinName);
     }
 
     void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE, "SSE");
+    }
 
 
   protected:
 
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
+
 
   public:
 
@@ -160,10 +226,56 @@ namespace Vectorization
   };
 
 
+  class InstructionSetSSE2 : public InstructionSetSSE
+  {
+  private:
+
+    enum class IntrinsicsSSE2Enum
+    {
+      AddDouble, AddInt8,    AddInt16,     AddInt32, AddInt64,
+      AndDouble, AndInteger, AndNotDouble, AndNotInteger
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE2Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsSSE2;
+
+    inline void _InitIntrinsic(IntrinsicsSSE2Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE2, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE2, "SSE2");
+    }
+
+
+  public:
+
+    InstructionSetSSE2(::clang::ASTContext &rAstContext);
+
+    virtual ~InstructionSetSSE2()
+    {
+      _mapIntrinsicsSSE2.clear();
+    }
+
+  };
+
 } // end namespace Vectorization
 } // end namespace Backend
 } // end namespace hipacc
 } // end namespace clang
+
+
+#ifdef VERBOSE_INIT_MODE
+#undef VERBOSE_INIT_MODE
+#endif
 
 
 #endif  // _BACKEND_INSTRUCTION_SETS_H_

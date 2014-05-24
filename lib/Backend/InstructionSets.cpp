@@ -32,10 +32,8 @@
 
 #include "hipacc/Backend/BackendExceptions.h"
 #include "hipacc/Backend/InstructionSets.h"
-#include "llvm/Support/raw_ostream.h"
 
 
-#define VERBOSE_INIT_MODE 1
 
 using namespace clang::hipacc::Backend::Vectorization;
 using namespace clang::hipacc::Backend;
@@ -57,7 +55,7 @@ ClangASTHelper::FunctionDeclarationVectorType InstructionSetBase::_GetFunctionDe
   }
 }
 
-InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFunctionNamePrefix) : _ASTHelper(rAstContext)
+InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFunctionNamePrefix) : _ASTHelper(rAstContext), _strIntrinsicPrefix(strFunctionNamePrefix)
 {
   const size_t cszPrefixLength = strFunctionNamePrefix.size();
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls = _ASTHelper.GetKnownFunctionDeclarations();
@@ -87,46 +85,12 @@ InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFuncti
 }
 
 
+
 InstructionSetSSE::InstructionSetSSE(ASTContext &rAstContext) : InstructionSetBase(rAstContext, _GetIntrinsicPrefix())
 {
   _InitIntrinsicsMap();
 
-
-#ifdef VERBOSE_INIT_MODE
-  llvm::errs() << "\n\nIntrinsic functions for instruction set \"SSE\" (" << _mapIntrinsicsSSE.size() << " methods):\n";
-#endif
-
-  for each (auto itIntrinsic in _mapIntrinsicsSSE)
-  {
-    IntrinsicInfoPairType &rIntrinsicInfo = itIntrinsic.second;
-
-    auto vecFunctions = _GetFunctionDecl(rIntrinsicInfo.first);
-
-    if (vecFunctions.size() != static_cast<size_t>(1))
-    {
-      throw InternalErrorException(string("Found ambiguous entry for intrinsic function \"") + rIntrinsicInfo.first + string("\" !"));
-    }
-
-    rIntrinsicInfo.second = vecFunctions.front();
-
-#ifdef VERBOSE_INIT_MODE
-    llvm::errs() << "\n" << rIntrinsicInfo.second->getResultType().getAsString() << " " << rIntrinsicInfo.second->getNameAsString() << "(";
-    for (unsigned int uiParam = 0; uiParam < rIntrinsicInfo.second->getNumParams(); ++uiParam)
-    {
-      ParmVarDecl *pParam = rIntrinsicInfo.second->getParamDecl(uiParam);
-      llvm::errs() << pParam->getType().getAsString();
-      if ((uiParam + 1) < rIntrinsicInfo.second->getNumParams())
-      {
-        llvm::errs() << ", ";
-      }
-    }
-    llvm::errs() << ")";
-#endif
-  }
-
-#ifdef VERBOSE_INIT_MODE
-  llvm::errs() << "\n\n";
-#endif
+  _LookupIntrinsics();
 }
 
 void InstructionSetSSE::_InitIntrinsicsMap()
@@ -163,6 +127,30 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
 }
 
+
+
+InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : InstructionSetSSE(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetSSE2::_InitIntrinsicsMap()
+{
+  // Addition functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::AddDouble, "add_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AddInt8,   "add_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AddInt16,  "add_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AddInt32,  "add_epi32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AddInt64,  "add_epi64" );
+
+  // Bitwise "and" and "and not"
+  _InitIntrinsic( IntrinsicsSSE2Enum::AndDouble,     "and_pd"       );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AndInteger,    "and_si128"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AndNotDouble,  "andnot_pd"    );
+  _InitIntrinsic( IntrinsicsSSE2Enum::AndNotInteger, "andnot_si128" );
+}
 
 
 
