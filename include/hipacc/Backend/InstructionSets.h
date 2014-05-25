@@ -40,7 +40,7 @@
 #include <string>
 #include <utility>
 
-#define VERBOSE_INIT_MODE 1   // Uncomment this for a print-out of the inited intrinsic functions
+//#define VERBOSE_INIT_MODE 1   // Uncomment this for a print-out of the inited intrinsic functions
 
 #ifdef VERBOSE_INIT_MODE
 #include "llvm/Support/raw_ostream.h"
@@ -55,7 +55,8 @@ namespace Backend
 {
 namespace Vectorization
 {
-  typedef AST::BaseClasses::TypeInfo::KnownTypes    VectorElementTypes;
+  typedef AST::BaseClasses::TypeInfo::KnownTypes              VectorElementTypes;
+  typedef AST::VectorSupport::CheckActiveElements::CheckType  ActiveElementsCheckType;
 
 
   class InstructionSetBase
@@ -77,12 +78,32 @@ namespace Vectorization
 
   protected:
 
+    inline ClangASTHelper& _GetASTHelper()   { return _ASTHelper; }
+
     ClangASTHelper::FunctionDeclarationVectorType _GetFunctionDecl(std::string strFunctionName);
 
     template < typename IntrinsicIDType >
-    inline void _InitIntrinsic(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, IntrinsicIDType eIntrinType, std::string strIntrinName)
+    inline ::clang::CallExpr* _CreateFunctionCall(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
-      rIntrinMap[eIntrinType] = IntrinsicInfoPairType(_strIntrinsicPrefix + strIntrinName, nullptr);
+      auto itIntrinEntry = crIntrinMap.find(eIntrinID);
+      if (itIntrinEntry == crIntrinMap.end())
+      {
+        throw InternalErrorException("The specified intrinsic is unknown!");
+      }
+
+      ::clang::FunctionDecl *pIntrinsicDecl = itIntrinEntry->second.second;
+      if (pIntrinsicDecl == nullptr)
+      {
+        throw InternalErrorException(std::string("The intrinsic \"") + _strIntrinsicPrefix + itIntrinEntry->second.first + std::string("\" has not been initialized!"));
+      }
+
+      return _ASTHelper.CreateFunctionCall( pIntrinsicDecl, crvecArguments );
+    }
+
+    template < typename IntrinsicIDType >
+    inline void _InitIntrinsic(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, IntrinsicIDType eIntrinID, std::string strIntrinName)
+    {
+      rIntrinMap[eIntrinID] = IntrinsicInfoPairType(_strIntrinsicPrefix + strIntrinName, nullptr);
     }
 
     template < typename IntrinsicIDType >
@@ -174,8 +195,23 @@ namespace Vectorization
 
   public:
 
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    inline ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements)
+    {
+      return CreateVector(eElementType, crvecElements, false);
+    }
+
+    inline  size_t GetVectorElementCount(VectorElementTypes eElementType) const    { return GetVectorWidthBytes() / AST::BaseClasses::TypeInfo::GetTypeSize(eElementType); }
     virtual size_t GetVectorWidthBytes() const = 0;
 
+    virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
+    virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
+    virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
+    virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) = 0;
+
+    //@}
   };
 
   typedef std::shared_ptr< InstructionSetBase >   InstructionSetBasePtr;
@@ -228,6 +264,27 @@ namespace Vectorization
 
     IntrinsicMapType    _mapIntrinsicsSSE;
 
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID)
+    {
+      return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+
     inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinType, std::string strIntrinName)
     {
       InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE, eIntrinType, strIntrinName);
@@ -258,8 +315,17 @@ namespace Vectorization
 
   public:
 
-    virtual size_t GetVectorWidthBytes() const final override   { return static_cast< size_t >( 16 ); }
+    /** \name Instruction set abstraction methods */
+    //@{
 
+    virtual size_t GetVectorWidthBytes() const final override   { return static_cast< size_t >(16); }
+
+    virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) override;
+    virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) override;
+    virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) override;
+    virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) override;
+
+    //@}
   };
 
 
@@ -316,6 +382,27 @@ namespace Vectorization
 
     IntrinsicMapType    _mapIntrinsicsSSE2;
 
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE2, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID)
+    {
+      return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back( pArg1 );
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+
     inline void _InitIntrinsic(IntrinsicsSSE2Enum eIntrinType, std::string strIntrinName)
     {
       InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE2, eIntrinType, strIntrinName);
@@ -337,6 +424,19 @@ namespace Vectorization
     {
       _mapIntrinsicsSSE2.clear();
     }
+
+
+  public:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
+    virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
+    virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) final override;
+    virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) final override;
+
+    //@}
   };
 
 

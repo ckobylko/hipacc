@@ -230,6 +230,64 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
 }
 
+Expr* InstructionSetSSE::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::BroadCastFloat, pBroadCastValue);
+  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
+Expr* InstructionSetSSE::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
+{
+  switch (eMaskElementType)
+  {
+  case VectorElementTypes::Float:
+  {
+    int32_t             iTestValue      = (eCheckType == ActiveElementsCheckType::All) ? 0xF   : 0;
+    BinaryOperatorKind  eCompareOpType  = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
+
+    CallExpr        *pMoveMask      = _CreateFunctionCall(IntrinsicsSSEEnum::MoveMaskFloat, pMaskExpr);
+    IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral(iTestValue);
+
+    return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetASTHelper().GetASTContext().BoolTy );
+  }
+  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
+Expr* InstructionSetSSE::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
+{
+  IntrinsicsSSEEnum eIntrinID = IntrinsicsSSEEnum::SetFloat;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float:
+    {
+      eIntrinID = bReversedOrder ? IntrinsicsSSEEnum::SetReverseFloat : IntrinsicsSSEEnum::SetFloat;
+      break;
+    }
+  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+
+  if (crvecElements.size() != GetVectorElementCount(eElementType))
+  {
+    throw RuntimeErrorException("The number of init expressions must be equal to the vector element count!");
+  }
+
+  return _CreateFunctionCall(eIntrinID, crvecElements);
+}
+
+Expr* InstructionSetSSE::CreateZeroVector(VectorElementTypes eElementType)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::SetZeroFloat);
+  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
 
 
 // Implementation of class InstructionSetSSE2
@@ -399,6 +457,125 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   // Bitwise "xor" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::XorInteger, "xor_si128" );
+}
+
+Expr* InstructionSetSSE2::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return _CreateFunctionCall(IntrinsicsSSE2Enum::BroadCastDouble, pBroadCastValue);
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _CreateFunctionCall(IntrinsicsSSE2Enum::BroadCastInt8,   pBroadCastValue);
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall(IntrinsicsSSE2Enum::BroadCastInt16,  pBroadCastValue);
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall(IntrinsicsSSE2Enum::BroadCastInt32,  pBroadCastValue);
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall(IntrinsicsSSE2Enum::BroadCastInt64,  pBroadCastValue);
+  default:                                                          return BaseType::BroadCast(eElementType, pBroadCastValue);
+  }
+}
+
+Expr* InstructionSetSSE2::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
+{
+  int32_t             iTestValue      = 0;
+  IntrinsicsSSE2Enum  eMoveMaskID     = IntrinsicsSSE2Enum::MoveMaskDouble;
+
+  switch (eMaskElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      eMoveMaskID = IntrinsicsSSE2Enum::MoveMaskDouble;
+      iTestValue  = (eCheckType == ActiveElementsCheckType::All) ? 0x3 : 0;
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::Int16:  case VectorElementTypes::Int32:  case VectorElementTypes::Int64:
+  case VectorElementTypes::UInt8: case VectorElementTypes::UInt16: case VectorElementTypes::UInt32: case VectorElementTypes::UInt64:
+    {
+      eMoveMaskID = IntrinsicsSSE2Enum::MoveMaskInt8;
+      iTestValue  = (eCheckType == ActiveElementsCheckType::All) ? 0xFFFF : 0;
+      break;
+    }
+
+  default:  return BaseType::CheckActiveElements(eMaskElementType, eCheckType, pMaskExpr);
+  }
+
+  CallExpr        *pMoveMask      = _CreateFunctionCall(eMoveMaskID, pMaskExpr);
+  IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral(iTestValue);
+
+  BinaryOperatorKind  eCompareOpType = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
+
+  return _GetASTHelper().CreateBinaryOperator(pMoveMask, pTestConstant, eCompareOpType, _GetASTHelper().GetASTContext().BoolTy);
+}
+
+Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
+{
+  IntrinsicsSSE2Enum eIntrinID = IntrinsicsSSE2Enum::SetDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseDouble : IntrinsicsSSE2Enum::SetDouble;
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    {
+      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt8 : IntrinsicsSSE2Enum::SetInt8;
+      break;
+    }
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+    {
+      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt16 : IntrinsicsSSE2Enum::SetInt16;
+      break;
+    }
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    {
+      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt32 : IntrinsicsSSE2Enum::SetInt32;
+      break;
+    }
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      if (bReversedOrder)
+      {
+        ClangASTHelper::ExpressionVectorType vecElements;
+
+        for (auto itElem = crvecElements.end(); itElem != crvecElements.begin(); itElem--)
+        {
+          vecElements.push_back( *(itElem-1) );
+        }
+
+        return CreateVector(eElementType, vecElements, false);
+      }
+      else
+      {
+        eIntrinID = IntrinsicsSSE2Enum::SetInt64;
+      }
+
+      break;
+    }
+  default:  BaseType::CreateVector(eElementType, crvecElements, bReversedOrder);
+  }
+
+  if (crvecElements.size() != GetVectorElementCount(eElementType))
+  {
+    throw RuntimeErrorException("The number of init expressions must be equal to the vector element count!");
+  }
+
+  return _CreateFunctionCall(eIntrinID, crvecElements);
+}
+
+Expr* InstructionSetSSE2::CreateZeroVector(VectorElementTypes eElementType)
+{
+  switch ( eElementType )
+  {
+  case VectorElementTypes::Double:  return _CreateFunctionCall(IntrinsicsSSE2Enum::SetZeroDouble);
+  case VectorElementTypes::Int8:
+  case VectorElementTypes::Int16:
+  case VectorElementTypes::Int32:
+  case VectorElementTypes::Int64:
+  case VectorElementTypes::UInt8:
+  case VectorElementTypes::UInt16:
+  case VectorElementTypes::UInt32:
+  case VectorElementTypes::UInt64:  return _CreateFunctionCall(IntrinsicsSSE2Enum::SetZeroInteger);
+  default:                          return BaseType::CreateZeroVector( eElementType );
+  }
 }
 
 
