@@ -110,7 +110,7 @@ namespace Vectorization
         for (unsigned int uiParam = 0; uiParam < rIntrinsicInfo.second->getNumParams(); ++uiParam)
         {
           ParmVarDecl *pParam = rIntrinsicInfo.second->getParamDecl(uiParam);
-          llvm::errs() << pParam->getType().getAsString();
+          llvm::errs() << pParam->getType().getAsString() << " " << pParam->getNameAsString();
           if ((uiParam + 1) < rIntrinsicInfo.second->getNumParams())
           {
             llvm::errs() << ", ";
@@ -124,6 +124,39 @@ namespace Vectorization
       llvm::errs() << "\n\n";
       #endif
     }
+
+
+  private:
+    /** \name Clang bugfixing helper methods */
+    //@{
+
+    void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ClangASTHelper::QualTypeVectorType &crvecArgTypes,
+                                      const ClangASTHelper::StringVectorType &crvecArgNames );
+
+    void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1,
+                                      const ::clang::QualType &crArgType2, std::string strArgName2 );
+
+    void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1,
+                                      const ::clang::QualType &crArgType2, std::string strArgName2, const ::clang::QualType &crArgType3, std::string strArgName3 );
+
+
+    /** \brief  Returns the return type of a known non-ambiguous function declaration.
+     *  \param  strFuntionName  The name of the functions whose return type shall be retrieved. */
+    ::clang::QualType _GetFunctionReturnType(std::string strFuntionName);
+
+    //@}
+
+  protected:
+    /** \name Clang bugfixing methods */
+    //@{
+
+    /** \brief  Creates all required missing intrinsic function declarations for the SSE instruction set (Clang header are incomplete). */
+    void _CreateMissingIntrinsicsSSE();
+
+    /** \brief  Creates all required missing intrinsic function declarations for the SSE2 instruction set (Clang header are incomplete). */
+    void _CreateMissingIntrinsicsSSE2();
+
+    //@}
 
 
   public:
@@ -263,7 +296,7 @@ namespace Vectorization
       SetZeroDouble,                SetZeroInteger,
       ShiftLeftInt16,               ShiftLeftInt32,         ShiftLeftVectorBytes,
       ShiftRightInt16,              ShiftRightInt32,        ShiftRightVectorBytes,
-      ShuffleInt16High,             ShuffleInt16Low,        ShuffleInt32,
+      ShuffleDouble,                ShuffleInt16High,       ShuffleInt16Low,         ShuffleInt32,
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
       SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,

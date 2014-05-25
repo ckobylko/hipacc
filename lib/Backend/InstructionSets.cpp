@@ -84,11 +84,91 @@ InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFuncti
   }
 }
 
+void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const ClangASTHelper::QualTypeVectorType &crvecArgTypes, const ClangASTHelper::StringVectorType &crvecArgNames)
+{
+  if (_mapKnownFuncDecls.find(strFunctionName) == _mapKnownFuncDecls.end())
+  {
+    _mapKnownFuncDecls[ strFunctionName ].push_back( _ASTHelper.CreateFunctionDeclaration(strFunctionName, crReturnType, crvecArgNames, crvecArgTypes) );
+  }
+}
+
+void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const QualType &crArgType1, string strArgName1, const QualType &crArgType2, string strArgName2)
+{
+  ClangASTHelper::QualTypeVectorType  vecArgTypes;
+  ClangASTHelper::StringVectorType    vecArgNames;
+
+  vecArgTypes.push_back( crArgType1 );
+  vecArgNames.push_back( strArgName1 );
+
+  vecArgTypes.push_back( crArgType2 );
+  vecArgNames.push_back( strArgName2 );
+
+  _CreateIntrinsicDeclaration(strFunctionName, crReturnType, vecArgTypes, vecArgNames);
+}
+
+void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const QualType &crArgType1, string strArgName1, const QualType &crArgType2, string strArgName2, const QualType &crArgType3, string strArgName3)
+{
+  ClangASTHelper::QualTypeVectorType  vecArgTypes;
+  ClangASTHelper::StringVectorType    vecArgNames;
+
+  vecArgTypes.push_back( crArgType1 );
+  vecArgNames.push_back( strArgName1 );
+
+  vecArgTypes.push_back( crArgType2 );
+  vecArgNames.push_back( strArgName2 );
+
+  vecArgTypes.push_back( crArgType3 );
+  vecArgNames.push_back( strArgName3 );
+
+  _CreateIntrinsicDeclaration(strFunctionName, crReturnType, vecArgTypes, vecArgNames);
+}
+
+void InstructionSetBase::_CreateMissingIntrinsicsSSE()
+{
+  // Get float vector type
+  QualType  qtFloatVector = _GetFunctionReturnType("_mm_setzero_ps");
+
+  // Create missing SSE intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm_shuffle_ps", qtFloatVector, qtFloatVector, "a", qtFloatVector, "b", _ASTHelper.GetASTContext().UnsignedIntTy, "imm" );
+}
+
+void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
+{
+  // Get required types
+  QualType  qtDoubleVector  = _GetFunctionReturnType("_mm_setzero_pd");
+  QualType  qtIntegerVector = _GetFunctionReturnType("_mm_setzero_si128");
+  QualType  qtInt           = _ASTHelper.GetASTContext().IntTy;
+
+  // Create missing SSE2 intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm_slli_si128",      qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
+  _CreateIntrinsicDeclaration( "_mm_srli_si128",      qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
+  _CreateIntrinsicDeclaration( "_mm_shufflehi_epi16", qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
+  _CreateIntrinsicDeclaration( "_mm_shufflelo_epi16", qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
+  _CreateIntrinsicDeclaration( "_mm_shuffle_epi32",   qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
+  _CreateIntrinsicDeclaration( "_mm_shuffle_pd",      qtDoubleVector,  qtDoubleVector,  "a", qtDoubleVector, "b", qtInt, "imm" );
+}
+
+
+QualType InstructionSetBase::_GetFunctionReturnType(string strFuntionName)
+{
+  auto vecFunctionsDecls = _GetFunctionDecl(strFuntionName);
+
+  if (vecFunctionsDecls.size() != static_cast<size_t>(1))
+  {
+    throw InternalErrorException(string("The function declaration \"") + strFuntionName + string("\" is ambiguous!"));
+  }
+
+  return vecFunctionsDecls.front()->getResultType();
+}
+
+
 
 
 InstructionSetSSE::InstructionSetSSE(ASTContext &rAstContext) : InstructionSetBase(rAstContext, _GetIntrinsicPrefix())
 {
   _InitIntrinsicsMap();
+
+  _CreateMissingIntrinsicsSSE();  // Only required due to Clang's incomplete intrinsic headers
 
   _LookupIntrinsics();
 }
@@ -121,7 +201,7 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::SetFloat,                    "set_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::SetReverseFloat,             "setr_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::SetZeroFloat,                "setzero_ps"  );
-//_InitIntrinsic( IntrinsicsSSEEnum::ShuffleFloat,                "shuffle_ps"  );  // TODO: Clang sucks => this must be created if not existent
+  _InitIntrinsic( IntrinsicsSSEEnum::ShuffleFloat,                "shuffle_ps"  );
   _InitIntrinsic( IntrinsicsSSEEnum::SqrtFloat,                   "sqrt_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::StoreFloat,                  "storeu_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::SubtractFloat,               "sub_ps"      );
@@ -133,6 +213,8 @@ void InstructionSetSSE::_InitIntrinsicsMap()
 InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : InstructionSetSSE(rAstContext)
 {
   _InitIntrinsicsMap();
+
+  _CreateMissingIntrinsicsSSE2();  // Only required due to Clang's incomplete intrinsic headers
 
   _LookupIntrinsics();
 }
@@ -265,15 +347,16 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   // Shift functions
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt16,        "sll_epi16"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt32,        "sll_epi32"  );
-//_InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftVectorBytes,  "slli_si128" );  // TODO: Clang sucks => this must be created if not existent
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftVectorBytes,  "slli_si128" );
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt16,       "sra_epi16"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt32,       "sra_epi32"  );
-//_InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightVectorBytes, "srli_si128" );  // TODO: Clang sucks => this must be created if not existent
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightVectorBytes, "srli_si128" );
 
   // Shuffle functions
-//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16High, "shufflehi_epi32" );  // TODO: Clang sucks => this must be created if not existent
-//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16Low,  "shufflelo_epi32" );  // TODO: Clang sucks => this must be created if not existent
-//_InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt32,     "shuffle_epi32"   );  // TODO: Clang sucks => this must be created if not existent
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShuffleDouble,    "shuffle_pd"      );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16High, "shufflehi_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt16Low,  "shufflelo_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShuffleInt32,     "shuffle_epi32"   );
 
   // Square root functions
   _InitIntrinsic( IntrinsicsSSE2Enum::SqrtDouble, "sqrt_pd" );
