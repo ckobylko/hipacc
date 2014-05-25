@@ -156,6 +156,9 @@ namespace Vectorization
     /** \brief  Creates all required missing intrinsic function declarations for the SSE2 instruction set (Clang header are incomplete). */
     void _CreateMissingIntrinsicsSSE2();
 
+    /** \brief  Creates all required missing intrinsic function declarations for the SSE4.1 instruction set (Clang header are incomplete). */
+    void _CreateMissingIntrinsicsSSE4_1();
+
     //@}
 
 
@@ -264,6 +267,9 @@ namespace Vectorization
   {
   private:
 
+    typedef InstructionSetSSE   BaseType;
+
+
     enum class IntrinsicsSSE2Enum
     {
       AddDouble,                    AddInt8,                AddInt16,                AddInt32,                AddInt64,
@@ -331,7 +337,149 @@ namespace Vectorization
     {
       _mapIntrinsicsSSE2.clear();
     }
+  };
 
+
+  class InstructionSetSSE3 : public InstructionSetSSE2
+  {
+  private:
+
+    typedef InstructionSetSSE2    BaseType;
+
+
+    enum class IntrinsicsSSE3Enum
+    {
+      LoadInteger
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE3Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsSSE3;
+
+    inline void _InitIntrinsic(IntrinsicsSSE3Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE3, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE3, "SSE3");
+    }
+
+
+  public:
+
+    InstructionSetSSE3(::clang::ASTContext &rAstContext);
+
+    virtual ~InstructionSetSSE3()
+    {
+      _mapIntrinsicsSSE3.clear();
+    }
+  };
+
+
+  class InstructionSetSSSE3 : public InstructionSetSSE3
+  {
+  private:
+
+    typedef InstructionSetSSE3    BaseType;
+
+
+    enum class IntrinsicsSSSE3Enum
+    {
+      AbsoluteInt8, AbsoluteInt16, AbsoluteInt32,
+      ShuffleInt8,
+      SignInt8,     SignInt16,     SignInt32
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSSE3Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsSSSE3;
+
+    inline void _InitIntrinsic(IntrinsicsSSSE3Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSSE3, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSSE3, "SSSE3");
+    }
+
+
+  public:
+
+    InstructionSetSSSE3(::clang::ASTContext &rAstContext);
+
+    virtual ~InstructionSetSSSE3()
+    {
+      _mapIntrinsicsSSSE3.clear();
+    }
+  };
+
+
+  class InstructionSetSSE4_1 : public InstructionSetSSSE3
+  {
+  private:
+
+    typedef InstructionSetSSSE3    BaseType;
+
+
+    enum class IntrinsicsSSE4_1Enum
+    {
+      BlendDouble,        BlendFloat,         BlendInteger,
+      CompareEqualInt64,
+      ConvertInt8Int16,   ConvertInt8Int32,   ConvertInt8Int64,
+      ConvertInt16Int32,  ConvertInt16Int64,  ConvertInt32Int64,
+      ConvertUInt8Int16,  ConvertUInt8Int32,  ConvertUInt8Int64,
+      ConvertUInt16Int32, ConvertUInt16Int64, ConvertUInt32Int64,
+      ExtractFloat,       ExtractInt8,        ExtractInt32,       ExtractInt64,
+      InsertFloat,        InsertInt8,         InsertInt32,        InsertInt64,
+      MaxInt8,            MaxInt32,           MaxUInt16,          MaxUInt32,
+      MinInt8,            MinInt32,           MinUInt16,          MinUInt32,
+      MultiplyInt32,
+      PackInt32ToUInt16,
+      TestControl
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_1Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsSSE4_1;
+
+    inline void _InitIntrinsic(IntrinsicsSSE4_1Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_1, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE4_1, "SSE4.1");
+    }
+
+
+  public:
+
+    InstructionSetSSE4_1(::clang::ASTContext &rAstContext);
+
+    virtual ~InstructionSetSSE4_1()
+    {
+      _mapIntrinsicsSSE4_1.clear();
+    }
   };
 
 } // end namespace Vectorization

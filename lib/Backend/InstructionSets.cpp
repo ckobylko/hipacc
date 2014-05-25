@@ -41,20 +41,7 @@ using namespace clang;
 using namespace std;
 
 
-ClangASTHelper::FunctionDeclarationVectorType InstructionSetBase::_GetFunctionDecl(string strFunctionName)
-{
-  auto itFunctionDecl = _mapKnownFuncDecls.find(strFunctionName);
-
-  if (itFunctionDecl != _mapKnownFuncDecls.end())
-  {
-    return itFunctionDecl->second;
-  }
-  else
-  {
-    throw InternalErrorException(string("Cannot find function \"") + strFunctionName + string("\" !"));
-  }
-}
-
+// Implementation of class InstructionSetBase
 InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFunctionNamePrefix) : _ASTHelper(rAstContext), _strIntrinsicPrefix(strFunctionNamePrefix)
 {
   const size_t cszPrefixLength = strFunctionNamePrefix.size();
@@ -148,6 +135,41 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
   _CreateIntrinsicDeclaration( "_mm_shuffle_pd",      qtDoubleVector,  qtDoubleVector,  "a", qtDoubleVector, "b", qtInt, "imm" );
 }
 
+void InstructionSetBase::_CreateMissingIntrinsicsSSE4_1()
+{
+  // Get required types
+  QualType  qtFloatVector   = _GetFunctionReturnType("_mm_setzero_ps");
+  QualType  qtIntegerVector = _GetFunctionReturnType("_mm_setzero_si128");
+  QualType  qtInt64         = _ASTHelper.GetASTContext().LongLongTy;
+  QualType  qtInt           = _ASTHelper.GetASTContext().IntTy;
+  QualType  qtConstInt      = qtInt;
+  qtConstInt.addConst();
+
+  // Create missing SSE2 intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm_extract_ps",    qtInt,   qtFloatVector,   "a", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_extract_epi8",  qtInt,   qtIntegerVector, "a", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_extract_epi32", qtInt,   qtIntegerVector, "a", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_extract_epi64", qtInt64, qtIntegerVector, "a", qtConstInt, "imm");
+
+  _CreateIntrinsicDeclaration( "_mm_insert_ps",    qtFloatVector,   qtFloatVector,   "a", qtFloatVector, "b", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_insert_epi8",  qtIntegerVector, qtIntegerVector, "a", qtInt,         "i", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_insert_epi32", qtIntegerVector, qtIntegerVector, "a", qtInt,         "i", qtConstInt, "imm");
+  _CreateIntrinsicDeclaration( "_mm_insert_epi64", qtIntegerVector, qtIntegerVector, "a", qtInt64,       "i", qtConstInt, "imm");
+}
+
+ClangASTHelper::FunctionDeclarationVectorType InstructionSetBase::_GetFunctionDecl(string strFunctionName)
+{
+  auto itFunctionDecl = _mapKnownFuncDecls.find(strFunctionName);
+
+  if (itFunctionDecl != _mapKnownFuncDecls.end())
+  {
+    return itFunctionDecl->second;
+  }
+  else
+  {
+    throw InternalErrorException(string("Cannot find function \"") + strFunctionName + string("\" !"));
+  }
+}
 
 QualType InstructionSetBase::_GetFunctionReturnType(string strFuntionName)
 {
@@ -163,7 +185,7 @@ QualType InstructionSetBase::_GetFunctionReturnType(string strFuntionName)
 
 
 
-
+// Implementation of class InstructionSetSSE
 InstructionSetSSE::InstructionSetSSE(ASTContext &rAstContext) : InstructionSetBase(rAstContext, _GetIntrinsicPrefix())
 {
   _InitIntrinsicsMap();
@@ -210,7 +232,8 @@ void InstructionSetSSE::_InitIntrinsicsMap()
 
 
 
-InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : InstructionSetSSE(rAstContext)
+// Implementation of class InstructionSetSSE2
+InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : BaseType(rAstContext)
 {
   _InitIntrinsicsMap();
 
@@ -376,6 +399,119 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   // Bitwise "xor" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::XorInteger, "xor_si128" );
+}
+
+
+
+// Implementation of class InstructionSetSSE3
+InstructionSetSSE3::InstructionSetSSE3(ASTContext &rAstContext) : BaseType(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetSSE3::_InitIntrinsicsMap()
+{
+  _InitIntrinsic (IntrinsicsSSE3Enum::LoadInteger, "lddqu_si128" );
+}
+
+
+
+// Implementation of class InstructionSetSSSE3
+InstructionSetSSSE3::InstructionSetSSSE3(ASTContext &rAstContext) : BaseType(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetSSSE3::_InitIntrinsicsMap()
+{
+  // Absolute value computation functions
+  _InitIntrinsic( IntrinsicsSSSE3Enum::AbsoluteInt8,  "abs_epi8"  );
+  _InitIntrinsic( IntrinsicsSSSE3Enum::AbsoluteInt16, "abs_epi16" );
+  _InitIntrinsic( IntrinsicsSSSE3Enum::AbsoluteInt32, "abs_epi32" );
+
+  // Shuffle functions
+  _InitIntrinsic( IntrinsicsSSSE3Enum::ShuffleInt8, "shuffle_epi8" );
+
+  // Sign change functions
+  _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt8,  "sign_epi8"  );
+  _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt16, "sign_epi16" );
+  _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt32, "sign_epi32" );
+}
+
+
+
+// Implementation of class InstructionSetSSE4_1
+InstructionSetSSE4_1::InstructionSetSSE4_1(ASTContext &rAstContext) : BaseType(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _CreateMissingIntrinsicsSSE4_1();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetSSE4_1::_InitIntrinsicsMap()
+{
+  // Blending functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::BlendDouble,  "blendv_pd"   );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::BlendFloat,   "blendv_ps"   );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::BlendInteger, "blendv_epi8" );
+
+  // Comparison functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::CompareEqualInt64, "cmpeq_epi64" );
+
+  // Convert functions for signed integers
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt8Int16,  "cvtepi8_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt8Int32,  "cvtepi8_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt8Int64,  "cvtepi8_epi64"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt16Int32, "cvtepi16_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt16Int64, "cvtepi16_epi64" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertInt32Int64, "cvtepi32_epi64" );
+
+  // Convert functions for unsigned integers
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt8Int16,  "cvtepu8_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt8Int32,  "cvtepu8_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt8Int64,  "cvtepu8_epi64"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt16Int32, "cvtepu16_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt16Int64, "cvtepu16_epi64" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt32Int64, "cvtepu32_epi64" );
+
+  // Extract functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractFloat, "extract_ps"    );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt8,  "extract_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt32, "extract_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt64, "extract_epi64" );
+
+  // Insert functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::InsertFloat, "insert_ps"    );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::InsertInt8,  "insert_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::InsertInt32, "insert_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::InsertInt64, "insert_epi64" );
+
+  // Maximum functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MaxInt8,   "max_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MaxInt32,  "max_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MaxUInt16, "max_epu16" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MaxUInt32, "max_epu32" );
+
+  // Minimum functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MinInt8,   "min_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MinInt32,  "min_epi32" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MinUInt16, "min_epu16" );
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MinUInt32, "min_epu32" );
+
+  // Multiply functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::MultiplyInt32, "mullo_epi32" );
+
+  // Packing functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::PackInt32ToUInt16, "packus_epi32" );
+
+  // Testing functions
+  _InitIntrinsic( IntrinsicsSSE4_1Enum::TestControl, "testc_si128" );
 }
 
 
