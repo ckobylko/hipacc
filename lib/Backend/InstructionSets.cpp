@@ -157,6 +157,16 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE4_1()
   _CreateIntrinsicDeclaration( "_mm_insert_epi64", qtIntegerVector, qtIntegerVector, "a", qtInt64,       "i", qtConstInt, "imm");
 }
 
+CastExpr* InstructionSetBase::_CreatePointerCast(Expr *pPointerRef, const QualType &crNewPointerType)
+{
+  return _GetASTHelper().CreateReinterpretCast(pPointerRef, crNewPointerType, CK_ReinterpretMemberPointer);
+}
+
+CastExpr* InstructionSetBase::_CreateValueCast(Expr *pValueRef, const QualType &crNewValueType, CastKind eCastKind)
+{
+  return _GetASTHelper().CreateStaticCast(pValueRef, crNewValueType, eCastKind);
+}
+
 ClangASTHelper::FunctionDeclarationVectorType InstructionSetBase::_GetFunctionDecl(string strFunctionName)
 {
   auto itFunctionDecl = _mapKnownFuncDecls.find(strFunctionName);
@@ -212,6 +222,7 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::CompareNotLessEqualFloat,    "cmpnle_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::CompareNotLessThanFloat,     "cmpnlt_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::DivideFloat,                 "div_ps"      );
+  _InitIntrinsic( IntrinsicsSSEEnum::ExtractLowestFloat,          "cvtss_f32"   );
   _InitIntrinsic( IntrinsicsSSEEnum::LoadFloat,                   "loadu_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::MaxFloat,                    "max_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::MinFloat,                    "min_ps"      );
@@ -284,6 +295,61 @@ Expr* InstructionSetSSE::CreateZeroVector(VectorElementTypes eElementType)
   switch (eElementType)
   {
   case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::SetZeroFloat);
+  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
+Expr* InstructionSetSSE::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float:
+    {
+      Expr *pIntermediateValue = nullptr;
+
+      if (uiIndex == 0)
+      {
+        // The lowest element is requested => it can be extracted directly
+        pIntermediateValue = pVectorRef;
+      }
+      else
+      {
+        // Swap vector elements such that the desired value is in the lowest element
+        int32_t iControlFlags = 0;
+
+        switch (uiIndex)
+        {
+        case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
+        case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
+        case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
+        default:  throw RuntimeErrorException("The index for a \"float\" element extraction must be in the range of [0; 3] !");
+        }
+
+        IntegerLiteral *pControlFlags = _GetASTHelper().CreateIntegerLiteral(iControlFlags);
+
+        pIntermediateValue = _CreateFunctionCall(IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pVectorRef, pControlFlags);
+      }
+
+      return _CreateFunctionCall(IntrinsicsSSEEnum::ExtractLowestFloat, pIntermediateValue);
+    }
+  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
+Expr* InstructionSetSSE::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::LoadFloat, pPointerRef);
+  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+  }
+}
+
+Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::StoreFloat, pPointerRef, pVectorValue);
   default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
   }
 }
@@ -376,8 +442,11 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::DivideDouble, "div_pd" );
 
   // Extract / Insert functions
-  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractInt16, "extract_epi16" );
-  _InitIntrinsic( IntrinsicsSSE2Enum::InsertInt16,  "insert_epi16"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractInt16,        "extract_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractLowestDouble, "cvtsd_f64"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractLowestInt32,  "cvtsi128_si32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ExtractLowestInt64,  "cvtsi128_si64" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::InsertInt16,         "insert_epi16"  );
 
   // Load functions
   _InitIntrinsic( IntrinsicsSSE2Enum::LoadDouble,  "loadu_pd"   );
@@ -578,6 +647,169 @@ Expr* InstructionSetSSE2::CreateZeroVector(VectorElementTypes eElementType)
   }
 }
 
+Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      Expr *pIntermediateValue = nullptr;
+
+      if (uiIndex == 0)
+      {
+        // The lowest element is requested => it can be extracted directly
+        pIntermediateValue = pVectorRef;
+      }
+      else if (uiIndex == 1)
+      {
+        // Swap the highest and lowest vector element
+        pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, pVectorRef, pVectorRef, _GetASTHelper().CreateIntegerLiteral(1) );
+      }
+      else
+      {
+        throw RuntimeErrorException("The index for a \"double\" element extraction must be in the range of [0; 1] !");
+      }
+
+      return _CreateFunctionCall(IntrinsicsSSE2Enum::ExtractLowestDouble, pIntermediateValue);
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    {
+      if (uiIndex > 15)
+      {
+        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element extraction must be in the range of [0; 15] !");
+      }
+
+      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractInt16, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex >> 1)) );
+
+      if ((uiIndex & 1) != 0)
+      {
+        // Odd indices correspond to the upper byte of the 16bit word => Shift extracted value by 8 bits
+        pExtractExpr = _GetASTHelper().CreateBinaryOperator(pExtractExpr, _GetASTHelper().CreateIntegerLiteral(8), BO_Shr, pExtractExpr->getType());
+      }
+
+      QualType qtReturnType = (eElementType == VectorElementTypes::Int8) ? _GetASTHelper().GetASTContext().CharTy : _GetASTHelper().GetASTContext().UnsignedCharTy;
+
+      return _CreateValueCast(pExtractExpr, qtReturnType, CK_IntegralCast);
+    }
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+    {
+      if (uiIndex > 7)
+      {
+        throw RuntimeErrorException("The index for an \"int16\" or \"uint16\" element extraction must be in the range of [0; 7] !");
+      }
+
+      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractInt16, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+      QualType qtReturnType = (eElementType == VectorElementTypes::Int16) ? _GetASTHelper().GetASTContext().ShortTy : _GetASTHelper().GetASTContext().UnsignedShortTy;
+
+      return _CreateValueCast(pExtractExpr, qtReturnType, CK_IntegralCast);
+    }
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    {
+      Expr *pIntermediateValue = nullptr;
+
+      if (uiIndex == 0)
+      {
+        // The lowest element is requested => it can be extracted directly
+        pIntermediateValue = pVectorRef;
+      }
+      else
+      {
+        // Swap vector elements such that the desired value is in the lowest element
+        int32_t iControlFlags = 0;
+
+        switch (uiIndex)
+        {
+        case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
+        case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
+        case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
+        default:  throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element extraction must be in the range of [0; 3] !");
+        }
+
+        pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
+      }
+
+      pIntermediateValue = _CreateFunctionCall(IntrinsicsSSE2Enum::ExtractLowestInt32, pIntermediateValue);
+
+      if (eElementType == VectorElementTypes::UInt32)
+      {
+        pIntermediateValue = _CreateValueCast(pIntermediateValue, _GetASTHelper().GetASTContext().UnsignedIntTy, CK_IntegralCast);
+      }
+
+      return pIntermediateValue;
+    }
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      Expr *pIntermediateValue = nullptr;
+
+      if (uiIndex == 0)
+      {
+        // The lowest element is requested => it can be extracted directly
+        pIntermediateValue = pVectorRef;
+      }
+      else if (uiIndex == 1)
+      {
+        // Swap the highest and lowest vector element
+        pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(0x4E) );
+      }
+      else
+      {
+        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element extraction must be in the range of [0; 1] !");
+      }
+
+      pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractLowestInt64, pIntermediateValue );
+
+      if (eElementType == VectorElementTypes::UInt64)
+      {
+        pIntermediateValue = _CreateValueCast(pIntermediateValue, _GetASTHelper().GetASTContext().UnsignedLongLongTy, CK_IntegralCast);
+      }
+
+      return pIntermediateValue;
+    }
+  default:  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
+  }
+}
+
+Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return _CreateFunctionCall(IntrinsicsSSE2Enum::LoadDouble, pPointerRef);
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE2Enum::LoadInteger);
+
+      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+
+      return _CreateFunctionCall(IntrinsicsSSE2Enum::LoadInteger, pPointerCast);
+    }
+  default:  return BaseType::LoadVector(eElementType, pPointerRef);
+  }
+}
+
+Expr* InstructionSetSSE2::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return _CreateFunctionCall(IntrinsicsSSE2Enum::StoreDouble, pPointerRef, pVectorValue);
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE2Enum::LoadInteger);
+
+      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+
+      return _CreateFunctionCall(IntrinsicsSSE2Enum::StoreInteger, pPointerCast, pVectorValue);
+    }
+  default:  return BaseType::StoreVector(eElementType, pPointerRef, pVectorValue);
+  }
+}
+
 
 
 // Implementation of class InstructionSetSSE3
@@ -591,6 +823,30 @@ InstructionSetSSE3::InstructionSetSSE3(ASTContext &rAstContext) : BaseType(rAstC
 void InstructionSetSSE3::_InitIntrinsicsMap()
 {
   _InitIntrinsic (IntrinsicsSSE3Enum::LoadInteger, "lddqu_si128" );
+}
+
+Expr* InstructionSetSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
+}
+
+Expr* InstructionSetSSE3::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE3Enum::LoadInteger);
+
+      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+
+      return _CreateFunctionCall(IntrinsicsSSE3Enum::LoadInteger, pPointerCast);
+    }
+  default:  return BaseType::LoadVector(eElementType, pPointerRef);
+  }
 }
 
 
@@ -617,6 +873,11 @@ void InstructionSetSSSE3::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt8,  "sign_epi8"  );
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt16, "sign_epi16" );
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt32, "sign_epi32" );
+}
+
+Expr* InstructionSetSSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
 }
 
 
@@ -658,7 +919,6 @@ void InstructionSetSSE4_1::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE4_1Enum::ConvertUInt32Int64, "cvtepu32_epi64" );
 
   // Extract functions
-  _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractFloat, "extract_ps"    );
   _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt8,  "extract_epi8"  );
   _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt32, "extract_epi32" );
   _InitIntrinsic( IntrinsicsSSE4_1Enum::ExtractInt64, "extract_epi64" );
@@ -689,6 +949,59 @@ void InstructionSetSSE4_1::_InitIntrinsicsMap()
 
   // Testing functions
   _InitIntrinsic( IntrinsicsSSE4_1Enum::TestControl, "testc_si128" );
+}
+
+Expr* InstructionSetSSE4_1::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    {
+      if (uiIndex > 15)
+      {
+        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element extraction must be in the range of [0; 15] !");
+      }
+
+      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt8, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+      QualType qtReturnType = (eElementType == VectorElementTypes::Int8) ? _GetASTHelper().GetASTContext().CharTy : _GetASTHelper().GetASTContext().UnsignedCharTy;
+
+      return _CreateValueCast( pExtractExpr, qtReturnType, CK_IntegralCast );
+    }
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    {
+      if (uiIndex > 3)
+      {
+        throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element extraction must be in the range of [0; 3] !");
+      }
+
+      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+      if (eElementType == VectorElementTypes::UInt32)
+      {
+        pExtractExpr = _CreateValueCast( pExtractExpr, _GetASTHelper().GetASTContext().UnsignedIntTy, CK_IntegralCast );
+      }
+
+      return pExtractExpr;
+    }
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      if (uiIndex > 1)
+      {
+        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element extraction must be in the range of [0; 1] !");
+      }
+
+      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt64, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+      if (eElementType == VectorElementTypes::UInt64)
+      {
+        pExtractExpr = _CreateValueCast( pExtractExpr, _GetASTHelper().GetASTContext().UnsignedLongLongTy, CK_IntegralCast );
+      }
+
+      return pExtractExpr;
+  }
+  default:  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
+  }
 }
 
 

@@ -38,6 +38,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 //#define VERBOSE_INIT_MODE 1   // Uncomment this for a print-out of the inited intrinsic functions
@@ -80,7 +81,13 @@ namespace Vectorization
 
     inline ClangASTHelper& _GetASTHelper()   { return _ASTHelper; }
 
+
+    ::clang::CastExpr* _CreatePointerCast(::clang::Expr *pPointerRef, const ::clang::QualType &crNewPointerType);
+
+    ::clang::CastExpr* _CreateValueCast(::clang::Expr *pValueRef, const ::clang::QualType &crNewValueType, ::clang::CastKind eCastKind);
+
     ClangASTHelper::FunctionDeclarationVectorType _GetFunctionDecl(std::string strFunctionName);
+
 
     template < typename IntrinsicIDType >
     inline ::clang::CallExpr* _CreateFunctionCall(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
@@ -98,6 +105,24 @@ namespace Vectorization
       }
 
       return _ASTHelper.CreateFunctionCall( pIntrinsicDecl, crvecArguments );
+    }
+
+    template < typename IntrinsicIDType >
+    inline ::clang::QualType _GetFunctionReturnType(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID)
+    {
+      auto itIntrinEntry = crIntrinMap.find(eIntrinID);
+      if (itIntrinEntry == crIntrinMap.end())
+      {
+        throw InternalErrorException("The specified intrinsic is unknown!");
+      }
+
+      ::clang::FunctionDecl *pIntrinsicDecl = itIntrinEntry->second.second;
+      if (pIntrinsicDecl == nullptr)
+      {
+        throw InternalErrorException(std::string("The intrinsic \"") + _strIntrinsicPrefix + itIntrinEntry->second.first + std::string("\" has not been initialized!"));
+      }
+
+      return pIntrinsicDecl->getResultType();
     }
 
     template < typename IntrinsicIDType >
@@ -183,15 +208,25 @@ namespace Vectorization
     //@}
 
 
-  public:
+  protected:
 
     InstructionSetBase(::clang::ASTContext &rAstContext, std::string strFunctionNamePrefix = "");
+
+  public:
+
+    template < class InstructionSetType >
+    inline static std::shared_ptr< InstructionSetType > Create(::clang::ASTContext &rAstContext)
+    {
+      static_assert( std::is_base_of< InstructionSetBase, InstructionSetType >::value, "The requested instruction set is not derived from class \"InstructionSetBase\" !" );
+
+      return std::shared_ptr< InstructionSetType >( new InstructionSetType(rAstContext) );
+    }
+
 
     virtual ~InstructionSetBase()
     {
       _mapKnownFuncDecls.clear();
     }
-
 
   public:
 
@@ -210,6 +245,9 @@ namespace Vectorization
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) = 0;
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) = 0;
+    virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) = 0;
+    virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) = 0;
 
     //@}
   };
@@ -220,6 +258,8 @@ namespace Vectorization
   class InstructionSetSSE : public InstructionSetBase
   {
   private:
+
+    friend class InstructionSetBase;
 
     enum class IntrinsicsSSEEnum
     {
@@ -238,6 +278,7 @@ namespace Vectorization
       CompareNotLessEqualFloat,
       CompareNotLessThanFloat,
       DivideFloat,
+      ExtractLowestFloat,
       LoadFloat,
       MaxFloat,
       MinFloat,
@@ -284,6 +325,27 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+      vecArguments.push_back(pArg3);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
 
     inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinType, std::string strIntrinName)
     {
@@ -303,17 +365,15 @@ namespace Vectorization
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
 
 
-  public:
-
     InstructionSetSSE(::clang::ASTContext &rAstContext);
+
+  public:
 
     virtual ~InstructionSetSSE()
     {
       _mapIntrinsicsSSE.clear();
     }
 
-
-  public:
 
     /** \name Instruction set abstraction methods */
     //@{
@@ -324,15 +384,18 @@ namespace Vectorization
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) override;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) override;
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
+    virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) override;
+    virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) override;
 
     //@}
   };
-
 
   class InstructionSetSSE2 : public InstructionSetSSE
   {
   private:
 
+    friend class InstructionSetBase;
     typedef InstructionSetSSE   BaseType;
 
 
@@ -354,7 +417,7 @@ namespace Vectorization
       CompareNotLessThanDouble,
       ConvertDoubleFloat,           ConvertDoubleInt32,     ConvertFloatDouble,      ConvertFloatInt32,       ConvertInt32Double,  ConvertInt32Float,
       DivideDouble,
-      ExtractInt16,
+      ExtractInt16,                 ExtractLowestDouble,    ExtractLowestInt32,      ExtractLowestInt64,
       InsertInt16,
       LoadDouble,                   LoadInteger,
       MaxDouble,                    MaxUInt8,               MaxInt16,
@@ -397,9 +460,35 @@ namespace Vectorization
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
 
-      vecArguments.push_back( pArg1 );
+      vecArguments.push_back(pArg1);
 
       return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+      vecArguments.push_back(pArg3);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSE2Enum eIntrinID)
+    {
+      return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE2, eIntrinID);
     }
 
 
@@ -416,17 +505,17 @@ namespace Vectorization
     }
 
 
-  public:
+  protected:
 
     InstructionSetSSE2(::clang::ASTContext &rAstContext);
+
+  public:
 
     virtual ~InstructionSetSSE2()
     {
       _mapIntrinsicsSSE2.clear();
     }
 
-
-  public:
 
     /** \name Instruction set abstraction methods */
     //@{
@@ -435,15 +524,18 @@ namespace Vectorization
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) final override;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) final override;
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
+    virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) override;
+    virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) final override;
 
     //@}
   };
-
 
   class InstructionSetSSE3 : public InstructionSetSSE2
   {
   private:
 
+    friend class InstructionSetBase;
     typedef InstructionSetSSE2    BaseType;
 
 
@@ -459,6 +551,27 @@ namespace Vectorization
 
     IntrinsicMapType    _mapIntrinsicsSSE3;
 
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE3Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE3, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE3Enum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSE3Enum eIntrinID)
+    {
+      return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE3, eIntrinID);
+    }
+
+
     inline void _InitIntrinsic(IntrinsicsSSE3Enum eIntrinType, std::string strIntrinName)
     {
       InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE3, eIntrinType, strIntrinName);
@@ -472,21 +585,32 @@ namespace Vectorization
     }
 
 
-  public:
+  protected:
 
     InstructionSetSSE3(::clang::ASTContext &rAstContext);
+
+  public:
 
     virtual ~InstructionSetSSE3()
     {
       _mapIntrinsicsSSE3.clear();
     }
-  };
 
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
+    virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) final override;
+
+    //@}
+  };
 
   class InstructionSetSSSE3 : public InstructionSetSSE3
   {
   private:
 
+    friend class InstructionSetBase;
     typedef InstructionSetSSE3    BaseType;
 
 
@@ -517,21 +641,31 @@ namespace Vectorization
     }
 
 
-  public:
+  protected:
 
     InstructionSetSSSE3(::clang::ASTContext &rAstContext);
+
+  public:
 
     virtual ~InstructionSetSSSE3()
     {
       _mapIntrinsicsSSSE3.clear();
     }
+
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
+
+    //@}
   };
 
-
-  class InstructionSetSSE4_1 : public InstructionSetSSSE3
+  class InstructionSetSSE4_1 final : public InstructionSetSSSE3
   {
   private:
 
+    friend class InstructionSetBase;
     typedef InstructionSetSSSE3    BaseType;
 
 
@@ -543,7 +677,7 @@ namespace Vectorization
       ConvertInt16Int32,  ConvertInt16Int64,  ConvertInt32Int64,
       ConvertUInt8Int16,  ConvertUInt8Int32,  ConvertUInt8Int64,
       ConvertUInt16Int32, ConvertUInt16Int64, ConvertUInt32Int64,
-      ExtractFloat,       ExtractInt8,        ExtractInt32,       ExtractInt64,
+      ExtractInt8,        ExtractInt32,       ExtractInt64,
       InsertFloat,        InsertInt8,         InsertInt32,        InsertInt64,
       MaxInt8,            MaxInt32,           MaxUInt16,          MaxUInt32,
       MinInt8,            MinInt32,           MinUInt16,          MinUInt32,
@@ -559,6 +693,23 @@ namespace Vectorization
 
     IntrinsicMapType    _mapIntrinsicsSSE4_1;
 
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE4_1, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+
     inline void _InitIntrinsic(IntrinsicsSSE4_1Enum eIntrinType, std::string strIntrinName)
     {
       InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_1, eIntrinType, strIntrinName);
@@ -572,14 +723,24 @@ namespace Vectorization
     }
 
 
-  public:
+  private:
 
     InstructionSetSSE4_1(::clang::ASTContext &rAstContext);
+
+  public:
 
     virtual ~InstructionSetSSE4_1()
     {
       _mapIntrinsicsSSE4_1.clear();
     }
+
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) final override;
+
+    //@}
   };
 
 } // end namespace Vectorization
