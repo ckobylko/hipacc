@@ -974,6 +974,7 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
     vecArguments.push_back("-includeimmintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
 
     // Add required macro definition which toggle the correct include files
+    vecArguments.push_back("-D __SSE4_2__");
     vecArguments.push_back("-D __SSE4_1__");
     vecArguments.push_back("-D __SSSE3__");
     vecArguments.push_back("-D __SSE3__");
