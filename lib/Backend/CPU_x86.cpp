@@ -980,6 +980,9 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
     vecArguments.push_back("-D __SSE2__");
     vecArguments.push_back("-D __SSE__");
     vecArguments.push_back("-D __MMX__");
+
+    // Enable 64bit extensions of the SSE instruction sets
+    vecArguments.push_back("-D __x86_64__");
   }
 
   return std::move( vecArguments );
