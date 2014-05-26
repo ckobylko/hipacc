@@ -57,8 +57,11 @@ namespace Backend
 {
 namespace Vectorization
 {
-  typedef AST::BaseClasses::TypeInfo::KnownTypes              VectorElementTypes;
-  typedef AST::VectorSupport::CheckActiveElements::CheckType  ActiveElementsCheckType;
+  typedef AST::BaseClasses::TypeInfo::KnownTypes                          VectorElementTypes;
+  typedef AST::Expressions::UnaryOperator::UnaryOperatorType              UnaryOperatorType;
+  typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType    ArithmeticOperatorType;
+  typedef AST::Expressions::RelationalOperator::RelationalOperatorType    RelationalOperatorType;
+  typedef AST::VectorSupport::CheckActiveElements::CheckType              ActiveElementsCheckType;
 
 
   class InstructionSetExceptions final
@@ -149,6 +152,18 @@ namespace Vectorization
       }
 
       return _ASTHelper.CreateFunctionCall( pIntrinsicDecl, crvecArguments );
+    }
+
+    template < typename IntrinsicIDType >
+    inline ::clang::Expr* _CreatePrefixedUnaryOp(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
+    {
+      ClangASTHelper::ExpressionVectorType vecArgs;
+      vecArgs.push_back( pVectorRef );
+      vecArgs.push_back( CreateOnesVector(eElementType, false) );
+
+      ::clang::Expr *pPrefixOp = _CreateFunctionCall(crIntrinMap, eIntrinID, vecArgs);
+
+      return _GetASTHelper().CreateParenthesisExpression( _GetASTHelper().CreateBinaryOperator( pVectorRef, pPrefixOp, BO_Assign, pVectorRef->getType() ) );
     }
 
     template < typename IntrinsicIDType >
@@ -277,6 +292,11 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    inline ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType)
+    {
+      return CreateOnesVector(eElementType, false);
+    }
+
     inline ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements)
     {
       return CreateVector(eElementType, crvecElements, false);
@@ -287,14 +307,18 @@ namespace Vectorization
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) = 0;
     virtual size_t            GetVectorWidthBytes() const = 0;
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
+    virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) = 0;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) = 0;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) = 0;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) = 0;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) = 0;
+    virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) = 0;
+    virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) = 0;
 
     //@}
   };
@@ -394,6 +418,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    inline ::clang::Expr* _CreatePrefixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
+    {
+      return InstructionSetBase::_CreatePrefixedUnaryOp(_mapIntrinsicsSSE, eIntrinID, eElementType, pVectorRef);
+    }
+
     inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSEEnum eIntrinID)
     {
       return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE, eIntrinID);
@@ -450,14 +479,18 @@ namespace Vectorization
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) override;
     virtual size_t            GetVectorWidthBytes() const final override   { return static_cast< size_t >(16); }
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) override;
+    virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) override;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) override;
+    virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) override;
+    virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) override;
 
     //@}
   };
@@ -599,6 +632,7 @@ namespace Vectorization
 
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
+    virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) final override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) final override;
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) final override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;

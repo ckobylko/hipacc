@@ -288,6 +288,26 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
 }
 
+Expr* InstructionSetSSE::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  _CheckElementType(eElementType);
+
+  switch (eOpType)
+  {
+  case ArithmeticOperatorType::Add:         return _CreateFunctionCall(IntrinsicsSSEEnum::AddFloat,       pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::BitwiseAnd:  return _CreateFunctionCall(IntrinsicsSSEEnum::AndFloat,       pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::BitwiseOr:   return _CreateFunctionCall(IntrinsicsSSEEnum::OrFloat,        pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::BitwiseXOr:  return _CreateFunctionCall(IntrinsicsSSEEnum::XorFloat,       pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::Divide:      return _CreateFunctionCall(IntrinsicsSSEEnum::DivideFloat,    pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::Multiply:    return _CreateFunctionCall(IntrinsicsSSEEnum::MultiplyFloat,  pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::Subtract:    return _CreateFunctionCall(IntrinsicsSSEEnum::SubtractFloat,  pExprLHS, pExprRHS);
+  case ArithmeticOperatorType::Modulo:      throw RuntimeErrorException("Modulo operation is undefined for floating point data types!");
+  case ArithmeticOperatorType::ShiftLeft:
+  case ArithmeticOperatorType::ShiftRight:  throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+  default:                                  throw InternalErrorException("Unsupported arithmetic operation detected!");
+  }
+}
+
 Expr* InstructionSetSSE::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
 {
   _CheckElementType(eElementType);
@@ -306,6 +326,13 @@ Expr* InstructionSetSSE::CheckActiveElements(VectorElementTypes eMaskElementType
   IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral(iTestValue);
 
   return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
+}
+
+Expr* InstructionSetSSE::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
+{
+  _CheckElementType(eElementType);
+
+  return BroadCast( eElementType, _GetASTHelper().CreateLiteral(bNegative ? -1.f : 1.f) );
 }
 
 Expr* InstructionSetSSE::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
@@ -416,11 +443,52 @@ Expr* InstructionSetSSE::LoadVector(VectorElementTypes eElementType, Expr *pPoin
   return _CreateFunctionCall(IntrinsicsSSEEnum::LoadFloat, pPointerRef);
 }
 
+Expr* InstructionSetSSE::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  _CheckElementType(eElementType);
+
+  switch (eOpType)
+  {
+  case RelationalOperatorType::Equal:         return _CreateFunctionCall( IntrinsicsSSEEnum::CompareEqualFloat,         pExprLHS, pExprRHS );
+  case RelationalOperatorType::Greater:       return _CreateFunctionCall( IntrinsicsSSEEnum::CompareGreaterThanFloat,   pExprLHS, pExprRHS );
+  case RelationalOperatorType::GreaterEqual:  return _CreateFunctionCall( IntrinsicsSSEEnum::CompareGreaterEqualFloat,  pExprLHS, pExprRHS );
+  case RelationalOperatorType::Less:          return _CreateFunctionCall( IntrinsicsSSEEnum::CompareLessThanFloat,      pExprLHS, pExprRHS );
+  case RelationalOperatorType::LessEqual:     return _CreateFunctionCall( IntrinsicsSSEEnum::CompareLessEqualFloat,     pExprLHS, pExprRHS );
+  case RelationalOperatorType::NotEqual:      return _CreateFunctionCall( IntrinsicsSSEEnum::CompareNotEqualFloat,      pExprLHS, pExprRHS );
+  case RelationalOperatorType::LogicalAnd:    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseAnd, pExprLHS, pExprRHS );
+  case RelationalOperatorType::LogicalOr:     return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseOr,  pExprLHS, pExprRHS );
+  default:                                    throw InternalErrorException( "Unsupported relational operation detected!" );
+  }
+}
+
 Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
 {
   _CheckElementType(eElementType);
 
   return _CreateFunctionCall(IntrinsicsSSEEnum::StoreFloat, pPointerRef, pVectorValue);
+}
+
+Expr* InstructionSetSSE::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
+{
+  _CheckElementType(eElementType);
+
+  switch (eOpType)
+  {
+  case UnaryOperatorType::AddressOf:      return _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(GetVectorType(eElementType)) );
+  case UnaryOperatorType::BitwiseNot: case UnaryOperatorType::LogicalNot:
+    {
+      Expr *pFullBitMask = RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
+
+      return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, pFullBitMask );
+    }
+  case UnaryOperatorType::Minus:          return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
+  case UnaryOperatorType::Plus:           return pSubExpr;
+  case UnaryOperatorType::PreDecrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::SubtractFloat, eElementType, pSubExpr );
+  case UnaryOperatorType::PreIncrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::AddFloat,      eElementType, pSubExpr );
+  case UnaryOperatorType::PostDecrement:
+  case UnaryOperatorType::PostIncrement:  throw RuntimeErrorException("Postfixed decrement / increment not supported for vector types! If possible, use prefixed counterparts.");
+  default:                                throw InternalErrorException("Unsupported unary operation detected!");
+  }
 }
 
 
@@ -658,6 +726,19 @@ Expr* InstructionSetSSE2::CheckActiveElements(VectorElementTypes eMaskElementTyp
   BinaryOperatorKind  eCompareOpType = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
 
   return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
+}
+
+Expr* InstructionSetSSE2::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return BroadCast( eElementType, _GetASTHelper().CreateLiteral( bNegative ? -1.0 : 1.0 ) );
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral( bNegative ? -1 : 1 ) );
+  default:                                                          return BaseType::CreateOnesVector( eElementType, bNegative );
+  }
 }
 
 Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
