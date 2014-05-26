@@ -32,13 +32,30 @@
 
 #include "hipacc/Backend/BackendExceptions.h"
 #include "hipacc/Backend/InstructionSets.h"
-
-
+#include <sstream>
 
 using namespace clang::hipacc::Backend::Vectorization;
 using namespace clang::hipacc::Backend;
 using namespace clang;
 using namespace std;
+
+
+// Implementation of class InstructionSetExceptions
+string InstructionSetExceptions::IndexOutOfRange::_ConvertLimit(uint32_t uiUpperLimit)
+{
+  stringstream streamOutput;
+
+  streamOutput << uiUpperLimit;
+
+  return streamOutput.str();
+}
+
+InstructionSetExceptions::IndexOutOfRange::IndexOutOfRange(string strMethodType, VectorElementTypes eElementType, uint32_t uiUpperLimit) :
+      BaseType( string("The index for a \"") + AST::BaseClasses::TypeInfo::GetTypeString(eElementType) + string("\" element ") +
+                strMethodType + string(" must be in the range of [0; ") + _ConvertLimit(uiUpperLimit) + string("] !"))
+{
+}
+
 
 
 // Implementation of class InstructionSetBase
@@ -116,7 +133,7 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE()
   QualType  qtFloatVector = _GetFunctionReturnType("_mm_setzero_ps");
 
   // Create missing SSE intrinsic functions
-  _CreateIntrinsicDeclaration( "_mm_shuffle_ps", qtFloatVector, qtFloatVector, "a", qtFloatVector, "b", _ASTHelper.GetASTContext().UnsignedIntTy, "imm" );
+  _CreateIntrinsicDeclaration( "_mm_shuffle_ps", qtFloatVector, qtFloatVector, "a", qtFloatVector, "b", _GetClangType(VectorElementTypes::UInt32), "imm" );
 }
 
 void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
@@ -124,7 +141,7 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
   // Get required types
   QualType  qtDoubleVector  = _GetFunctionReturnType("_mm_setzero_pd");
   QualType  qtIntegerVector = _GetFunctionReturnType("_mm_setzero_si128");
-  QualType  qtInt           = _ASTHelper.GetASTContext().IntTy;
+  QualType  qtInt           = _GetClangType(VectorElementTypes::Int32);
 
   // Create missing SSE2 intrinsic functions
   _CreateIntrinsicDeclaration( "_mm_slli_si128",      qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
@@ -138,10 +155,10 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
 void InstructionSetBase::_CreateMissingIntrinsicsSSE4_1()
 {
   // Get required types
-  QualType  qtFloatVector   = _GetFunctionReturnType("_mm_setzero_ps");
-  QualType  qtIntegerVector = _GetFunctionReturnType("_mm_setzero_si128");
-  QualType  qtInt64         = _ASTHelper.GetASTContext().LongLongTy;
-  QualType  qtInt           = _ASTHelper.GetASTContext().IntTy;
+  QualType  qtFloatVector   = GetVectorType(VectorElementTypes::Float);
+  QualType  qtIntegerVector = GetVectorType(VectorElementTypes::Int32);
+  QualType  qtInt64         = _GetClangType(VectorElementTypes::Int64);
+  QualType  qtInt           = _GetClangType(VectorElementTypes::Int32);
   QualType  qtConstInt      = qtInt;
   qtConstInt.addConst();
 
@@ -165,6 +182,27 @@ CastExpr* InstructionSetBase::_CreatePointerCast(Expr *pPointerRef, const QualTy
 CastExpr* InstructionSetBase::_CreateValueCast(Expr *pValueRef, const QualType &crNewValueType, CastKind eCastKind)
 {
   return _GetASTHelper().CreateStaticCast(pValueRef, crNewValueType, eCastKind);
+}
+
+QualType InstructionSetBase::_GetClangType(VectorElementTypes eType)
+{
+  ASTContext &rContext = _GetASTHelper().GetASTContext();
+
+  switch (eType)
+  {
+  case VectorElementTypes::Bool:    return rContext.BoolTy;
+  case VectorElementTypes::Double:  return rContext.DoubleTy;
+  case VectorElementTypes::Float:   return rContext.FloatTy;
+  case VectorElementTypes::Int8:    return rContext.CharTy;
+  case VectorElementTypes::UInt8:   return rContext.UnsignedCharTy;
+  case VectorElementTypes::Int16:   return rContext.ShortTy;
+  case VectorElementTypes::UInt16:  return rContext.UnsignedShortTy;
+  case VectorElementTypes::Int32:   return rContext.IntTy;
+  case VectorElementTypes::UInt32:  return rContext.UnsignedIntTy;
+  case VectorElementTypes::Int64:   return rContext.LongLongTy;
+  case VectorElementTypes::UInt64:  return rContext.UnsignedLongLongTy;
+  default:                          throw InternalErrorException("Unsupported type detected!");
+  }
 }
 
 ClangASTHelper::FunctionDeclarationVectorType InstructionSetBase::_GetFunctionDecl(string strFunctionName)
@@ -203,6 +241,14 @@ InstructionSetSSE::InstructionSetSSE(ASTContext &rAstContext) : InstructionSetBa
   _CreateMissingIntrinsicsSSE();  // Only required due to Clang's incomplete intrinsic headers
 
   _LookupIntrinsics();
+}
+
+void InstructionSetSSE::_CheckElementType(VectorElementTypes eElementType) const
+{
+  if (eElementType != VectorElementTypes::Float)
+  {
+    throw RuntimeErrorException(string("Only data type \"") + AST::BaseClasses::TypeInfo::GetTypeString(VectorElementTypes::Float) + string("\" supported for instruction set \"SSE\"!"));
+  }
 }
 
 void InstructionSetSSE::_InitIntrinsicsMap()
@@ -244,44 +290,29 @@ void InstructionSetSSE::_InitIntrinsicsMap()
 
 Expr* InstructionSetSSE::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
 {
-  switch (eElementType)
-  {
-  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::BroadCastFloat, pBroadCastValue);
-  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  _CheckElementType(eElementType);
+
+  return _CreateFunctionCall(IntrinsicsSSEEnum::BroadCastFloat, pBroadCastValue);
 }
 
 Expr* InstructionSetSSE::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
 {
-  switch (eMaskElementType)
-  {
-  case VectorElementTypes::Float:
-  {
-    int32_t             iTestValue      = (eCheckType == ActiveElementsCheckType::All) ? 0xF   : 0;
-    BinaryOperatorKind  eCompareOpType  = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
+  _CheckElementType(eMaskElementType);
 
-    CallExpr        *pMoveMask      = _CreateFunctionCall(IntrinsicsSSEEnum::MoveMaskFloat, pMaskExpr);
-    IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral(iTestValue);
+  int32_t             iTestValue      = (eCheckType == ActiveElementsCheckType::All) ? 0xF   : 0;
+  BinaryOperatorKind  eCompareOpType  = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
 
-    return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetASTHelper().GetASTContext().BoolTy );
-  }
-  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  CallExpr        *pMoveMask      = _CreateFunctionCall(IntrinsicsSSEEnum::MoveMaskFloat, pMaskExpr);
+  IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral(iTestValue);
+
+  return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
 }
 
 Expr* InstructionSetSSE::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
 {
-  IntrinsicsSSEEnum eIntrinID = IntrinsicsSSEEnum::SetFloat;
+  _CheckElementType(eElementType);
 
-  switch (eElementType)
-  {
-  case VectorElementTypes::Float:
-    {
-      eIntrinID = bReversedOrder ? IntrinsicsSSEEnum::SetReverseFloat : IntrinsicsSSEEnum::SetFloat;
-      break;
-    }
-  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  IntrinsicsSSEEnum eIntrinID = bReversedOrder ? IntrinsicsSSEEnum::SetReverseFloat : IntrinsicsSSEEnum::SetFloat;
 
   if (crvecElements.size() != GetVectorElementCount(eElementType))
   {
@@ -293,115 +324,103 @@ Expr* InstructionSetSSE::CreateVector(VectorElementTypes eElementType, const Cla
 
 Expr* InstructionSetSSE::CreateZeroVector(VectorElementTypes eElementType)
 {
-  switch (eElementType)
-  {
-  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::SetZeroFloat);
-  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  _CheckElementType(eElementType);
+
+  return _CreateFunctionCall(IntrinsicsSSEEnum::SetZeroFloat);
 }
 
 Expr* InstructionSetSSE::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
-  switch (eElementType)
+  _CheckElementType(eElementType);
+  _CheckExtractIndex(eElementType, uiIndex);
+
+  Expr *pIntermediateValue = nullptr;
+
+  if (uiIndex == 0)
   {
-  case VectorElementTypes::Float:
-    {
-      Expr *pIntermediateValue = nullptr;
-
-      if (uiIndex == 0)
-      {
-        // The lowest element is requested => it can be extracted directly
-        pIntermediateValue = pVectorRef;
-      }
-      else
-      {
-        // Swap vector elements such that the desired value is in the lowest element
-        int32_t iControlFlags = 0;
-
-        switch (uiIndex)
-        {
-        case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
-        case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
-        case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
-        default:  throw RuntimeErrorException("The index for a \"float\" element extraction must be in the range of [0; 3] !");
-        }
-
-        IntegerLiteral *pControlFlags = _GetASTHelper().CreateIntegerLiteral(iControlFlags);
-
-        pIntermediateValue = _CreateFunctionCall(IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pVectorRef, pControlFlags);
-      }
-
-      return _CreateFunctionCall(IntrinsicsSSEEnum::ExtractLowestFloat, pIntermediateValue);
-    }
-  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+    // The lowest element is requested => it can be extracted directly
+    pIntermediateValue = pVectorRef;
   }
+  else
+  {
+    // Swap vector elements such that the desired value is in the lowest element
+    int32_t iControlFlags = 0;
+
+    switch (uiIndex)
+    {
+    case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
+    case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
+    case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
+    default:  throw InternalErrorException("Unexpected index detected!");
+    }
+
+    IntegerLiteral *pControlFlags = _GetASTHelper().CreateIntegerLiteral(iControlFlags);
+
+    pIntermediateValue = _CreateFunctionCall(IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pVectorRef, pControlFlags);
+  }
+
+  return _CreateFunctionCall(IntrinsicsSSEEnum::ExtractLowestFloat, pIntermediateValue);
+}
+
+QualType InstructionSetSSE::GetVectorType(VectorElementTypes eElementType)
+{
+  _CheckElementType(eElementType);
+
+  return _GetFunctionReturnType(IntrinsicsSSEEnum::SetZeroFloat);
 }
 
 Expr* InstructionSetSSE::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
 {
-  switch (eElementType)
+  _CheckElementType(eElementType);
+  _CheckInsertIndex(eElementType, uiIndex);
+
+  Expr *pBroadCast = BroadCast(eElementType, pElementValue);
+
+  if (uiIndex == 0)
   {
-  case VectorElementTypes::Float:
+    return _CreateFunctionCall(IntrinsicsSSEEnum::InsertLowestFloat, pVectorRef, pBroadCast);
+  }
+  else
+  {
+    int32_t iControlFlags = 0;
+
+    switch (uiIndex)
     {
-      if (uiIndex > 3)
-      {
-        throw RuntimeErrorException("The index for a \"float\" element insertion must be in the range of [0; 3] !");
-      }
-
-      Expr *pBroadCast = BroadCast(eElementType, pElementValue);
-
-      if (uiIndex == 0)
-      {
-        return _CreateFunctionCall(IntrinsicsSSEEnum::InsertLowestFloat, pVectorRef, pBroadCast);
-      }
-      else
-      {
-        int32_t iControlFlags = 0;
-
-        switch (uiIndex)
-        {
-        case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
-        case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
-        case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
-        default:  throw InternalErrorException("Unexpected index detected!");
-        }
-
-        Expr *pInsertExpr = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat,      pVectorRef,  pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
-        pInsertExpr       = _CreateFunctionCall( IntrinsicsSSEEnum::InsertLowestFloat, pInsertExpr, pBroadCast );
-
-        if (uiIndex == 1)
-        {
-          pInsertExpr = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat, pInsertExpr, pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
-        }
-        else
-        {
-          iControlFlags = (uiIndex == 2) ? 0xC4 : 0x24;
-          pInsertExpr   = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pInsertExpr, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
-        }
-
-        return pInsertExpr;
-      }
+    case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
+    case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
+    case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
+    default:  throw InternalErrorException("Unexpected index detected!");
     }
-  default:  throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
+
+    Expr *pInsertExpr = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat,      pVectorRef,  pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
+    pInsertExpr       = _CreateFunctionCall( IntrinsicsSSEEnum::InsertLowestFloat, pInsertExpr, pBroadCast );
+
+    if (uiIndex == 1)
+    {
+      pInsertExpr = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat, pInsertExpr, pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
+    }
+    else
+    {
+      iControlFlags = (uiIndex == 2) ? 0xC4 : 0x24;
+      pInsertExpr   = _CreateFunctionCall( IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pInsertExpr, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
+    }
+
+    return pInsertExpr;
   }
 }
 
 Expr* InstructionSetSSE::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
 {
-  switch (eElementType)
-  {
-  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::LoadFloat, pPointerRef);
-  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  _CheckElementType(eElementType);
+
+  return _CreateFunctionCall(IntrinsicsSSEEnum::LoadFloat, pPointerRef);
 }
 
 Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
 {
-  switch (eElementType)
-  {
-  case VectorElementTypes::Float: return _CreateFunctionCall(IntrinsicsSSEEnum::StoreFloat, pPointerRef, pVectorValue);
-  default:                        throw RuntimeErrorException("Only floating point data type supported for instruction set \"SSE\"!");
-  }
+  _CheckElementType(eElementType);
+
+  return _CreateFunctionCall(IntrinsicsSSEEnum::StoreFloat, pPointerRef, pVectorValue);
 }
 
 
@@ -638,7 +657,7 @@ Expr* InstructionSetSSE2::CheckActiveElements(VectorElementTypes eMaskElementTyp
 
   BinaryOperatorKind  eCompareOpType = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
 
-  return _GetASTHelper().CreateBinaryOperator(pMoveMask, pTestConstant, eCompareOpType, _GetASTHelper().GetASTContext().BoolTy);
+  return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
 }
 
 Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
@@ -721,6 +740,8 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
   {
   case VectorElementTypes::Double:
     {
+      _CheckExtractIndex(eElementType, uiIndex);
+
       Expr *pIntermediateValue = nullptr;
 
       if (uiIndex == 0)
@@ -733,19 +754,12 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
         // Swap the highest and lowest vector element
         pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, pVectorRef, pVectorRef, _GetASTHelper().CreateIntegerLiteral(1) );
       }
-      else
-      {
-        throw RuntimeErrorException("The index for a \"double\" element extraction must be in the range of [0; 1] !");
-      }
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::ExtractLowestDouble, pIntermediateValue);
     }
   case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
     {
-      if (uiIndex > 15)
-      {
-        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element extraction must be in the range of [0; 15] !");
-      }
+      _CheckExtractIndex(eElementType, uiIndex);
 
       Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractInt16, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex >> 1)) );
 
@@ -755,25 +769,20 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
         pExtractExpr = _GetASTHelper().CreateBinaryOperator(pExtractExpr, _GetASTHelper().CreateIntegerLiteral(8), BO_Shr, pExtractExpr->getType());
       }
 
-      QualType qtReturnType = (eElementType == VectorElementTypes::Int8) ? _GetASTHelper().GetASTContext().CharTy : _GetASTHelper().GetASTContext().UnsignedCharTy;
-
-      return _CreateValueCast(pExtractExpr, qtReturnType, CK_IntegralCast);
+      return _CreateValueCast( pExtractExpr, _GetClangType(eElementType), CK_IntegralCast );
     }
   case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
     {
-      if (uiIndex > 7)
-      {
-        throw RuntimeErrorException("The index for an \"int16\" or \"uint16\" element extraction must be in the range of [0; 7] !");
-      }
+      _CheckExtractIndex(eElementType, uiIndex);
 
       Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractInt16, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
 
-      QualType qtReturnType = (eElementType == VectorElementTypes::Int16) ? _GetASTHelper().GetASTContext().ShortTy : _GetASTHelper().GetASTContext().UnsignedShortTy;
-
-      return _CreateValueCast(pExtractExpr, qtReturnType, CK_IntegralCast);
+      return _CreateValueCast( pExtractExpr, _GetClangType(eElementType), CK_IntegralCast );
     }
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
     {
+      _CheckExtractIndex(eElementType, uiIndex);
+
       Expr *pIntermediateValue = nullptr;
 
       if (uiIndex == 0)
@@ -791,7 +800,7 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
         case 1:   iControlFlags = 0xE1;   break;  // Swap element 0 and 1
         case 2:   iControlFlags = 0xC6;   break;  // Swap element 0 and 2
         case 3:   iControlFlags = 0x27;   break;  // Swap element 0 and 3
-        default:  throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element extraction must be in the range of [0; 3] !");
+        default:  throw InternalErrorException("Unexpected index detected!");
         }
 
         pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(iControlFlags) );
@@ -801,13 +810,15 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
 
       if (eElementType == VectorElementTypes::UInt32)
       {
-        pIntermediateValue = _CreateValueCast(pIntermediateValue, _GetASTHelper().GetASTContext().UnsignedIntTy, CK_IntegralCast);
+        pIntermediateValue = _CreateValueCast( pIntermediateValue, _GetClangType(eElementType), CK_IntegralCast );
       }
 
       return pIntermediateValue;
     }
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
+      _CheckExtractIndex(eElementType, uiIndex);
+
       Expr *pIntermediateValue = nullptr;
 
       if (uiIndex == 0)
@@ -815,26 +826,35 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
         // The lowest element is requested => it can be extracted directly
         pIntermediateValue = pVectorRef;
       }
-      else if (uiIndex == 1)
+      else
       {
         // Swap the highest and lowest vector element
         pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(0x4E) );
-      }
-      else
-      {
-        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element extraction must be in the range of [0; 1] !");
       }
 
       pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ExtractLowestInt64, pIntermediateValue );
 
       if (eElementType == VectorElementTypes::UInt64)
       {
-        pIntermediateValue = _CreateValueCast(pIntermediateValue, _GetASTHelper().GetASTContext().UnsignedLongLongTy, CK_IntegralCast);
+        pIntermediateValue = _CreateValueCast( pIntermediateValue, _GetClangType(eElementType), CK_IntegralCast );
       }
 
       return pIntermediateValue;
     }
   default:  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
+  }
+}
+
+QualType InstructionSetSSE2::GetVectorType(VectorElementTypes eElementType)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return _GetFunctionReturnType(IntrinsicsSSE2Enum::SetZeroDouble);
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _GetFunctionReturnType(IntrinsicsSSE2Enum::SetZeroInteger);
+  default:                                                          return BaseType::GetVectorType(eElementType);
   }
 }
 
@@ -844,19 +864,13 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
   {
   case VectorElementTypes::Double:
     {
-      if (uiIndex > 1)
-      {
-        throw RuntimeErrorException("The index for a \"double\" element insertion must be in the range of [0; 1] !");
-      }
+      _CheckInsertIndex(eElementType, uiIndex);
 
       return _InsertElementDouble( pVectorRef, BroadCast(eElementType, pElementValue), uiIndex );
     }
   case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
     {
-      if (uiIndex > 15)
-      {
-        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element insertion must be in the range of [0; 15] !");
-      }
+      _CheckInsertIndex(eElementType, uiIndex);
 
       VectorElementTypes eSubElemType = (eElementType == VectorElementTypes::Int8) ? VectorElementTypes::Int16 : VectorElementTypes::UInt16;
 
@@ -874,7 +888,7 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
       else
       {
         // Odd indices are copied into the high byte
-        pElementValue  = _CreateValueCast( pElementValue, _GetASTHelper().GetASTContext().IntTy, CK_IntegralCast );
+        pElementValue  = _CreateValueCast( pElementValue, _GetClangType(VectorElementTypes::Int32), CK_IntegralCast );
 
         pCombinedValue = _GetASTHelper().CreateBinaryOperator( pCombinedValue, _GetASTHelper().CreateIntegerLiteral(0xFF), BO_And, pCombinedValue->getType() );
         pElementValue  = _GetASTHelper().CreateBinaryOperator( pElementValue,  _GetASTHelper().CreateIntegerLiteral(0xFF), BO_And, pElementValue->getType() );
@@ -892,19 +906,13 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
     }
   case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
     {
-      if (uiIndex > 7)
-      {
-        throw RuntimeErrorException("The index for an \"int16\" or \"uint16\" element insertion must be in the range of [0; 7] !");
-      }
+      _CheckInsertIndex(eElementType, uiIndex);
 
       return _CreateFunctionCall( IntrinsicsSSE2Enum::InsertInt16, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
     }
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
     {
-      if (uiIndex > 3)
-      {
-        throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element insertion must be in the range of [0; 3] !");
-      }
+      _CheckInsertIndex(eElementType, uiIndex);
 
       VectorElementTypes eSubElemType = (eElementType == VectorElementTypes::Int32) ? VectorElementTypes::Int16 : VectorElementTypes::UInt16;
 
@@ -918,10 +926,7 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
     }
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      if (uiIndex > 1)
-      {
-        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element insertion must be in the range of [0; 1] !");
-      }
+      _CheckInsertIndex(eElementType, uiIndex);
 
       // No real support available => Do dirty hack via the "double" routine
       Expr *pBroadCast = BroadCast(eElementType, pElementValue);
@@ -945,9 +950,7 @@ Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE2Enum::LoadInteger);
-
-      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::LoadInteger, pPointerCast);
     }
@@ -965,9 +968,7 @@ Expr* InstructionSetSSE2::StoreVector(VectorElementTypes eElementType, Expr *pPo
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE2Enum::LoadInteger);
-
-      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::StoreInteger, pPointerCast, pVectorValue);
     }
@@ -1004,9 +1005,7 @@ Expr* InstructionSetSSE3::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      QualType qtIntegerVector = _GetFunctionReturnType(IntrinsicsSSE3Enum::LoadInteger);
-
-      CastExpr *pPointerCast = _CreatePointerCast(pPointerRef, qtIntegerVector);
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
 
       return _CreateFunctionCall(IntrinsicsSSE3Enum::LoadInteger, pPointerCast);
     }
@@ -1065,6 +1064,21 @@ InstructionSetSSE4_1::InstructionSetSSE4_1(ASTContext &rAstContext) : BaseType(r
   _CreateMissingIntrinsicsSSE4_1();
 
   _LookupIntrinsics();
+}
+
+Expr* InstructionSetSSE4_1::_ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  _CheckExtractIndex(eElementType, uiIndex);
+
+  Expr *pExtractExpr = _CreateFunctionCall( eIntrinType, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+  QualType qtReturnType = _GetClangType(eElementType);
+  if (qtReturnType != pExtractExpr->getType())
+  {
+    pExtractExpr = _CreateValueCast( pExtractExpr, qtReturnType, CK_IntegralCast );
+  }
+
+  return pExtractExpr;
 }
 
 void InstructionSetSSE4_1::_InitIntrinsicsMap()
@@ -1126,56 +1140,27 @@ void InstructionSetSSE4_1::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE4_1Enum::TestControl, "testc_si128" );
 }
 
+Expr* InstructionSetSSE4_1::_InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
+{
+  _CheckInsertIndex(eElementType, uiIndex);
+
+  if (eElementType == VectorElementTypes::Float)
+  {
+    pElementValue   = BroadCast(eElementType, pElementValue);
+    uiIndex       <<= 4;
+  }
+
+  return _CreateFunctionCall( eIntrinType, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+}
+
 Expr* InstructionSetSSE4_1::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   switch (eElementType)
   {
-  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
-    {
-      if (uiIndex > 15)
-      {
-        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element extraction must be in the range of [0; 15] !");
-      }
-
-      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt8, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-
-      QualType qtReturnType = (eElementType == VectorElementTypes::Int8) ? _GetASTHelper().GetASTContext().CharTy : _GetASTHelper().GetASTContext().UnsignedCharTy;
-
-      return _CreateValueCast( pExtractExpr, qtReturnType, CK_IntegralCast );
-    }
-  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
-    {
-      if (uiIndex > 3)
-      {
-        throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element extraction must be in the range of [0; 3] !");
-      }
-
-      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt32, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-
-      if (eElementType == VectorElementTypes::UInt32)
-      {
-        pExtractExpr = _CreateValueCast( pExtractExpr, _GetASTHelper().GetASTContext().UnsignedIntTy, CK_IntegralCast );
-      }
-
-      return pExtractExpr;
-    }
-  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
-    {
-      if (uiIndex > 1)
-      {
-        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element extraction must be in the range of [0; 1] !");
-      }
-
-      Expr *pExtractExpr = _CreateFunctionCall( IntrinsicsSSE4_1Enum::ExtractInt64, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-
-      if (eElementType == VectorElementTypes::UInt64)
-      {
-        pExtractExpr = _CreateValueCast( pExtractExpr, _GetASTHelper().GetASTContext().UnsignedLongLongTy, CK_IntegralCast );
-      }
-
-      return pExtractExpr;
-  }
-  default:  return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt8,  pVectorRef, uiIndex );
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt32, pVectorRef, uiIndex );
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt64, pVectorRef, uiIndex );
+  default:                                                          return BaseType::ExtractElement( eElementType, pVectorRef, uiIndex );
   }
 }
 
@@ -1183,45 +1168,11 @@ Expr* InstructionSetSSE4_1::InsertElement(VectorElementTypes eElementType, Expr 
 {
   switch (eElementType)
   {
-  case VectorElementTypes::Float:
-    {
-      if (uiIndex > 3)
-      {
-        throw RuntimeErrorException("The index for a \"float\" element insertion must be in the range of [0; 3] !");
-      }
-
-      Expr *pBroadCast = BroadCast(eElementType, pElementValue);
-
-      return _CreateFunctionCall( IntrinsicsSSE4_1Enum::InsertFloat, pVectorRef, pBroadCast, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex << 4)) );
-    }
-  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
-    {
-      if (uiIndex > 15)
-      {
-        throw RuntimeErrorException("The index for an \"int8\" or \"uint8\" element insertion must be in the range of [0; 15] !");
-      }
-
-      return _CreateFunctionCall( IntrinsicsSSE4_1Enum::InsertInt8, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-    }
-  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
-    {
-      if (uiIndex > 3)
-      {
-        throw RuntimeErrorException("The index for an \"int32\" or \"uint32\" element insertion must be in the range of [0; 3] !");
-      }
-
-      return _CreateFunctionCall( IntrinsicsSSE4_1Enum::InsertInt32, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-    }
-  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
-    {
-      if (uiIndex > 1)
-      {
-        throw RuntimeErrorException("The index for an \"int64\" or \"uint64\" element insertion must be in the range of [0; 1] !");
-      }
-
-      return _CreateFunctionCall( IntrinsicsSSE4_1Enum::InsertInt64, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-    }
-  default:  return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
+  case VectorElementTypes::Float:                                   return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertFloat, pVectorRef, pElementValue, uiIndex );
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt8,  pVectorRef, pElementValue, uiIndex );
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt32, pVectorRef, pElementValue, uiIndex );
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt64, pVectorRef, pElementValue, uiIndex );
+  default:                                                          return BaseType::InsertElement( eElementType, pVectorRef, pElementValue, uiIndex );
   }
 }
 

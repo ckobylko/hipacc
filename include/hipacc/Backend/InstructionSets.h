@@ -33,6 +33,7 @@
 #ifndef _BACKEND_INSTRUCTION_SETS_H_
 #define _BACKEND_INSTRUCTION_SETS_H_
 
+#include "BackendExceptions.h"
 #include "ClangASTHelper.h"
 #include "VectorizationAST.h"
 #include <map>
@@ -60,6 +61,47 @@ namespace Vectorization
   typedef AST::VectorSupport::CheckActiveElements::CheckType  ActiveElementsCheckType;
 
 
+  class InstructionSetExceptions final
+  {
+  public:
+
+    class IndexOutOfRange : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;
+
+      static std::string _ConvertLimit(std::uint32_t uiUpperLimit);
+
+    protected:
+
+      IndexOutOfRange(std::string strMethodType, VectorElementTypes eElementType, std::uint32_t uiUpperLimit);
+    };
+
+    class ExtractIndexOutOfRange final : public IndexOutOfRange
+    {
+    private:
+
+      typedef IndexOutOfRange   BaseType;
+
+    public:
+
+      inline ExtractIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)  : BaseType("extraction", eElementType, uiUpperLimit)   {}
+    };
+
+    class InsertIndexOutOfRange final : public IndexOutOfRange
+    {
+    private:
+
+      typedef IndexOutOfRange   BaseType;
+
+    public:
+
+      inline InsertIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)   : BaseType("insertion", eElementType, uiUpperLimit)  {}
+    };
+  };
+
+
   class InstructionSetBase
   {
   protected:
@@ -85,6 +127,8 @@ namespace Vectorization
     ::clang::CastExpr* _CreatePointerCast(::clang::Expr *pPointerRef, const ::clang::QualType &crNewPointerType);
 
     ::clang::CastExpr* _CreateValueCast(::clang::Expr *pValueRef, const ::clang::QualType &crNewValueType, ::clang::CastKind eCastKind);
+
+    ::clang::QualType _GetClangType(VectorElementTypes eType);
 
     ClangASTHelper::FunctionDeclarationVectorType _GetFunctionDecl(std::string strFunctionName);
 
@@ -119,7 +163,7 @@ namespace Vectorization
       ::clang::FunctionDecl *pIntrinsicDecl = itIntrinEntry->second.second;
       if (pIntrinsicDecl == nullptr)
       {
-        throw InternalErrorException(std::string("The intrinsic \"") + _strIntrinsicPrefix + itIntrinEntry->second.first + std::string("\" has not been initialized!"));
+        throw InternalErrorException(std::string("The intrinsic \"") + itIntrinEntry->second.first + std::string("\" has not been initialized!"));
       }
 
       return pIntrinsicDecl->getResultType();
@@ -138,9 +182,9 @@ namespace Vectorization
       llvm::errs() << "\n\nIntrinsic functions for instruction set \"" << strInstructionSetName << "\" (" << rIntrinMap.size() << " methods):\n";
       #endif
 
-      for each (auto itIntrinsic in rIntrinMap)
+      for (typename IntrinsicMapTemplateType< IntrinsicIDType >::iterator itIntrinsic = rIntrinMap.begin(); itIntrinsic != rIntrinMap.end(); itIntrinsic++)
       {
-        IntrinsicInfoPairType &rIntrinsicInfo = itIntrinsic.second;
+        IntrinsicInfoPairType &rIntrinsicInfo = itIntrinsic->second;
 
         auto vecFunctions = _GetFunctionDecl(rIntrinsicInfo.first);
 
@@ -239,7 +283,9 @@ namespace Vectorization
     }
 
     inline  size_t GetVectorElementCount(VectorElementTypes eElementType) const    { return GetVectorWidthBytes() / AST::BaseClasses::TypeInfo::GetTypeSize(eElementType); }
-    virtual size_t GetVectorWidthBytes() const = 0;
+
+    virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) = 0;
+    virtual size_t            GetVectorWidthBytes() const = 0;
 
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
@@ -348,6 +394,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSEEnum eIntrinID)
+    {
+      return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE, eIntrinID);
+    }
+
 
     inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinType, std::string strIntrinName)
     {
@@ -362,7 +413,23 @@ namespace Vectorization
     }
 
 
+    void _CheckElementType(VectorElementTypes eElementType) const;
+
+    template <class ExceptionType>
+    inline void _CheckIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const
+    {
+      uint32_t uiUpperLimit = GetVectorElementCount(eElementType) - 1;
+
+      if (uiIndex > uiUpperLimit)
+      {
+        throw ExceptionType(eElementType, uiUpperLimit);
+      }
+    }
+
   protected:
+
+    inline void _CheckExtractIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const  { _CheckIndex< InstructionSetExceptions::ExtractIndexOutOfRange >(eElementType, uiIndex); }
+    inline void _CheckInsertIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const   { _CheckIndex< InstructionSetExceptions::InsertIndexOutOfRange  >(eElementType, uiIndex); }
 
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
 
@@ -380,7 +447,8 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
-    virtual size_t GetVectorWidthBytes() const final override   { return static_cast< size_t >(16); }
+    virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) override;
+    virtual size_t            GetVectorWidthBytes() const final override   { return static_cast< size_t >(16); }
 
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) override;
@@ -526,6 +594,8 @@ namespace Vectorization
 
     /** \name Instruction set abstraction methods */
     //@{
+
+    virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) final override;
 
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
@@ -747,6 +817,10 @@ namespace Vectorization
   private:
 
     InstructionSetSSE4_1(::clang::ASTContext &rAstContext);
+
+
+    ::clang::Expr* _ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex);
+    ::clang::Expr* _InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex);
 
   public:
 
