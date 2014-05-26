@@ -1259,5 +1259,19 @@ Expr* InstructionSetSSE4_1::InsertElement(VectorElementTypes eElementType, Expr 
 
 
 
+// Implementation of class InstructionSetSSE4_2
+InstructionSetSSE4_2::InstructionSetSSE4_2(::clang::ASTContext &rAstContext) : BaseType(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetSSE4_2::_InitIntrinsicsMap()
+{
+  _InitIntrinsic( IntrinsicsSSE4_2Enum::CompareGreaterThanInt64, "cmpgt_epi64" );
+}
+
+
 // vim: set ts=2 sw=2 sts=2 et ai:
 

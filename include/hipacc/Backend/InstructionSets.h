@@ -775,7 +775,7 @@ namespace Vectorization
     //@}
   };
 
-  class InstructionSetSSE4_1 final : public InstructionSetSSSE3
+  class InstructionSetSSE4_1 : public InstructionSetSSSE3
   {
   private:
 
@@ -848,13 +848,14 @@ namespace Vectorization
     }
 
 
-  private:
+    ::clang::Expr* _ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex);
+    ::clang::Expr* _InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex);
+
+
+  protected:
 
     InstructionSetSSE4_1(::clang::ASTContext &rAstContext);
 
-
-    ::clang::Expr* _ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex);
-    ::clang::Expr* _InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex);
 
   public:
 
@@ -873,6 +874,68 @@ namespace Vectorization
     //@}
   };
 
+  class InstructionSetSSE4_2 final : public InstructionSetSSE4_1
+  {
+  private:
+
+    friend class InstructionSetBase;
+    typedef InstructionSetSSE4_1    BaseType;
+
+
+    enum class IntrinsicsSSE4_2Enum
+    {
+      CompareGreaterThanInt64
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_2Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsSSE4_2;
+
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_2Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE4_2, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+
+    inline void _InitIntrinsic(IntrinsicsSSE4_2Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_2, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE4_2, "SSE4.2");
+    }
+
+
+  private:
+
+    InstructionSetSSE4_2(::clang::ASTContext &rAstContext);
+
+  public:
+
+    virtual ~InstructionSetSSE4_2()
+    {
+      _mapIntrinsicsSSE4_2.clear();
+    }
+
+  };
 } // end namespace Vectorization
 } // end namespace Backend
 } // end namespace hipacc
