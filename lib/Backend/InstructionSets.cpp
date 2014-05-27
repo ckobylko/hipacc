@@ -56,6 +56,13 @@ InstructionSetExceptions::IndexOutOfRange::IndexOutOfRange(string strMethodType,
 {
 }
 
+InstructionSetExceptions::UnsupportedConversion::UnsupportedConversion(VectorElementTypes eSourceType, VectorElementTypes eTargetType, string strInstructionSetName) :
+      BaseType( string("A conversion from type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eSourceType) + string("\" to type \"") +
+                AST::BaseClasses::TypeInfo::GetTypeString(eTargetType) + string("\" is not supported in the instruction set \"") + 
+                strInstructionSetName + string("\" !") )
+{
+}
+
 
 
 // Implementation of class InstructionSetBase
@@ -86,6 +93,61 @@ InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFuncti
       _mapKnownFuncDecls[strFuncName].push_back(itFuncDecl);
     }
   }
+}
+
+Expr* InstructionSetBase::_ConvertDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, bool bMaskConversion)
+{
+  const size_t cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType);
+  const size_t cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType);
+
+  if (cszSourceSize <= cszTargetSize)
+  {
+    throw RuntimeErrorException("The data size of the source type must be larger than the one of the target type for a downward conversion!");
+  }
+  else if (crvecVectorRefs.size() != static_cast<size_t>(cszSourceSize / cszTargetSize))
+  {
+    throw RuntimeErrorException("The number of arguments for the downward conversion must be equal to the size spread between source and target type!");
+  }
+
+  return _ConvertVector(eSourceType, eTargetType, crvecVectorRefs, 0, bMaskConversion);
+}
+
+Expr* InstructionSetBase::_ConvertSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, Expr *pVectorRef, bool bMaskConversion)
+{
+  const size_t cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize( eSourceType );
+  const size_t cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize( eTargetType );
+
+  if (cszSourceSize != cszTargetSize)
+  {
+    throw RuntimeErrorException("The data size of the source type and the target type must be equal for a same size conversion!");
+  }
+
+  ClangASTHelper::ExpressionVectorType vecVectorRefs;
+
+  vecVectorRefs.push_back( pVectorRef );
+
+  return _ConvertVector( eSourceType, eTargetType, vecVectorRefs, 0, bMaskConversion );
+}
+
+Expr* InstructionSetBase::_ConvertUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  const size_t cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType);
+  const size_t cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType);
+
+  if (cszSourceSize >= cszTargetSize)
+  {
+    throw RuntimeErrorException("The data size of the source type must be smaller than the one of the target type for an upward conversion!");
+  }
+  else if (uiGroupIndex >= static_cast<uint32_t>(cszTargetSize / cszSourceSize))
+  {
+    throw RuntimeErrorException("The group index for the upward conversion must be smaller than the size spread between source and target type!");
+  }
+
+  ClangASTHelper::ExpressionVectorType vecVectorRefs;
+
+  vecVectorRefs.push_back( pVectorRef );
+
+  return _ConvertVector( eSourceType, eTargetType, vecVectorRefs, uiGroupIndex, bMaskConversion );
 }
 
 void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const ClangASTHelper::QualTypeVectorType &crvecArgTypes, const ClangASTHelper::StringVectorType &crvecArgNames)
@@ -249,6 +311,11 @@ void InstructionSetSSE::_CheckElementType(VectorElementTypes eElementType) const
   {
     throw RuntimeErrorException(string("Only data type \"") + AST::BaseClasses::TypeInfo::GetTypeString(VectorElementTypes::Float) + string("\" supported for instruction set \"SSE\"!"));
   }
+}
+
+Expr* InstructionSetSSE::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  throw InstructionSetExceptions::UnsupportedConversion(eSourceType, eTargetType, "SSE");
 }
 
 void InstructionSetSSE::_InitIntrinsicsMap()
@@ -552,21 +619,232 @@ Expr* InstructionSetSSE2::_ArithmeticOpInteger(VectorElementTypes eElementType, 
   }
 }
 
-Expr* InstructionSetSSE2::_SeparatedArithmeticOpInteger(VectorElementTypes eElementType, BinaryOperatorKind eOpKind, Expr *pExprLHS, Expr *pExprRHS)
+Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
 {
-  ClangASTHelper::ExpressionVectorType vecSeparatedExprs;
-
-  // Extract all elements one by one and do the compuation (keep in mind that SSE expects the reversed order of creation args)
-  for (uint32_t uiIndex = static_cast<uint32_t>(GetVectorElementCount(eElementType)); uiIndex != static_cast<uint32_t>(0); --uiIndex)
+  if (bMaskConversion)
   {
-    Expr *pElemLHS = ExtractElement( eElementType, pExprLHS, uiIndex - 1 );
-    Expr *pElemRHS = ExtractElement( eElementType, pExprRHS, uiIndex - 1 );
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Double:
 
-    vecSeparatedExprs.push_back( _GetASTHelper().CreateBinaryOperator(pElemLHS, pElemRHS, eOpKind, pElemLHS->getType()) );
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:  return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Float:
+        {
+          ClangASTHelper::ExpressionVectorType vecCastedVectors;
+
+          vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt64, crvecVectorRefs[0]) );
+          vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt64, crvecVectorRefs[1]) );
+
+          Expr *pPackedMask = ConvertMaskDown(VectorElementTypes::UInt64, VectorElementTypes::UInt32, vecCastedVectors);
+
+          return ConvertMaskSameSize(VectorElementTypes::UInt32, eTargetType, pPackedMask);
+        }
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, crvecVectorRefs.front() );
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+        {
+          ClangASTHelper::ExpressionVectorType vecCastedVectors;
+
+          for each (auto itVec in crvecVectorRefs)
+          {
+            vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt64, itVec) );
+          }
+
+          return _ConvertVector( VectorElementTypes::UInt64, eTargetType, vecCastedVectors, uiGroupIndex, bMaskConversion );
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Float:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:
+      {
+        Expr *pConvertedMask  = ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt32, crvecVectorRefs.front());
+        pConvertedMask        = ConvertMaskUp(VectorElementTypes::UInt32, VectorElementTypes::UInt64, pConvertedMask, uiGroupIndex);
+        return ConvertMaskSameSize(VectorElementTypes::UInt64, eTargetType, pConvertedMask);
+      }
+      case VectorElementTypes::Float:   return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::CastFloatToInteger, crvecVectorRefs.front() );
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          ClangASTHelper::ExpressionVectorType vecCastedVectors;
+
+          for each (auto itVec in crvecVectorRefs)
+          {
+            vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt32, itVec) );
+          }
+
+          return _ConvertVector( VectorElementTypes::UInt32, eTargetType, vecCastedVectors, uiGroupIndex, bMaskConversion );
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double: case VectorElementTypes::Float:
+        {
+          // Convert the mask(s) into an unsigned integer type with the same size as the target type, and then do the final conversion
+          const size_t              cszTargetSize       = AST::BaseClasses::TypeInfo::GetTypeSize( eTargetType );
+          const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszTargetSize, false ).GetType();
+
+          Expr *pConvertedMask = _ConvertVector( eSourceType, ceIntermediateType, crvecVectorRefs, uiGroupIndex, bMaskConversion );
+          return ConvertMaskSameSize( ceIntermediateType, eTargetType, pConvertedMask );
+        }
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          const size_t cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize( eSourceType );
+          const size_t cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize( eTargetType );
+
+          if (cszSourceSize == cszTargetSize)
+          {
+            // There is no difference between signed and unsigned masks => Nothing to do
+            return crvecVectorRefs.front();
+          }
+          else if (cszSourceSize > cszTargetSize)
+          {
+            // The source type is larger => Pack the masks into a smaller type
+            if ((crvecVectorRefs.size() & 1) != 0)
+            {
+              throw InternalErrorException("Expected a power of 2 as argument count for a downward conversion!");
+            }
+
+            ClangASTHelper::ExpressionVectorType vecPackedMasks;
+
+            // Pack each adjacent mask pairs into a mask with a decreased intermediate type
+            for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); szOutIdx += static_cast<size_t>(2))
+            {
+              vecPackedMasks.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::PackInt16ToInt8, crvecVectorRefs[szOutIdx << 1], crvecVectorRefs[(szOutIdx) + 1] ) );
+            }
+
+            // Run the conversion from the decreased intermediate type into the target type
+            const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszSourceSize >> 1, false ).GetType();
+
+            return _ConvertVector( ceIntermediateType, eTargetType, vecPackedMasks, uiGroupIndex, bMaskConversion );
+          }
+          else
+          {
+            // The source type is smaller => Select a group out of mask and duplicate it into a larger type
+            if (cszSourceSize == 4)
+            {
+              // Source type is a 32-bit integer => Shuffling is most efficient
+              const int32_t ciShuffleConstant = (uiGroupIndex == 0) ? 0x50 : 0xFA;
+
+              // Target type must be a 64-bit integer => This is the end of the conversion cascade
+              return _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, crvecVectorRefs.front(), _GetASTHelper().CreateIntegerLiteral(ciShuffleConstant) );
+            }
+            else
+            {
+              // Source type must be smaller than a 32-bit integer => Duplicate the mask group by un-packing the mask
+              const uint32_t cuiSwapIndex = static_cast< uint32_t >( cszTargetSize / cszSourceSize ) >> 1;
+
+              // Select the correct un-packing function by the group index
+              IntrinsicsSSE2Enum eUnpackID = IntrinsicsSSE2Enum::UnpackLowInt8;
+              if (uiGroupIndex >= cuiSwapIndex)
+              {
+                eUnpackID     = IntrinsicsSSE2Enum::UnpackHighInt8;
+                uiGroupIndex -= cuiSwapIndex;   // Adjust the group index for the next step in the conversion cascade
+              }
+
+              // Un-pack the mask
+              ClangASTHelper::ExpressionVectorType vecConvertedMask;
+              vecConvertedMask.push_back( _CreateFunctionCall( eUnpackID, crvecVectorRefs.front(), crvecVectorRefs.front() ) );
+
+              // Run the conversion from the increased intermediate type into the target type
+              const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszSourceSize << 1, false ).GetType();
+
+              return _ConvertVector( ceIntermediateType, eTargetType, vecConvertedMask, uiGroupIndex, bMaskConversion );
+            }
+          }
+        }
+      }
+    }
+  }
+  else
+  {
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Double:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:  return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Float:
+        {
+          // TODO: Implement
+        }
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+        {
+          // TODO: Implement
+        }
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          // TODO: Implement
+        }
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+
+          if ((crvecVectorRefs.size() & 1) != 0)
+          {
+            throw InternalErrorException("Expected a power of 2 as argument count for a downward conversion!");
+          }
+
+          for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); szOutIdx += static_cast<size_t>(2))
+          {
+            ClangASTHelper::ExpressionVectorType vecConvArgs;
+
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx << 1 ] );
+            vecConvArgs.push_back( crvecVectorRefs[(szOutIdx << 1) + 1] );
+
+            vecConvertedVectors.push_back( ConvertVectorDown( eSourceType, VectorElementTypes::Int32, vecConvArgs ) );
+          }
+
+          return ConvertVectorDown( VectorElementTypes::Int32, eTargetType, vecConvertedVectors );
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Float:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:
+        {
+          // TODO: Implement
+        }
+      case VectorElementTypes::Float:   return crvecVectorRefs.front();   // Same type => nothing to do
+
+        // TODO: Add remaining target types
+      }
+
+      break;
+
+    // TODO: Add remaining source types
+
+    }
   }
 
-  // Rereate the vector
-  return CreateVector( eElementType, vecSeparatedExprs, false );
+  // If the function has not returned earlier, let the base handle the conversion
+  return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion); 
 }
 
 Expr* InstructionSetSSE2::_CompareInt64(VectorElementTypes eElementType, Expr *pExprLHS, Expr *pExprRHS, BinaryOperatorKind eOpKind)
@@ -760,6 +1038,10 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt32,  "sub_epi32" );
   _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt64,  "sub_epi64" );
 
+  // Integer un-packing function
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt8, "unpackhi_epi8" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt8,  "unpacklo_epi8" );
+
   // Bitwise "xor" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::XorInteger, "xor_si128" );
@@ -856,6 +1138,41 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
       }
     default:  throw InternalErrorException("Unexpected relational operation detected!");
     }
+  }
+}
+
+Expr* InstructionSetSSE2::_SeparatedArithmeticOpInteger(VectorElementTypes eElementType, BinaryOperatorKind eOpKind, Expr *pExprLHS, Expr *pExprRHS)
+{
+  ClangASTHelper::ExpressionVectorType vecSeparatedExprs;
+
+  // Extract all elements one by one and do the compuation (keep in mind that SSE expects the reversed order of creation args)
+  for (uint32_t uiIndex = static_cast<uint32_t>(GetVectorElementCount(eElementType)); uiIndex != static_cast<uint32_t>(0); --uiIndex)
+  {
+    Expr *pElemLHS = ExtractElement( eElementType, pExprLHS, uiIndex - 1 );
+    Expr *pElemRHS = ExtractElement( eElementType, pExprRHS, uiIndex - 1 );
+
+    vecSeparatedExprs.push_back( _GetASTHelper().CreateBinaryOperator(pElemLHS, pElemRHS, eOpKind, pElemLHS->getType()) );
+  }
+
+  // Rereate the vector
+  return CreateVector( eElementType, vecSeparatedExprs, false );
+}
+
+Expr* InstructionSetSSE2::_ShiftIntegerVectorBytes(Expr *pVectorRef, uint32_t uiByteCount, bool bShiftLeft)
+{
+  if (uiByteCount == 0)
+  {
+    return pVectorRef;  // Nothing to do
+  }
+  else if (uiByteCount >= 16)
+  {
+    throw InternalErrorException("Cannot shift a vector by 16 bytes or more!");
+  }
+  else
+  {
+    const IntrinsicsSSE2Enum eShiftID = bShiftLeft ? IntrinsicsSSE2Enum::ShiftLeftVectorBytes : IntrinsicsSSE2Enum::ShiftRightVectorBytes;
+
+    return _CreateFunctionCall( eShiftID, pVectorRef, _GetASTHelper().CreateIntegerLiteral( static_cast<int32_t>(uiByteCount) ) );
   }
 }
 
@@ -1349,6 +1666,11 @@ InstructionSetSSE3::InstructionSetSSE3(ASTContext &rAstContext) : BaseType(rAstC
   _LookupIntrinsics();
 }
 
+Expr* InstructionSetSSE3::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion);
+}
+
 void InstructionSetSSE3::_InitIntrinsicsMap()
 {
   _InitIntrinsic (IntrinsicsSSE3Enum::LoadInteger, "lddqu_si128" );
@@ -1401,6 +1723,11 @@ InstructionSetSSSE3::InstructionSetSSSE3(ASTContext &rAstContext) : BaseType(rAs
   _LookupIntrinsics();
 }
 
+Expr* InstructionSetSSSE3::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion);
+}
+
 void InstructionSetSSSE3::_InitIntrinsicsMap()
 {
   // Absolute value computation functions
@@ -1447,6 +1774,99 @@ InstructionSetSSE4_1::InstructionSetSSE4_1(ASTContext &rAstContext) : BaseType(r
   _CreateMissingIntrinsicsSSE4_1();
 
   _LookupIntrinsics();
+}
+
+Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  if (bMaskConversion)
+  {
+    // Boost upward mask conversions by fast SSE4.1 signed integer upward conversions (except 32-bit to 64-bit, this is done faster by SSE2 shuffle)
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          const size_t cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize( eSourceType );
+          const size_t cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize( eTargetType );
+          
+          if (cszSourceSize < cszTargetSize)
+          {
+            const VectorElementTypes ceNewSourceType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszSourceSize, true ).GetType();
+            const VectorElementTypes ceNewTargetType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszTargetSize, true ).GetType();
+
+            return _ConvertVector(ceNewSourceType, ceNewTargetType, crvecVectorRefs, uiGroupIndex, false);
+          }
+        }
+      }
+    }
+  }
+  else
+  {
+    // Handle all upward conversions from integer types to integer types
+
+    bool                  bHandleConversion = true;
+    IntrinsicsSSE4_1Enum  eConvertID        = IntrinsicsSSE4_1Enum::ConvertInt8Int32;
+
+    switch (eTargetType)
+    {
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+
+      switch (eSourceType)
+      {
+      case VectorElementTypes::Int8:    eConvertID = IntrinsicsSSE4_1Enum::ConvertInt8Int16;    break;
+      case VectorElementTypes::UInt8:   eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt8Int16;   break;
+      default:                          bHandleConversion = false;
+      }
+
+      break;
+
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+
+      switch (eSourceType)
+      {
+      case VectorElementTypes::Int8:    eConvertID = IntrinsicsSSE4_1Enum::ConvertInt8Int32;    break;
+      case VectorElementTypes::UInt8:   eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt8Int32;   break;
+      case VectorElementTypes::Int16:   eConvertID = IntrinsicsSSE4_1Enum::ConvertInt16Int32;   break;
+      case VectorElementTypes::UInt16:  eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt16Int32;  break;
+      default:                          bHandleConversion = false;
+      }
+
+      break;
+
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+      switch (eSourceType)
+      {
+      case VectorElementTypes::Int8:    eConvertID = IntrinsicsSSE4_1Enum::ConvertInt8Int64;    break;
+      case VectorElementTypes::UInt8:   eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt8Int64;   break;
+      case VectorElementTypes::Int16:   eConvertID = IntrinsicsSSE4_1Enum::ConvertInt16Int64;   break;
+      case VectorElementTypes::UInt16:  eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt16Int64;  break;
+      case VectorElementTypes::Int32:   eConvertID = IntrinsicsSSE4_1Enum::ConvertInt32Int64;   break;
+      case VectorElementTypes::UInt32:  eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt32Int64;  break;
+      default:                          bHandleConversion = false;
+      }
+
+      break;
+
+    default:  bHandleConversion = false;
+    }
+
+    if (bHandleConversion)
+    {
+      const uint32_t cuiShiftMultiplier = 16 / static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) );
+
+      return _CreateFunctionCall( eConvertID, _ShiftIntegerVectorBytes(crvecVectorRefs.front(), uiGroupIndex * cuiShiftMultiplier, false) );
+    }
+  }
+
+  // If the function has not returned earlier, let the base handle the conversion
+  return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion);
 }
 
 Expr* InstructionSetSSE4_1::_ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, Expr *pVectorRef, uint32_t uiIndex)

@@ -102,6 +102,19 @@ namespace Vectorization
 
       inline InsertIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)   : BaseType("insertion", eElementType, uiUpperLimit)  {}
     };
+
+
+    class UnsupportedConversion final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;
+
+    public:
+
+      UnsupportedConversion(VectorElementTypes eSourceType, VectorElementTypes eTargetType, std::string strInstructionSetName);
+    };
+
   };
 
 
@@ -287,10 +300,63 @@ namespace Vectorization
       _mapKnownFuncDecls.clear();
     }
 
+
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) = 0;
+
+    //@}
+
+  private:
+
+    /** \name Vector conversion translation methods */
+    //@{
+
+    ::clang::Expr* _ConvertDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, bool bMaskConversion);
+    ::clang::Expr* _ConvertSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, bool bMaskConversion);
+    ::clang::Expr* _ConvertUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex, bool bMaskConversion);
+
+    //@}
+
   public:
 
     /** \name Instruction set abstraction methods */
     //@{
+
+    inline ::clang::Expr* ConvertMaskDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs)
+    {
+      return _ConvertDown(eSourceType, eTargetType, crvecVectorRefs, true);
+    }
+
+    inline ::clang::Expr* ConvertMaskSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef)
+    {
+      return _ConvertSameSize(eSourceType, eTargetType, pVectorRef, true);
+    }
+
+    inline ::clang::Expr* ConvertMaskUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex)
+    {
+      return _ConvertUp(eSourceType, eTargetType, pVectorRef, uiGroupIndex, true);
+    }
+
+
+    inline ::clang::Expr* ConvertVectorDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs)
+    {
+      return _ConvertDown(eSourceType, eTargetType, crvecVectorRefs, false);
+    }
+
+    inline ::clang::Expr* ConvertVectorSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef)
+    {
+      return _ConvertSameSize(eSourceType, eTargetType, pVectorRef, false);
+    }
+
+    inline ::clang::Expr* ConvertVectorUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex)
+    {
+      return _ConvertUp(eSourceType, eTargetType, pVectorRef, uiGroupIndex, false);
+    }
+
 
     inline ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType)
     {
@@ -474,6 +540,17 @@ namespace Vectorization
     }
 
 
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) override;
+
+    //@}
+
+  public:
+
     /** \name Instruction set abstraction methods */
     //@{
 
@@ -541,6 +618,7 @@ namespace Vectorization
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
       SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,
+      UnpackHighInt8,               UnpackLowInt8,
       XorDouble,                    XorInteger
     };
 
@@ -623,6 +701,9 @@ namespace Vectorization
 
     InstructionSetSSE2(::clang::ASTContext &rAstContext);
 
+    ::clang::Expr* _ShiftIntegerVectorBytes(::clang::Expr *pVectorRef, std::uint32_t uiByteCount, bool bShiftLeft);
+
+
   public:
 
     virtual ~InstructionSetSSE2()
@@ -630,6 +711,17 @@ namespace Vectorization
       _mapIntrinsicsSSE2.clear();
     }
 
+
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) override;
+
+    //@}
+
+  public:
 
     /** \name Instruction set abstraction methods */
     //@{
@@ -718,6 +810,17 @@ namespace Vectorization
     }
 
 
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) override;
+
+    //@}
+
+  public:
+
     /** \name Instruction set abstraction methods */
     //@{
 
@@ -777,6 +880,17 @@ namespace Vectorization
     }
 
 
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) override;
+
+    //@}
+
+  public:
+
     /** \name Instruction set abstraction methods */
     //@{
 
@@ -824,6 +938,15 @@ namespace Vectorization
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE4_1, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
@@ -877,6 +1000,17 @@ namespace Vectorization
       _mapIntrinsicsSSE4_1.clear();
     }
 
+
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) final override;
+
+    //@}
+
+  public:
 
     /** \name Instruction set abstraction methods */
     //@{
