@@ -461,6 +461,11 @@ Expr* InstructionSetSSE::RelationalOperator(VectorElementTypes eElementType, Rel
   }
 }
 
+Expr* InstructionSetSSE::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
+{
+  throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+}
+
 Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
 {
   _CheckElementType(eElementType);
@@ -501,6 +506,67 @@ InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : BaseType(rAstC
   _CreateMissingIntrinsicsSSE2();  // Only required due to Clang's incomplete intrinsic headers
 
   _LookupIntrinsics();
+}
+
+Expr* InstructionSetSSE2::_ArithmeticOpInteger(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  switch (eOpType)
+  {
+  case ArithmeticOperatorType::Add:
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _CreateFunctionCall( IntrinsicsSSE2Enum::AddInt8,  pExprLHS, pExprRHS );
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::AddInt16, pExprLHS, pExprRHS );
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::AddInt32, pExprLHS, pExprRHS );
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::AddInt64, pExprLHS, pExprRHS );
+    default:                                                          throw InternalErrorException("Unsupported vector element type detected!");
+    }
+  case ArithmeticOperatorType::BitwiseAnd:  return _CreateFunctionCall( IntrinsicsSSE2Enum::AndInteger, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::BitwiseOr:   return _CreateFunctionCall( IntrinsicsSSE2Enum::OrInteger,  pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::BitwiseXOr:  return _CreateFunctionCall( IntrinsicsSSE2Enum::XorInteger, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::Divide:      return _SeparatedArithmeticOpInteger( eElementType, BO_Div, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::Multiply:
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      {
+        // TODO: Implement
+        break;
+      }
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyInt16, pExprLHS, pExprRHS );
+    default:                                                          return _SeparatedArithmeticOpInteger( eElementType, BO_Mul, pExprLHS, pExprRHS );
+    }
+  case ArithmeticOperatorType::Modulo:      return _SeparatedArithmeticOpInteger( eElementType, BO_Rem, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::ShiftLeft:   return _SeparatedArithmeticOpInteger( eElementType, BO_Shl, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::ShiftRight:  return _SeparatedArithmeticOpInteger( eElementType, BO_Shr, pExprLHS, pExprRHS );
+  case ArithmeticOperatorType::Subtract:
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _CreateFunctionCall( IntrinsicsSSE2Enum::SubtractInt8,  pExprLHS, pExprRHS );
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::SubtractInt16, pExprLHS, pExprRHS );
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::SubtractInt32, pExprLHS, pExprRHS );
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::SubtractInt64, pExprLHS, pExprRHS );
+    default:                                                          throw InternalErrorException("Unsupported vector element type detected!");
+    }
+  default:                                  throw InternalErrorException("Unsupported arithmetic operation detected!");
+  }
+}
+
+Expr* InstructionSetSSE2::_SeparatedArithmeticOpInteger(VectorElementTypes eElementType, BinaryOperatorKind eOpKind, Expr *pExprLHS, Expr *pExprRHS)
+{
+  ClangASTHelper::ExpressionVectorType vecSeparatedExprs;
+
+  // Extract all elements one by one and do the compuation (keep in mind that SSE expects the reversed order of creation args)
+  for (uint32_t uiIndex = static_cast<uint32_t>(GetVectorElementCount(eElementType)); uiIndex != static_cast<uint32_t>(0); --uiIndex)
+  {
+    Expr *pElemLHS = ExtractElement( eElementType, pExprLHS, uiIndex - 1 );
+    Expr *pElemRHS = ExtractElement( eElementType, pExprRHS, uiIndex - 1 );
+
+    vecSeparatedExprs.push_back( _GetASTHelper().CreateBinaryOperator(pElemLHS, pElemRHS, eOpKind, pElemLHS->getType()) );
+  }
+
+  // Rereate the vector
+  return CreateVector( eElementType, vecSeparatedExprs, false );
 }
 
 Expr* InstructionSetSSE2::_CompareInt64(VectorElementTypes eElementType, Expr *pExprLHS, Expr *pExprRHS, BinaryOperatorKind eOpKind)
@@ -662,11 +728,15 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::SetZeroInteger, "setzero_si128" );
 
   // Shift functions
-  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt16,        "sll_epi16"  );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt32,        "sll_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt16,        "slli_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt32,        "slli_epi32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftInt64,        "slli_epi64" );
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftLeftVectorBytes,  "slli_si128" );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt16,       "sra_epi16"  );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightInt32,       "sra_epi32"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightArithInt16,  "srai_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightArithInt32,  "srai_epi32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightLogInt16,    "srli_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightLogInt32,    "srli_epi32" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightLogInt64,    "srli_epi64" );
   _InitIntrinsic( IntrinsicsSSE2Enum::ShiftRightVectorBytes, "srli_si128" );
 
   // Shuffle functions
@@ -786,6 +856,33 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
       }
     default:  throw InternalErrorException("Unexpected relational operation detected!");
     }
+  }
+}
+
+Expr* InstructionSetSSE2::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    switch (eOpType)
+    {
+    case ArithmeticOperatorType::Add:         return _CreateFunctionCall( IntrinsicsSSE2Enum::AddDouble,      pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::BitwiseAnd:  return _CreateFunctionCall( IntrinsicsSSE2Enum::AndDouble,      pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::BitwiseOr:   return _CreateFunctionCall( IntrinsicsSSE2Enum::OrDouble,       pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::BitwiseXOr:  return _CreateFunctionCall( IntrinsicsSSE2Enum::XorDouble,      pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::Divide:      return _CreateFunctionCall( IntrinsicsSSE2Enum::DivideDouble,   pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::Multiply:    return _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyDouble, pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::Subtract:    return _CreateFunctionCall( IntrinsicsSSE2Enum::SubtractDouble, pExprLHS, pExprRHS );
+    case ArithmeticOperatorType::Modulo:      throw RuntimeErrorException("Modulo operation is undefined for \"double\" data types!");
+    case ArithmeticOperatorType::ShiftLeft:
+    case ArithmeticOperatorType::ShiftRight:  throw RuntimeErrorException("Shift operations are undefined for \"double\" data types!");
+    default:                                  throw InternalErrorException("Unsupported arithmetic operation detected!");
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _ArithmeticOpInteger( eElementType, eOpType, pExprLHS, pExprRHS );
+  default:                                                          return BaseType::ArithmeticOperator( eElementType, eOpType, pExprLHS, pExprRHS );
   }
 }
 
@@ -1145,6 +1242,60 @@ Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   }
 }
 
+Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
+{
+  if (uiCount == 0)
+  {
+    return pVectorRef;  // Nothing to do
+  }
+
+  IntegerLiteral *pShiftCount = _GetASTHelper().CreateIntegerLiteral( static_cast<int32_t>(uiCount) );
+
+  if (bShiftLeft)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      {
+        // TODO: Implement
+        break;
+      }
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftLeftInt16, pVectorRef, pShiftCount );
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftLeftInt32, pVectorRef, pShiftCount );
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftLeftInt64, pVectorRef, pShiftCount );
+    default:                                                          throw RuntimeErrorException("Shift operations are only defined for integer element types!");
+    }
+  }
+  else
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8: case VectorElementTypes::UInt8:
+      {
+        // TODO: Implement
+        break;
+      }
+    case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightArithInt16, pVectorRef, pShiftCount );
+    case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightLogInt16,   pVectorRef, pShiftCount );
+    case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightArithInt32, pVectorRef, pShiftCount );
+    case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightLogInt32,   pVectorRef, pShiftCount );
+    case VectorElementTypes::Int64:
+      {
+        // This is unsupported by SSE => Extract elements and shift them separately
+        ClangASTHelper::ExpressionVectorType vecElements;
+
+        vecElements.push_back( _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pVectorRef, 1), pShiftCount, BO_Shr, _GetClangType(eElementType) ) );
+        vecElements.push_back( _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pVectorRef, 0), pShiftCount, BO_Shr, _GetClangType(eElementType) ) );
+
+        return CreateVector( eElementType, vecElements, false );
+      }
+    case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightLogInt64,   pVectorRef, pShiftCount );
+    default:                          throw RuntimeErrorException("Shift operations are only defined for integer element types!");
+    }
+  }
+ 
+}
+
 Expr* InstructionSetSSE2::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
 {
   switch (eElementType)
@@ -1203,6 +1354,11 @@ void InstructionSetSSE3::_InitIntrinsicsMap()
   _InitIntrinsic (IntrinsicsSSE3Enum::LoadInteger, "lddqu_si128" );
 }
 
+Expr* InstructionSetSSE3::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  return BaseType::ArithmeticOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+}
+
 Expr* InstructionSetSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
@@ -1259,6 +1415,11 @@ void InstructionSetSSSE3::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt8,  "sign_epi8"  );
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt16, "sign_epi16" );
   _InitIntrinsic( IntrinsicsSSSE3Enum::SignInt32, "sign_epi32" );
+}
+
+Expr* InstructionSetSSSE3::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  return BaseType::ArithmeticOperator(eElementType, eOpType, pExprLHS, pExprRHS);
 }
 
 Expr* InstructionSetSSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
@@ -1373,6 +1534,22 @@ Expr* InstructionSetSSE4_1::_InsertElement(VectorElementTypes eElementType, Intr
   }
 
   return _CreateFunctionCall( eIntrinType, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+}
+
+Expr* InstructionSetSSE4_1::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  if (eOpType == ArithmeticOperatorType::Multiply)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MultiplyInt32, pExprLHS, pExprRHS );
+    default:                                                          return BaseType::ArithmeticOperator( eElementType, eOpType, pExprLHS, pExprRHS );
+    }
+  }
+  else
+  {
+    return BaseType::ArithmeticOperator( eElementType, eOpType, pExprLHS, pExprRHS );
+  }
 }
 
 Expr* InstructionSetSSE4_1::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)

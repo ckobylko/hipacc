@@ -317,6 +317,7 @@ namespace Vectorization
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) = 0;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) = 0;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
+    virtual ::clang::Expr* ShiftElements(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount) = 0;
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) = 0;
     virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) = 0;
 
@@ -489,6 +490,7 @@ namespace Vectorization
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
+    virtual ::clang::Expr* ShiftElements(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount) override;
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) override;
     virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) override;
 
@@ -533,8 +535,8 @@ namespace Vectorization
       SetDouble,                    SetInt8,                SetInt16,                SetInt32,                SetInt64,
       SetReverseDouble,             SetReverseInt8,         SetReverseInt16,         SetReverseInt32,
       SetZeroDouble,                SetZeroInteger,
-      ShiftLeftInt16,               ShiftLeftInt32,         ShiftLeftVectorBytes,
-      ShiftRightInt16,              ShiftRightInt32,        ShiftRightVectorBytes,
+      ShiftLeftInt16,               ShiftLeftInt32,         ShiftLeftInt64,          ShiftLeftVectorBytes,
+      ShiftRightArithInt16,         ShiftRightArithInt32,   ShiftRightLogInt16,      ShiftRightLogInt32,      ShiftRightLogInt64,  ShiftRightVectorBytes,
       ShuffleDouble,                ShuffleInt16High,       ShuffleInt16Low,         ShuffleInt32,
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
@@ -611,9 +613,11 @@ namespace Vectorization
 
   private:
 
+    ::clang::Expr* _ArithmeticOpInteger(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
     ::clang::Expr* _CompareInt64(VectorElementTypes eElementType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
     ::clang::Expr* _InsertElementDouble(::clang::Expr *pVectorRef, ::clang::Expr *pBroadCastedValue, std::uint32_t uiIndex);
     ::clang::Expr* _RelationalOpInteger(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
+    ::clang::Expr* _SeparatedArithmeticOpInteger(VectorElementTypes eElementType, ::clang::BinaryOperatorKind eOpKind, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
 
   protected:
 
@@ -632,6 +636,7 @@ namespace Vectorization
 
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) final override;
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) final override;
@@ -640,6 +645,7 @@ namespace Vectorization
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) override;
+    virtual ::clang::Expr* ShiftElements(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount) final override;
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) final override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
 
@@ -715,6 +721,7 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) final override;
@@ -773,6 +780,7 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
@@ -873,6 +881,7 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) final override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) final override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) final override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
