@@ -423,6 +423,7 @@ namespace Vectorization
       LoadFloat,
       MaxFloat,
       MinFloat,
+      MoveFloatHighLow,             MoveFloatLowHigh,
       MoveMaskFloat,
       MultiplyFloat,
       OrFloat,
@@ -526,13 +527,17 @@ namespace Vectorization
 
   protected:
 
+    InstructionSetSSE(::clang::ASTContext &rAstContext);
+
+
     inline void _CheckExtractIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const  { _CheckIndex< InstructionSetExceptions::ExtractIndexOutOfRange >(eElementType, uiIndex); }
     inline void _CheckInsertIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const   { _CheckIndex< InstructionSetExceptions::InsertIndexOutOfRange  >(eElementType, uiIndex); }
 
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
 
 
-    InstructionSetSSE(::clang::ASTContext &rAstContext);
+    ::clang::Expr* _MergeVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
+
 
   public:
 
@@ -602,6 +607,7 @@ namespace Vectorization
       CompareNotLessEqualDouble,
       CompareNotLessThanDouble,
       ConvertDoubleFloat,           ConvertDoubleInt32,     ConvertFloatDouble,      ConvertFloatInt32,       ConvertInt32Double,  ConvertInt32Float,
+      ConvertSingleDoubleInt64,
       DivideDouble,
       ExtractInt16,                 ExtractLowestDouble,    ExtractLowestInt32,      ExtractLowestInt64,
       InsertInt16,                  InsertLowestDouble,
@@ -621,7 +627,8 @@ namespace Vectorization
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
       SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,
-      UnpackHighInt8,               UnpackLowInt8,
+      UnpackHighInt8,               UnpackHighInt64,
+      UnpackLowInt8,                UnpackLowInt64,
       XorDouble,                    XorInteger
     };
 

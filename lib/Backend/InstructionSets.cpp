@@ -340,6 +340,8 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::LoadFloat,                   "loadu_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::MaxFloat,                    "max_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::MinFloat,                    "min_ps"      );
+  _InitIntrinsic( IntrinsicsSSEEnum::MoveFloatHighLow,            "movehl_ps"   );
+  _InitIntrinsic( IntrinsicsSSEEnum::MoveFloatLowHigh,            "movelh_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::MoveMaskFloat,               "movemask_ps" );
   _InitIntrinsic( IntrinsicsSSEEnum::MultiplyFloat,               "mul_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::OrFloat,                     "or_ps"       );
@@ -353,6 +355,13 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::StoreFloat,                  "storeu_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::SubtractFloat,               "sub_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
+}
+
+Expr* InstructionSetSSE::_MergeVectors(VectorElementTypes eElementType, Expr *pVectorRef1, Expr *pVectorRef2, bool bLowHalf)
+{
+  _CheckElementType( eElementType );
+
+  return _CreateFunctionCall( bLowHalf ? IntrinsicsSSEEnum::MoveFloatLowHigh : IntrinsicsSSEEnum::MoveFloatHighLow, pVectorRef1, pVectorRef2 );
 }
 
 Expr* InstructionSetSSE::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -639,7 +648,8 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
       switch (eTargetType)
       {
-      case VectorElementTypes::Double:  return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Double:                                  return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, crvecVectorRefs.front() );
       case VectorElementTypes::Float:
         {
           ClangASTHelper::ExpressionVectorType vecCastedVectors;
@@ -651,7 +661,6 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return ConvertMaskSameSize(VectorElementTypes::UInt32, eTargetType, pPackedMask);
         }
-      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, crvecVectorRefs.front() );
       case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
       case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
@@ -663,7 +672,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
             vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt64, itVec) );
           }
 
-          return _ConvertVector( VectorElementTypes::UInt64, eTargetType, vecCastedVectors, uiGroupIndex, bMaskConversion );
+          return ConvertMaskDown( VectorElementTypes::UInt64, eTargetType, vecCastedVectors );
         }
       }
 
@@ -679,7 +688,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
         pConvertedMask        = ConvertMaskUp(VectorElementTypes::UInt32, VectorElementTypes::UInt64, pConvertedMask, uiGroupIndex);
         return ConvertMaskSameSize(VectorElementTypes::UInt64, eTargetType, pConvertedMask);
       }
-      case VectorElementTypes::Float:   return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
       case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::CastFloatToInteger, crvecVectorRefs.front() );
       case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
@@ -797,15 +806,27 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
       case VectorElementTypes::Double:  return crvecVectorRefs.front();   // Same type => nothing to do
       case VectorElementTypes::Float:
         {
-          // TODO: Implement
+          Expr *pValuesLow  = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertDoubleFloat, crvecVectorRefs[0] );
+          Expr *pValuesHigh = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertDoubleFloat, crvecVectorRefs[1] );
+
+          return _MergeVectors( eTargetType, pValuesLow, pValuesHigh, true );
         }
       case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
         {
-          // TODO: Implement
+          Expr *pValuesLow  = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertDoubleInt32, crvecVectorRefs[0] );
+          Expr *pValuesHigh = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertDoubleInt32, crvecVectorRefs[1] );
+
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackLowInt64, pValuesLow, pValuesHigh );
         }
       case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
         {
-          // TODO: Implement
+          // Packed conversion not possible => Extract and convert both values separately
+          Expr *pValueLow   = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, crvecVectorRefs.front() );
+
+          Expr *pValueHigh  = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, crvecVectorRefs.front(), crvecVectorRefs.front(), _GetASTHelper().CreateIntegerLiteral( 1 ) );
+          pValueHigh        = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, pValueHigh );
+
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::SetInt64, pValueHigh, pValueLow );
         }
       case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
@@ -839,17 +860,69 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
       {
       case VectorElementTypes::Double:
         {
-          // TODO: Implement
-        }
-      case VectorElementTypes::Float:   return crvecVectorRefs.front();   // Same type => nothing to do
+          Expr *pSourceRef = crvecVectorRefs.front();
+          if (uiGroupIndex != 0)
+          {
+            pSourceRef = _MergeVectors( eSourceType, pSourceRef, pSourceRef, false );
+          }
 
-        // TODO: Add remaining target types
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertFloatDouble, pSourceRef );
+        }
+      case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertFloatInt32, crvecVectorRefs.front() );
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          Expr *pConvertedVector = ConvertVectorUp( eSourceType, VectorElementTypes::Double, crvecVectorRefs.front(), uiGroupIndex );
+
+          return ConvertVectorSameSize( VectorElementTypes::Double, eTargetType, pConvertedVector );
+        }
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+
+          for each (auto itVectorRef in crvecVectorRefs)
+          {
+            vecConvertedVectors.push_back( ConvertVectorSameSize(eSourceType, VectorElementTypes::Int32, itVectorRef) );
+          }
+
+          return ConvertVectorDown(VectorElementTypes::Int32, eTargetType, vecConvertedVectors);
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+
+      switch (eTargetType)
+      {
+        // TODO: Add all target types
+      }
+
+      break;
+
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+        {
+          // We need to remove the high-byte from all vector elements to avoid the saturation
+          const int32_t cuiMaskConstant = 0xFF;
+
+          Expr *pValuesLow  = ArithmeticOperator( eSourceType, ArithmeticOperatorType::BitwiseAnd, crvecVectorRefs[0], BroadCast(eSourceType, _GetASTHelper().CreateIntegerLiteral(cuiMaskConstant)) );
+          Expr *pValuesHigh = ArithmeticOperator( eSourceType, ArithmeticOperatorType::BitwiseAnd, crvecVectorRefs[1], BroadCast(eSourceType, _GetASTHelper().CreateIntegerLiteral(cuiMaskConstant)) );
+
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::PackInt16ToUInt8, pValuesLow, pValuesHigh );
+        }
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
+
+        // TODO: Add all remianing target types
       }
 
       break;
 
     // TODO: Add remaining source types
-
     }
   }
 
@@ -949,12 +1022,14 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   }
 
   // Convert functions
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleFloat, "cvtpd_ps"     );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleInt32, "cvttpd_epi32" );   // Use truncation
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatDouble, "cvtps_pd"     );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatInt32,  "cvttps_epi32" );   // Use truncation
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Double, "cvtepi32_pd"  );
-  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Float,  "cvtepi32_ps"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleFloat,       "cvtpd_ps"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertDoubleInt32,       "cvttpd_epi32" );   // Use truncation
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatDouble,       "cvtps_pd"     );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertFloatInt32,        "cvttps_epi32" );   // Use truncation
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Double,       "cvtepi32_pd"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Float,        "cvtepi32_ps"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, "cvttsd_si64"  );   // Use truncation
+  
 
   // Division functions
   _InitIntrinsic( IntrinsicsSSE2Enum::DivideDouble, "div_pd" );
@@ -1049,8 +1124,10 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt64,  "sub_epi64" );
 
   // Integer un-packing function
-  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt8, "unpackhi_epi8" );
-  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt8,  "unpacklo_epi8" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt8,   "unpackhi_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt64,  "unpackhi_epi64" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt8,    "unpacklo_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt64,   "unpacklo_epi64" );
 
   // Bitwise "xor" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
