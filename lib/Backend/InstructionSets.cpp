@@ -375,6 +375,16 @@ Expr* InstructionSetSSE::ArithmeticOperator(VectorElementTypes eElementType, Ari
   }
 }
 
+Expr* InstructionSetSSE::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  _CheckElementType(eElementType);
+
+  Expr *pSelectTrue  = _CreateFunctionCall( IntrinsicsSSEEnum::AndFloat,    pMaskRef, pVectorTrue  );
+  Expr *pSelectFalse = _CreateFunctionCall( IntrinsicsSSEEnum::AndNotFloat, pMaskRef, pVectorFalse );
+
+  return _CreateFunctionCall( IntrinsicsSSEEnum::OrFloat, pSelectTrue, pSelectFalse );
+}
+
 Expr* InstructionSetSSE::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
 {
   _CheckElementType(eElementType);
@@ -1203,6 +1213,31 @@ Expr* InstructionSetSSE2::ArithmeticOperator(VectorElementTypes eElementType, Ar
   }
 }
 
+Expr* InstructionSetSSE2::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      Expr *pSelectTrue  = _CreateFunctionCall( IntrinsicsSSE2Enum::AndDouble,    pMaskRef, pVectorTrue  );
+      Expr *pSelectFalse = _CreateFunctionCall( IntrinsicsSSE2Enum::AndNotDouble, pMaskRef, pVectorFalse );
+
+      return _CreateFunctionCall( IntrinsicsSSE2Enum::OrDouble, pSelectTrue, pSelectFalse );
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      Expr *pSelectTrue  = _CreateFunctionCall( IntrinsicsSSE2Enum::AndInteger,    pMaskRef, pVectorTrue  );
+      Expr *pSelectFalse = _CreateFunctionCall( IntrinsicsSSE2Enum::AndNotInteger, pMaskRef, pVectorFalse );
+
+      return _CreateFunctionCall( IntrinsicsSSE2Enum::OrInteger, pSelectTrue, pSelectFalse );
+    }
+  default:  return BaseType::BlendVectors( eElementType, pMaskRef, pVectorTrue, pVectorFalse );
+  }
+}
+
 Expr* InstructionSetSSE2::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
 {
   switch (eElementType)
@@ -1681,6 +1716,11 @@ Expr* InstructionSetSSE3::ArithmeticOperator(VectorElementTypes eElementType, Ar
   return BaseType::ArithmeticOperator(eElementType, eOpType, pExprLHS, pExprRHS);
 }
 
+Expr* InstructionSetSSE3::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  return BaseType::BlendVectors(eElementType, pMaskRef, pVectorTrue, pVectorFalse);
+}
+
 Expr* InstructionSetSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
@@ -1747,6 +1787,11 @@ void InstructionSetSSSE3::_InitIntrinsicsMap()
 Expr* InstructionSetSSSE3::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
   return BaseType::ArithmeticOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+}
+
+Expr* InstructionSetSSSE3::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  return BaseType::BlendVectors(eElementType, pMaskRef, pVectorTrue, pVectorFalse);
 }
 
 Expr* InstructionSetSSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
@@ -1969,6 +2014,20 @@ Expr* InstructionSetSSE4_1::ArithmeticOperator(VectorElementTypes eElementType, 
   else
   {
     return BaseType::ArithmeticOperator( eElementType, eOpType, pExprLHS, pExprRHS );
+  }
+}
+
+Expr* InstructionSetSSE4_1::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::BlendDouble,  pVectorFalse, pVectorTrue, pMaskRef );
+  case VectorElementTypes::Float:                                   return _CreateFunctionCall( IntrinsicsSSE4_1Enum::BlendFloat,   pVectorFalse, pVectorTrue, pMaskRef );
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::BlendInteger, pVectorFalse, pVectorTrue, pMaskRef );
+  default:                                                          return BaseType::BlendVectors( eElementType, pMaskRef, pVectorTrue, pVectorFalse );
   }
 }
 
