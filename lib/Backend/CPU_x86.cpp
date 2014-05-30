@@ -767,6 +767,20 @@ string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl
   return OutputStream.str();
 }
 
+string CPU_x86::CodeGenerator::_GetInstructionSetIncludeFile()
+{
+  switch (_eInstructionSet)
+  {
+  case InstructionSetEnum::SSE:       return "xmmintrin.h";
+  case InstructionSetEnum::SSE_2:     return "emmintrin.h";
+  case InstructionSetEnum::SSE_3:     return "pmmintrin.h";
+  case InstructionSetEnum::SSSE_3:    return "tmmintrin.h";
+  case InstructionSetEnum::SSE_4_1:   return "smmintrin.h";
+  case InstructionSetEnum::SSE_4_2:   return "nmmintrin.h";
+  default:  return "";
+  }
+}
+
 size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDeclarationPtr spVecFunction)
 {
   if (_eInstructionSet == InstructionSetEnum::Array)
@@ -968,22 +982,27 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
 {
   CommonDefines::ArgumentVectorType vecArguments;
 
-  if (_eInstructionSet == InstructionSetEnum::SSE_4)
+  // Add required macro definition which toggle the correct include files
+  switch (_eInstructionSet)   // The case-fall-through is intenden here
   {
-    // Add the common intrinsics header
-    vecArguments.push_back("-includeimmintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
+  case InstructionSetEnum::SSE_4_2:   vecArguments.push_back("-D __SSE4_2__");
+  case InstructionSetEnum::SSE_4_1:   vecArguments.push_back("-D __SSE4_1__");
+  case InstructionSetEnum::SSSE_3:    vecArguments.push_back("-D __SSSE3__");
+  case InstructionSetEnum::SSE_3:     vecArguments.push_back("-D __SSE3__");
+  case InstructionSetEnum::SSE_2:     vecArguments.push_back("-D __SSE2__");
+  case InstructionSetEnum::SSE:
+    {
+      vecArguments.push_back("-D __SSE__");
+      vecArguments.push_back("-D __MMX__");
 
-    // Add required macro definition which toggle the correct include files
-    vecArguments.push_back("-D __SSE4_2__");
-    vecArguments.push_back("-D __SSE4_1__");
-    vecArguments.push_back("-D __SSSE3__");
-    vecArguments.push_back("-D __SSE3__");
-    vecArguments.push_back("-D __SSE2__");
-    vecArguments.push_back("-D __SSE__");
-    vecArguments.push_back("-D __MMX__");
+      // Add the common intrinsics header
+      vecArguments.push_back("-includeimmintrin.h");  // FIXME: Due to a bug in the clang command arguments parser the space between option and switch is missing
 
-    // Enable 64bit extensions of the SSE instruction sets
-    vecArguments.push_back("-D __x86_64__");
+      // Enable 64bit extensions of the SSE instruction sets
+      vecArguments.push_back("-D __x86_64__");
+
+      break;
+    }
   }
 
   return std::move( vecArguments );
@@ -993,6 +1012,18 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 {
   HipaccHelper          hipaccHelper(pKernelFunction, pKernel);
   ImageAccessTranslator ImgAccessTranslator(hipaccHelper);
+
+  // Print the instruction set include directive
+  if (_bVectorizeKernel)
+  {
+    string strIncludeFile = _GetInstructionSetIncludeFile();
+
+    if (! strIncludeFile.empty())
+    {
+      rOutputStream << "\n#include <" << strIncludeFile << ">\n\n";
+    }
+  }
+
 
   // Add the iteration space loops
   {

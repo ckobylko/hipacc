@@ -65,8 +65,13 @@ namespace Backend
     /** \brief  Contains the IDs of all supported vector instruction sets. */
     enum class InstructionSetEnum
     {
-      Array,  //!< ID of the array-based vector export.
-      SSE_4   //!< ID of the "Streaming SIMD Extensions 4" instruction set.
+      Array,    //!< ID of the array-based vector export.
+      SSE,      //!< ID of the "Streaming SIMD Extensions" instruction set.
+      SSE_2,    //!< ID of the "Streaming SIMD Extensions 2" instruction set.
+      SSE_3,    //!< ID of the "Streaming SIMD Extensions 3" instruction set.
+      SSSE_3,   //!< ID of the "Supplemental SIMD Extensions 3" instruction set.
+      SSE_4_1,  //!< ID of the "Streaming SIMD Extensions 4.1" instruction set.
+      SSE_4_2   //!< ID of the "Streaming SIMD Extensions 4.2" instruction set.
     };
 
 
@@ -90,8 +95,15 @@ namespace Backend
           std::string strDescription("");
 
           strDescription += "Selects the instruction set for the generation of vectorized code. Valid values for \"<o>\" are:\n";
-          strDescription += "  array  -  Translates vectors into native data type arrays (can be used to trigger the vectorization of the host compiler).\n";
-          strDescription += "  sse4   -  Uses the intrinsic functions of the SSE 4 vector instruction set.";
+          strDescription += "  array   -  Translates vectors into native data type arrays (can be used to trigger the vectorization of the host compiler).\n";
+          strDescription += "  sse     -  Uses the intrinsic functions of the SSE vector instruction set.\n";
+          strDescription += "               Warning: The \"SSE\" instruction set is incomplete and supports only \"float\" elements!\n";
+          strDescription += "  sse2    -  Uses the intrinsic functions of the SSE 2 vector instruction set.\n";
+          strDescription += "               Note: This is the first complete SSE instruction set. The higher versions only increase performance.\n";
+          strDescription += "  sse3    -  Uses the intrinsic functions of the SSE 3 vector instruction set.\n";
+          strDescription += "  ssse3   -  Uses the intrinsic functions of the SSSE 3 vector instruction set.\n";
+          strDescription += "  sse4.1  -  Uses the intrinsic functions of the SSE 4.1 vector instruction set.\n";
+          strDescription += "  sse4.2  -  Uses the intrinsic functions of the SSE 4.2 vector instruction set.";
 
           return strDescription;
         }
@@ -107,8 +119,13 @@ namespace Backend
            *  \return If successful, the internal ID of the selected instruction set. */
           inline static ReturnType Parse(std::string strOption)
           {
-            if      (strOption == "array")  return InstructionSetEnum::Array;
-            else if (strOption == "sse4")   return InstructionSetEnum::SSE_4;
+            if      (strOption == "array")    return InstructionSetEnum::Array;
+            else if (strOption == "sse")      return InstructionSetEnum::SSE;
+            else if (strOption == "sse2")     return InstructionSetEnum::SSE_2;
+            else if (strOption == "sse3")     return InstructionSetEnum::SSE_3;
+            else if (strOption == "ssse3")    return InstructionSetEnum::SSSE_3;
+            else if (strOption == "sse4.1")   return InstructionSetEnum::SSE_4_1;
+            else if (strOption == "sse4.2")   return InstructionSetEnum::SSE_4_2;
             else
             {
               throw RuntimeErrors::InvalidOptionException(Key(), strOption);
@@ -439,6 +456,9 @@ namespace Backend
        *  \param    bPrintActualImageType   Specifies, whether the actual clang types of the HIPAcc images shall be printed into the declaration.
        *  \remarks  This function translates HIPAcc image declarations to the corresponding memory declarations. */
       std::string _FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage = true, bool bPrintActualImageType = false);
+
+      /** \brief  Returns the name of the include file for the currently selected vector instruction set. */
+      std::string _GetInstructionSetIncludeFile();
 
       /** \brief    Returns the vector width which shall be used for the code generation.
        *  \param    spVecFunction   A shared pointer to the vectorized function for which the vector width shall be returned.
