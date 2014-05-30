@@ -436,6 +436,7 @@ namespace Vectorization
       SqrtFloat,
       StoreFloat,
       SubtractFloat,
+      UnpackHighFloat,              UnpackLowFloat,
       XorFloat
     };
 
@@ -538,6 +539,8 @@ namespace Vectorization
 
     ::clang::Expr* _MergeVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
 
+    virtual ::clang::Expr* _UnpackVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
+
 
   public:
 
@@ -627,8 +630,8 @@ namespace Vectorization
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
       SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,
-      UnpackHighInt8,               UnpackHighInt16,        UnpackHighInt32,         UnpackHighInt64,
-      UnpackLowInt8,                UnpackLowInt16,         UnpackLowInt32,          UnpackLowInt64,
+      UnpackHighDouble,             UnpackHighInt8,         UnpackHighInt16,         UnpackHighInt32,         UnpackHighInt64,
+      UnpackLowDouble,              UnpackLowInt8,          UnpackLowInt16,          UnpackLowInt32,          UnpackLowInt64,
       XorDouble,                    XorInteger
     };
 
@@ -713,6 +716,7 @@ namespace Vectorization
 
     ::clang::Expr* _ShiftIntegerVectorBytes(::clang::Expr *pVectorRef, std::uint32_t uiByteCount, bool bShiftLeft);
 
+    virtual ::clang::Expr* _UnpackVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf) final override;
 
   public:
 
@@ -866,6 +870,23 @@ namespace Vectorization
   private:
 
     IntrinsicMapType    _mapIntrinsicsSSSE3;
+
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSSE3, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
 
     inline void _InitIntrinsic(IntrinsicsSSSE3Enum eIntrinType, std::string strIntrinName)
     {

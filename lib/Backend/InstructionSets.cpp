@@ -354,6 +354,8 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::SqrtFloat,                   "sqrt_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::StoreFloat,                  "storeu_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::SubtractFloat,               "sub_ps"      );
+  _InitIntrinsic( IntrinsicsSSEEnum::UnpackHighFloat,             "unpackhi_ps" );
+  _InitIntrinsic( IntrinsicsSSEEnum::UnpackLowFloat,              "unpacklo_ps" );
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
 }
 
@@ -362,6 +364,13 @@ Expr* InstructionSetSSE::_MergeVectors(VectorElementTypes eElementType, Expr *pV
   _CheckElementType( eElementType );
 
   return _CreateFunctionCall( bLowHalf ? IntrinsicsSSEEnum::MoveFloatLowHigh : IntrinsicsSSEEnum::MoveFloatHighLow, pVectorRef1, pVectorRef2 );
+}
+
+Expr* InstructionSetSSE::_UnpackVectors(VectorElementTypes eElementType, Expr *pVectorRef1, Expr *pVectorRef2, bool bLowHalf)
+{
+  _CheckElementType(eElementType);
+  
+  return _CreateFunctionCall( bLowHalf ? IntrinsicsSSEEnum::UnpackLowFloat : IntrinsicsSSEEnum::UnpackHighFloat, pVectorRef1, pVectorRef2 );
 }
 
 Expr* InstructionSetSSE::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -1358,11 +1367,13 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt32,  "sub_epi32" );
   _InitIntrinsic( IntrinsicsSSE2Enum::SubtractInt64,  "sub_epi64" );
 
-  // Integer un-packing function
+  // Un-packing function
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighDouble, "unpackhi_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt8,   "unpackhi_epi8"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt16,  "unpackhi_epi16" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt32,  "unpackhi_epi32" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt64,  "unpackhi_epi64" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowDouble,  "unpacklo_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt8,    "unpacklo_epi8"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt16,   "unpacklo_epi16" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt32,   "unpacklo_epi32" );
@@ -1500,6 +1511,23 @@ Expr* InstructionSetSSE2::_ShiftIntegerVectorBytes(Expr *pVectorRef, uint32_t ui
 
     return _CreateFunctionCall( eShiftID, pVectorRef, _GetASTHelper().CreateIntegerLiteral( static_cast<int32_t>(uiByteCount) ) );
   }
+}
+
+Expr* InstructionSetSSE2::_UnpackVectors(VectorElementTypes eElementType, Expr *pVectorRef1, Expr *pVectorRef2, bool bLowHalf)
+{
+  IntrinsicsSSE2Enum eIntrinID = IntrinsicsSSE2Enum::UnpackHighInt8;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eIntrinID = bLowHalf ? IntrinsicsSSE2Enum::UnpackLowDouble : IntrinsicsSSE2Enum::UnpackHighDouble;  break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = bLowHalf ? IntrinsicsSSE2Enum::UnpackLowInt8   : IntrinsicsSSE2Enum::UnpackHighInt8;    break;
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = bLowHalf ? IntrinsicsSSE2Enum::UnpackLowInt16  : IntrinsicsSSE2Enum::UnpackHighInt16;   break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = bLowHalf ? IntrinsicsSSE2Enum::UnpackLowInt32  : IntrinsicsSSE2Enum::UnpackHighInt32;   break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = bLowHalf ? IntrinsicsSSE2Enum::UnpackLowInt64  : IntrinsicsSSE2Enum::UnpackHighInt64;   break;
+  default:                                                          return BaseType::_UnpackVectors( eElementType, pVectorRef1, pVectorRef2, bLowHalf );
+  }
+
+  return _CreateFunctionCall( eIntrinID, pVectorRef1, pVectorRef2 );
 }
 
 Expr* InstructionSetSSE2::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -2081,6 +2109,100 @@ InstructionSetSSSE3::InstructionSetSSSE3(ASTContext &rAstContext) : BaseType(rAs
 
 Expr* InstructionSetSSSE3::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
 {
+  if (! bMaskConversion)
+  {
+    // By-pass integer down-conversion chains by the fast SSSE3 8-bit integer shuffles (except mask conversion which are handled quickly by the SSE2 instruction set)
+
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+        {
+          // Shuffle the low-byte of each packed 32-integer into the low 4 bytes
+          ClangASTHelper::ExpressionVectorType vecShuffledVectors;
+
+          for (size_t szIdx = static_cast<size_t>(0); szIdx < crvecVectorRefs.size(); ++szIdx)
+          {
+            const int32_t ciShuffleConstant = 0x0C080400;
+
+            Expr *pShuffleMask = BroadCast( VectorElementTypes::Int32, _GetASTHelper().CreateIntegerLiteral(ciShuffleConstant) );
+
+            vecShuffledVectors.push_back( _CreateFunctionCall( IntrinsicsSSSE3Enum::ShuffleInt8, crvecVectorRefs[szIdx], pShuffleMask ) );
+          }
+
+          // Merge adjacent 4-element vector pairs into 8-element vectors
+          vecShuffledVectors[0] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[0], vecShuffledVectors[1], true );
+          vecShuffledVectors[1] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[2], vecShuffledVectors[3], true );
+
+          // Merge two remaining 8-element vectors into a 16-element vector
+          return _UnpackVectors( VectorElementTypes::Int64, vecShuffledVectors[0], vecShuffledVectors[1], true );
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+        {
+          // Shuffle the low-byte of each packed 64-integer into the low 2 bytes
+          ClangASTHelper::ExpressionVectorType vecShuffledVectors;
+
+          for (size_t szIdx = static_cast<size_t>(0); szIdx < crvecVectorRefs.size(); ++szIdx)
+          {
+            const int32_t ciShuffleConstant = 0x0800;
+
+            Expr *pShuffleMask = BroadCast( VectorElementTypes::Int32, _GetASTHelper().CreateIntegerLiteral(ciShuffleConstant) );
+
+            vecShuffledVectors.push_back( _CreateFunctionCall( IntrinsicsSSSE3Enum::ShuffleInt8, crvecVectorRefs[szIdx], pShuffleMask ) );
+          }
+
+          // Merge adjacent 2-element vector pairs into 4-element vectors
+          for (size_t szIdx = static_cast<size_t>(0); szIdx < (crvecVectorRefs.size() >> 1); ++szIdx)
+          {
+            vecShuffledVectors[szIdx] = _UnpackVectors(VectorElementTypes::Int16, vecShuffledVectors[szIdx << 1], vecShuffledVectors[(szIdx << 1) + 1], true);
+          }
+
+          // Merge adjacent 4-element vector pairs into 8-element vectors
+          vecShuffledVectors[0] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[0], vecShuffledVectors[1], true );
+          vecShuffledVectors[1] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[2], vecShuffledVectors[3], true );
+
+          // Merge two remaining 8-element vectors into a 16-element vector
+          return _UnpackVectors( VectorElementTypes::Int64, vecShuffledVectors[0], vecShuffledVectors[1], true );
+        }
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          // Shuffle the low-word of each packed 64-integer into the low 4 bytes
+          ClangASTHelper::ExpressionVectorType vecShuffledVectors;
+
+          for (size_t szIdx = static_cast<size_t>(0); szIdx < crvecVectorRefs.size(); ++szIdx)
+          {
+            const int32_t ciShuffleConstant = 0x09080100;
+
+            Expr *pShuffleMask = BroadCast( VectorElementTypes::Int32, _GetASTHelper().CreateIntegerLiteral(ciShuffleConstant) );
+
+            vecShuffledVectors.push_back( _CreateFunctionCall( IntrinsicsSSSE3Enum::ShuffleInt8, crvecVectorRefs[szIdx], pShuffleMask ) );
+          }
+
+          // Merge adjacent 2-element vector pairs into 4-element vectors
+          vecShuffledVectors[0] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[0], vecShuffledVectors[1], true );
+          vecShuffledVectors[1] = _UnpackVectors( VectorElementTypes::Int32, vecShuffledVectors[2], vecShuffledVectors[3], true );
+
+          // Merge two remaining 4-element vectors into a 8-element vector
+          return _UnpackVectors( VectorElementTypes::Int64, vecShuffledVectors[0], vecShuffledVectors[1], true );
+        }
+      }
+
+      break;
+    }
+  }
+
+  // If the function has not returned earlier, let the base handle the conversion
   return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion);
 }
 
@@ -2170,7 +2292,6 @@ Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, Vecto
   else
   {
     // Handle all upward conversions from integer types to integer types
-
     bool                  bHandleConversion = true;
     IntrinsicsSSE4_1Enum  eConvertID        = IntrinsicsSSE4_1Enum::ConvertInt8Int32;
 
