@@ -309,13 +309,20 @@ void InstructionSetSSE::_CheckElementType(VectorElementTypes eElementType) const
 {
   if (eElementType != VectorElementTypes::Float)
   {
-    throw RuntimeErrorException(string("Only data type \"") + AST::BaseClasses::TypeInfo::GetTypeString(VectorElementTypes::Float) + string("\" supported for instruction set \"SSE\"!"));
+    throw RuntimeErrorException(string("The element type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eElementType) + string("\" is not supported in instruction set \"SSE\"!"));
   }
 }
 
 Expr* InstructionSetSSE::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
 {
-  throw InstructionSetExceptions::UnsupportedConversion(eSourceType, eTargetType, "SSE");
+  if ((eSourceType == VectorElementTypes::Float) && (eTargetType == VectorElementTypes::Float))
+  {
+    return crvecVectorRefs.front();   // Nothing to do
+  }
+  else
+  {
+    throw InstructionSetExceptions::UnsupportedConversion(eSourceType, eTargetType, "SSE");
+  }
 }
 
 void InstructionSetSSE::_InitIntrinsicsMap()
@@ -742,12 +749,22 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
       {
       case VectorElementTypes::Double: case VectorElementTypes::Float:
         {
-          // Convert the mask(s) into an unsigned integer type with the same size as the target type, and then do the final conversion
-          const size_t              cszTargetSize       = AST::BaseClasses::TypeInfo::GetTypeSize( eTargetType );
-          const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszTargetSize, false ).GetType();
+          const size_t              cszSourceSize = AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType);
+          const size_t              cszTargetSize = AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType);
 
-          Expr *pConvertedMask = _ConvertVector( eSourceType, ceIntermediateType, crvecVectorRefs, uiGroupIndex, bMaskConversion );
-          return ConvertMaskSameSize( ceIntermediateType, eTargetType, pConvertedMask );
+          if (cszSourceSize == cszTargetSize)
+          {
+            // There is no binary difference between integer masks and floating point masks of same size => Just cast here
+            return _CreateFunctionCall( (eTargetType == VectorElementTypes::Double) ? IntrinsicsSSE2Enum::CastIntegerToDouble : IntrinsicsSSE2Enum::CastIntegerToFloat, crvecVectorRefs.front() );
+          }
+          else
+          {
+            // Convert the mask(s) into an unsigned integer type with the same size as the target type, and then do the final conversion
+            const VectorElementTypes  ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(cszTargetSize, false).GetType();
+
+            Expr *pConvertedMask = _ConvertVector( eSourceType, ceIntermediateType, crvecVectorRefs, uiGroupIndex, bMaskConversion );
+            return ConvertMaskSameSize( ceIntermediateType, eTargetType, pConvertedMask );
+          }
         }
       case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
@@ -1318,8 +1335,8 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::MinInt16,  "min_epi16" );
 
   // Mask conversion functions
-  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskDouble, "movemask_epi8" );
-  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskInt8,   "movemask_pd"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskDouble, "movemask_pd"   );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MoveMaskInt8,   "movemask_epi8" );
 
   // Multiplication functions
   _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyDouble, "mul_pd"      );
@@ -1449,24 +1466,24 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
     default:                                                          return BaseType::RelationalOperator( eElementType, eOpType, pExprLHS, pExprRHS );
     }
   }
-  else if ( AST::BaseClasses::TypeInfo::IsSigned(eElementType) )
+  else if (! AST::BaseClasses::TypeInfo::IsSigned(eElementType))
   {
     // Convert vector elements such that an unsigned comparison is possible
     Expr *pSignMask = nullptr;
 
     switch (eElementType)
     {
-    case VectorElementTypes::Int8:    pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80                );  break;
-    case VectorElementTypes::Int16:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000              );  break;
-    case VectorElementTypes::Int32:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80000000          );  break;
-    case VectorElementTypes::Int64:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000000000000000L );  break;
+    case VectorElementTypes::UInt8:    pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80                );  break;
+    case VectorElementTypes::UInt16:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000              );  break;
+    case VectorElementTypes::UInt32:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80000000          );  break;
+    case VectorElementTypes::UInt64:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000000000000000L );  break;
     default:                          throw InternalErrorException("Unexpected vector element type detected!");
     }
 
     Expr *pConvLHS = ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pExprLHS, BroadCast(eElementType, pSignMask) );
     Expr *pConvRHS = ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pExprRHS, BroadCast(eElementType, pSignMask) );
 
-    return RelationalOperator( AST::BaseClasses::TypeInfo::CreateSizedIntegerType(AST::BaseClasses::TypeInfo::GetTypeSize(eElementType), false).GetType(), eOpType, pConvLHS, pConvRHS );
+    return RelationalOperator( AST::BaseClasses::TypeInfo::CreateSizedIntegerType(AST::BaseClasses::TypeInfo::GetTypeSize(eElementType), true).GetType(), eOpType, pConvLHS, pConvRHS );
   }
   else
   {
@@ -1703,7 +1720,7 @@ Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const Cl
 
       break;
     }
-  default:  BaseType::CreateVector(eElementType, crvecElements, bReversedOrder);
+  default:  return BaseType::CreateVector(eElementType, crvecElements, bReversedOrder);
   }
 
   if (crvecElements.size() != GetVectorElementCount(eElementType))
@@ -2463,7 +2480,7 @@ Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, Vecto
             const VectorElementTypes ceNewSourceType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszSourceSize, true ).GetType();
             const VectorElementTypes ceNewTargetType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType( cszTargetSize, true ).GetType();
 
-            return _ConvertVector(ceNewSourceType, ceNewTargetType, crvecVectorRefs, uiGroupIndex, false);
+            return ConvertVectorUp(ceNewSourceType, ceNewTargetType, crvecVectorRefs.front(), uiGroupIndex);
           }
         }
       }
