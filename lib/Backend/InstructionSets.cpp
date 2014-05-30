@@ -574,7 +574,7 @@ Expr* InstructionSetSSE::UnaryOperator(VectorElementTypes eElementType, UnaryOpe
 
   switch (eOpType)
   {
-  case UnaryOperatorType::AddressOf:      return _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(GetVectorType(eElementType)) );
+  case UnaryOperatorType::AddressOf:      return _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(pSubExpr->getType()) );
   case UnaryOperatorType::BitwiseNot: case UnaryOperatorType::LogicalNot:
     {
       Expr *pFullBitMask = RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
@@ -583,10 +583,10 @@ Expr* InstructionSetSSE::UnaryOperator(VectorElementTypes eElementType, UnaryOpe
     }
   case UnaryOperatorType::Minus:          return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
   case UnaryOperatorType::Plus:           return pSubExpr;
-  case UnaryOperatorType::PreDecrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::SubtractFloat, eElementType, pSubExpr );
-  case UnaryOperatorType::PreIncrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::AddFloat,      eElementType, pSubExpr );
-  case UnaryOperatorType::PostDecrement:
-  case UnaryOperatorType::PostIncrement:  throw RuntimeErrorException("Postfixed decrement / increment not supported for vector types! If possible, use prefixed counterparts.");
+  case UnaryOperatorType::PostDecrement:  return _CreatePostfixedUnaryOp( IntrinsicsSSEEnum::SubtractFloat, eElementType, pSubExpr );
+  case UnaryOperatorType::PostIncrement:  return _CreatePostfixedUnaryOp( IntrinsicsSSEEnum::AddFloat,      eElementType, pSubExpr );
+  case UnaryOperatorType::PreDecrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::SubtractFloat,  eElementType, pSubExpr );
+  case UnaryOperatorType::PreIncrement:   return _CreatePrefixedUnaryOp( IntrinsicsSSEEnum::AddFloat,       eElementType, pSubExpr );
   default:                                throw InternalErrorException("Unsupported unary operation detected!");
   }
 }
@@ -625,8 +625,20 @@ Expr* InstructionSetSSE2::_ArithmeticOpInteger(VectorElementTypes eElementType, 
     {
     case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       {
-        // TODO: Implement
-        break;
+        // Convert vector to a signed / unsigned 16-bit integer intermediate type, do the multiplication and convert back
+        const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(2, AST::BaseClasses::TypeInfo::IsSigned(eElementType)).GetType();
+
+        ClangASTHelper::ExpressionVectorType vecResultVectors;
+
+        for (uint32_t uiGroupIdx = 0; uiGroupIdx <= 1; ++uiGroupIdx)
+        {
+          Expr *pConvertedLHS = ConvertVectorUp( eElementType, ceIntermediateType, pExprLHS, uiGroupIdx );
+          Expr *pConvertedRHS = ConvertVectorUp( eElementType, ceIntermediateType, pExprRHS, uiGroupIdx );
+
+          vecResultVectors.push_back( ArithmeticOperator( ceIntermediateType, eOpType, pConvertedLHS, pConvertedRHS ) );
+        }
+
+        return ConvertVectorDown( ceIntermediateType, eElementType, vecResultVectors );
       }
     case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyInt16, pExprLHS, pExprRHS );
     default:                                                          return _SeparatedArithmeticOpInteger( eElementType, BO_Mul, pExprLHS, pExprRHS );
@@ -1953,8 +1965,16 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
     {
     case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       {
-        // TODO: Implement
-        break;
+        // Convert vector to UInt16 data type, do the shift and convert back
+        ClangASTHelper::ExpressionVectorType vecShiftedVectors;
+
+        for (uint32_t uiGroupIdx = 0; uiGroupIdx <= 1; ++uiGroupIdx)
+        {
+          Expr *pConvertedVector = ConvertVectorUp( VectorElementTypes::UInt8, VectorElementTypes::UInt16, pVectorRef, uiGroupIdx );
+          vecShiftedVectors.push_back( ShiftElements(VectorElementTypes::UInt16, pConvertedVector, bShiftLeft, uiCount) );
+        }
+
+        return ConvertVectorDown( VectorElementTypes::UInt16, VectorElementTypes::UInt8, vecShiftedVectors );
       }
     case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftLeftInt16, pVectorRef, pShiftCount );
     case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftLeftInt32, pVectorRef, pShiftCount );
@@ -1968,8 +1988,16 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
     {
     case VectorElementTypes::Int8: case VectorElementTypes::UInt8:
       {
-        // TODO: Implement
-        break;
+        // Convert vector to UInt16 data type, do the shift and convert back
+        ClangASTHelper::ExpressionVectorType vecShiftedVectors;
+
+        for (uint32_t uiGroupIdx = 0; uiGroupIdx <= 1; ++uiGroupIdx)
+        {
+          Expr *pConvertedVector = ConvertVectorUp( VectorElementTypes::UInt8, VectorElementTypes::UInt16, pVectorRef, uiGroupIdx );
+          vecShiftedVectors.push_back( ShiftElements(VectorElementTypes::UInt16, pConvertedVector, bShiftLeft, uiCount) );
+        }
+
+        return ConvertVectorDown( VectorElementTypes::UInt16, VectorElementTypes::UInt8, vecShiftedVectors );
       }
     case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightArithInt16, pVectorRef, pShiftCount );
     case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightLogInt16,   pVectorRef, pShiftCount );
@@ -1989,7 +2017,6 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
     default:                          throw RuntimeErrorException("Shift operations are only defined for integer element types!");
     }
   }
- 
 }
 
 Expr* InstructionSetSSE2::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
@@ -2032,6 +2059,111 @@ Expr* InstructionSetSSE2::RelationalOperator(VectorElementTypes eElementType, Re
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _RelationalOpInteger( eElementType, eOpType, pExprLHS, pExprRHS );
   default:                                                          return BaseType::RelationalOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+  }
+}
+
+Expr* InstructionSetSSE2::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
+{
+  if      (eOpType == UnaryOperatorType::AddressOf)
+  {
+    return _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(pSubExpr->getType()) );
+  }
+  else if ( (eOpType == UnaryOperatorType::BitwiseNot) || (eOpType == UnaryOperatorType::LogicalNot) )
+  {
+    Expr *pFullBitMask = RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
+
+    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, pFullBitMask );
+  }
+  else if (eOpType == UnaryOperatorType::Minus)
+  {
+    return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
+  }
+  else if (eOpType == UnaryOperatorType::Plus)
+  {
+    return pSubExpr;  // Nothing to do
+  }
+  else    // Expected a pre-/post-fixed operator here
+  {
+    IntrinsicsSSE2Enum  eIntrinID   = IntrinsicsSSE2Enum::AddDouble;
+    bool                bPrefixedOp = true;
+
+    switch (eOpType)
+    {
+    case UnaryOperatorType::PostDecrement:
+      {
+        bPrefixedOp = false;
+
+        switch (eElementType)
+        {
+        case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsSSE2Enum::SubtractDouble;   break;
+        case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE2Enum::SubtractInt8;     break;
+        case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt16;    break;
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt32;    break;
+        case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt64;    break;
+        default:                                                          return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
+        }
+
+        break;
+      }
+    case UnaryOperatorType::PostIncrement:
+      {
+        bPrefixedOp = false;
+
+        switch (eElementType)
+        {
+        case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsSSE2Enum::AddDouble;  break;
+        case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE2Enum::AddInt8;    break;
+        case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsSSE2Enum::AddInt16;   break;
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE2Enum::AddInt32;   break;
+        case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE2Enum::AddInt64;   break;
+        default:                                                          return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
+        }
+
+        break;
+      }
+    case UnaryOperatorType::PreDecrement:
+      {
+        bPrefixedOp = true;
+
+        switch (eElementType)
+        {
+        case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsSSE2Enum::SubtractDouble;   break;
+        case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE2Enum::SubtractInt8;     break;
+        case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt16;    break;
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt32;    break;
+        case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE2Enum::SubtractInt64;    break;
+        default:                                                          return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
+        }
+
+        break;
+      }
+    case UnaryOperatorType::PreIncrement:
+      {
+        bPrefixedOp = true;
+
+        switch (eElementType)
+        {
+        case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsSSE2Enum::AddDouble;  break;
+        case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE2Enum::AddInt8;    break;
+        case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsSSE2Enum::AddInt16;   break;
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE2Enum::AddInt32;   break;
+        case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE2Enum::AddInt64;   break;
+        default:                                                          return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
+        }
+
+        break;
+      }
+    default:    throw InternalErrorException("Unsupported unary operation detected!");
+    }
+
+    if (bPrefixedOp)
+    {
+      return _CreatePrefixedUnaryOp( eIntrinID, eElementType, pSubExpr );
+    }
+    else
+    {
+      return _CreatePostfixedUnaryOp( eIntrinID, eElementType, pSubExpr );
+    }
   }
 }
 
@@ -2095,6 +2227,11 @@ Expr* InstructionSetSSE3::InsertElement(VectorElementTypes eElementType, Expr *p
 Expr* InstructionSetSSE3::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
   return BaseType::RelationalOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+}
+
+Expr* InstructionSetSSE3::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
+{
+  return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
 }
 
 
@@ -2245,6 +2382,27 @@ Expr* InstructionSetSSSE3::InsertElement(VectorElementTypes eElementType, Expr *
 Expr* InstructionSetSSSE3::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
   return BaseType::RelationalOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+}
+
+Expr* InstructionSetSSSE3::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
+{
+  if (eOpType == UnaryOperatorType::Minus)
+  {
+    // Boost integer negations by fast SSSE3 "sign" routines
+
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:
+    case VectorElementTypes::UInt8:   return _CreateFunctionCall( IntrinsicsSSSE3Enum::SignInt8,  pSubExpr, BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral(-1) ) );
+    case VectorElementTypes::Int16:
+    case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSSE3Enum::SignInt16, pSubExpr, BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral(-1) ) );
+    case VectorElementTypes::Int32:
+    case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSSE3Enum::SignInt32, pSubExpr, BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral(-1) ) );
+    }
+  }
+
+  // If the function has not returned earlier, let the base handle the unary operator
+  return BaseType::UnaryOperator( eElementType, eOpType, pSubExpr );
 }
 
 
