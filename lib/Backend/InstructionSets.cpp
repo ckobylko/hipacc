@@ -749,7 +749,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
             // Pack each adjacent mask pairs into a mask with a decreased intermediate type
             for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); szOutIdx += static_cast<size_t>(2))
             {
-              vecPackedMasks.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::PackInt16ToInt8, crvecVectorRefs[szOutIdx << 1], crvecVectorRefs[(szOutIdx) + 1] ) );
+              vecPackedMasks.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::PackInt16ToInt8, crvecVectorRefs[ szOutIdx ], crvecVectorRefs[ szOutIdx + 1 ] ) );
             }
 
             // Run the conversion from the decreased intermediate type into the target type
@@ -842,8 +842,8 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           {
             ClangASTHelper::ExpressionVectorType vecConvArgs;
 
-            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx << 1 ] );
-            vecConvArgs.push_back( crvecVectorRefs[(szOutIdx << 1) + 1] );
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx ] );
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx + 1] );
 
             vecConvertedVectors.push_back( ConvertVectorDown( eSourceType, VectorElementTypes::Int32, vecConvArgs ) );
           }
@@ -896,7 +896,36 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
       switch (eTargetType)
       {
-        // TODO: Add all target types
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          // Handle signed and unsigned up-conversion
+          Expr *pInterleaveVector = CreateZeroVector(eSourceType);
+          if (AST::BaseClasses::TypeInfo::IsSigned(eSourceType))
+          {
+            // Insert sign based high-word => Create the corresponding mask by a comparison
+            pInterleaveVector = RelationalOperator( eSourceType, RelationalOperatorType::Less, crvecVectorRefs.front(), pInterleaveVector );
+          }
+
+          return _CreateFunctionCall( (uiGroupIndex == 0) ? IntrinsicsSSE2Enum::UnpackLowInt8 : IntrinsicsSSE2Enum::UnpackHighInt8, crvecVectorRefs.front(), pInterleaveVector );
+        }
+      case VectorElementTypes::Int32:  case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
+      case VectorElementTypes::Double: case VectorElementTypes::Float:
+        {
+          // Convert into a signed / unsigned 16-bit integer intermediate type and then do the final conversion
+          const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(2, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+          const uint32_t            cuiSwapIndex        = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) ) >> 1;
+
+          Expr *pConvertedVector = ConvertVectorUp( eSourceType, ceIntermediateType, crvecVectorRefs.front(), uiGroupIndex / cuiSwapIndex );
+
+          if (uiGroupIndex >= cuiSwapIndex)
+          {
+            uiGroupIndex -= cuiSwapIndex;
+          }
+
+          return ConvertVectorUp( ceIntermediateType, eTargetType, pConvertedVector, uiGroupIndex );
+        }
       }
 
       break;
@@ -916,13 +945,219 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           return _CreateFunctionCall( IntrinsicsSSE2Enum::PackInt16ToUInt8, pValuesLow, pValuesHigh );
         }
       case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+        {
+          // Handle signed and unsigned up-conversion
+          Expr *pInterleaveVector = CreateZeroVector(eSourceType);
+          if (AST::BaseClasses::TypeInfo::IsSigned(eSourceType))
+          {
+            // Insert sign based high-word => Create the corresponding mask by a comparison
+            pInterleaveVector = RelationalOperator( eSourceType, RelationalOperatorType::Less, crvecVectorRefs.front(), pInterleaveVector );
+          }
 
-        // TODO: Add all remianing target types
+          return _CreateFunctionCall( (uiGroupIndex == 0) ? IntrinsicsSSE2Enum::UnpackLowInt16 : IntrinsicsSSE2Enum::UnpackHighInt16, crvecVectorRefs.front(), pInterleaveVector );
+        }
+      case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
+      case VectorElementTypes::Double: case VectorElementTypes::Float:
+        {
+          // Convert into a signed / unsigned 32-bit integer intermediate type and then do the final conversion
+          const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(4, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+          const uint32_t            cuiSwapIndex        = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) ) >> 1;
+
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+          vecConvertedVectors.push_back( ConvertVectorUp( eSourceType, ceIntermediateType, crvecVectorRefs.front(), uiGroupIndex / cuiSwapIndex ) );
+
+          if (uiGroupIndex >= cuiSwapIndex)
+          {
+            uiGroupIndex -= cuiSwapIndex;
+          }
+
+          return _ConvertVector( ceIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
+        }
       }
 
       break;
 
-    // TODO: Add remaining source types
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:
+        {
+          if (AST::BaseClasses::TypeInfo::IsSigned(eSourceType))
+          {
+            Expr *pSelectedGroup = crvecVectorRefs.front();
+            if (uiGroupIndex != 0)
+            {
+              pSelectedGroup = _ShiftIntegerVectorBytes( pSelectedGroup, 8, false );
+            }
+
+            return _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertInt32Double, pSelectedGroup );
+          }
+          else
+          {
+            // No SSE support for this conversion => Extract elements, convert them one by one and recreate the vector
+            ClangASTHelper::ExpressionVectorType vecConvertedElements;
+
+            // Vector creation needs elements in reversed order
+            for (uint32_t uiIdx = 1; uiIdx != -1; --uiIdx)
+            {
+              Expr *pElement = ExtractElement( eSourceType, crvecVectorRefs.front(), uiIdx + (uiGroupIndex << 1) );
+
+              vecConvertedElements.push_back( _CreateValueCast( pElement, _GetClangType(eTargetType), CK_IntegralToFloating ) );
+            }
+
+            return CreateVector(eTargetType, vecConvertedElements, false);
+          }
+        }
+      case VectorElementTypes::Float:
+        {
+          if (AST::BaseClasses::TypeInfo::IsSigned(eSourceType))
+          {
+            return _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertInt32Float, crvecVectorRefs.front() );
+          }
+          else
+          {
+            // No SSE support for this conversion => Extract elements, convert them one by one and recreate the vector
+            ClangASTHelper::ExpressionVectorType vecConvertedElements;
+
+            // Vector creation needs elements in reversed order
+            for (uint32_t uiIdx = 3; uiIdx != -1; --uiIdx)
+            {
+              vecConvertedElements.push_back( _CreateValueCast( ExtractElement(eSourceType, crvecVectorRefs.front(), uiIdx), _GetClangType(eTargetType), CK_IntegralToFloating ) );
+            }
+
+            return CreateVector(eTargetType, vecConvertedElements, false);
+          }
+        }
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+        {
+          // Convert into a signed / unsigned 16-bit integer intermediate type and then do the final conversion
+          const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(2, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+
+          if ((crvecVectorRefs.size() & 1) != 0)
+          {
+            throw InternalErrorException("Expected a power of 2 as argument count for a downward conversion!");
+          }
+
+          for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); szOutIdx += static_cast<size_t>(2))
+          {
+            ClangASTHelper::ExpressionVectorType vecConvArgs;
+
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx ] );
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx + 1 ] );
+
+            vecConvertedVectors.push_back( ConvertVectorDown(eSourceType, ceIntermediateType, vecConvArgs) );
+          }
+
+          return ConvertVectorDown( ceIntermediateType, eTargetType, vecConvertedVectors );
+        }
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          // Shuffle each 4 packed low-words into the low 8 bytes
+          ClangASTHelper::ExpressionVectorType vecShuffledVectors;
+
+          for (size_t szIdx = static_cast<size_t>(0); szIdx < crvecVectorRefs.size(); ++szIdx)
+          {
+            const int32_t ciShuffleConstant = 0xD8;
+
+            Expr *pShuffledVec  = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt16Low,  crvecVectorRefs[ szIdx ], _GetASTHelper().CreateIntegerLiteral( ciShuffleConstant ) );
+            pShuffledVec        = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt16High, pShuffledVec,             _GetASTHelper().CreateIntegerLiteral( ciShuffleConstant ) );
+
+            vecShuffledVectors.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, pShuffledVec, _GetASTHelper().CreateIntegerLiteral( ciShuffleConstant ) ) );
+          }
+
+          // Merge the shuffled vectors
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackLowInt64, vecShuffledVectors[0], vecShuffledVectors[1] );
+        }
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+        {
+          // Handle signed and unsigned up-conversion
+          Expr *pInterleaveVector = CreateZeroVector(eSourceType);
+          if (AST::BaseClasses::TypeInfo::IsSigned(eSourceType))
+          {
+            // Insert sign based high-word => Create the corresponding mask by a comparison
+            pInterleaveVector = RelationalOperator( eSourceType, RelationalOperatorType::Less, crvecVectorRefs.front(), pInterleaveVector );
+          }
+
+          return _CreateFunctionCall( (uiGroupIndex == 0) ? IntrinsicsSSE2Enum::UnpackLowInt32 : IntrinsicsSSE2Enum::UnpackHighInt32, crvecVectorRefs.front(), pInterleaveVector );
+        }
+      }
+
+      break;
+
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:
+        {
+          // No SSE support for this conversion => Extract elements, convert them one by one and recreate the vector
+          ClangASTHelper::ExpressionVectorType vecConvertedElements;
+
+          // Vector creation needs elements in reversed order
+          for (uint32_t uiIdx = 1; uiIdx != -1; --uiIdx)
+          {
+            vecConvertedElements.push_back( _CreateValueCast( ExtractElement(eSourceType, crvecVectorRefs.front(), uiIdx), _GetClangType(eTargetType), CK_IntegralToFloating ) );
+          }
+
+          return CreateVector(eTargetType, vecConvertedElements, false);
+        }
+      case VectorElementTypes::Float:
+        {
+          // Convert into the intermediate type "double" and then do the final conversion
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+
+          for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); ++szOutIdx)
+          {
+            vecConvertedVectors.push_back( ConvertVectorSameSize( eSourceType, VectorElementTypes::Double, crvecVectorRefs[szOutIdx] ) );
+          }
+
+          return ConvertVectorDown( VectorElementTypes::Double, eTargetType, vecConvertedVectors );
+        }
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+        {
+          // Shuffle each packed 2 low-DWords into the lower 8 byte
+          const int32_t ciShuffleConstant = 0xD8;
+
+          Expr *pValuesLow  = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, crvecVectorRefs[0], _GetASTHelper().CreateIntegerLiteral( ciShuffleConstant ) );
+          Expr *pValuesHigh = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleInt32, crvecVectorRefs[1], _GetASTHelper().CreateIntegerLiteral( ciShuffleConstant ) );
+
+          // Merge the shuffled vectors
+          return _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackLowInt64, pValuesLow, pValuesHigh );
+        }
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        {
+          // Convert into a signed / unsigned 32-bit integer intermediate type and then do the final conversion
+          const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(4, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+
+          if ((crvecVectorRefs.size() & 1) != 0)
+          {
+            throw InternalErrorException("Expected a power of 2 as argument count for a downward conversion!");
+          }
+
+          for (size_t szOutIdx = static_cast<size_t>(0); szOutIdx < crvecVectorRefs.size(); szOutIdx += static_cast<size_t>(2))
+          {
+            ClangASTHelper::ExpressionVectorType vecConvArgs;
+
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx ] );
+            vecConvArgs.push_back( crvecVectorRefs[ szOutIdx + 1 ] );
+
+            vecConvertedVectors.push_back( ConvertVectorDown(eSourceType, ceIntermediateType, vecConvArgs) );
+          }
+
+          return ConvertVectorDown( ceIntermediateType, eTargetType, vecConvertedVectors );
+        }
+      }
+
+      break;
     }
   }
 
@@ -1125,8 +1360,12 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
 
   // Integer un-packing function
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt8,   "unpackhi_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt16,  "unpackhi_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt32,  "unpackhi_epi32" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackHighInt64,  "unpackhi_epi64" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt8,    "unpacklo_epi8"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt16,   "unpacklo_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt32,   "unpacklo_epi32" );
   _InitIntrinsic( IntrinsicsSSE2Enum::UnpackLowInt64,   "unpacklo_epi64" );
 
   // Bitwise "xor" functions
@@ -1941,6 +2180,16 @@ Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, Vecto
 
       switch (eSourceType)
       {
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  // Special downward conversion
+      {
+        // We need to remove the high-word from all vector elements to avoid the saturation
+        const int32_t cuiMaskConstant = 0xFFFF;
+
+        Expr *pValuesLow  = ArithmeticOperator( eSourceType, ArithmeticOperatorType::BitwiseAnd, crvecVectorRefs[0], BroadCast( eSourceType, _GetASTHelper().CreateIntegerLiteral(cuiMaskConstant) ) );
+        Expr *pValuesHigh = ArithmeticOperator( eSourceType, ArithmeticOperatorType::BitwiseAnd, crvecVectorRefs[1], BroadCast( eSourceType, _GetASTHelper().CreateIntegerLiteral(cuiMaskConstant) ) );
+
+        return _CreateFunctionCall( IntrinsicsSSE4_1Enum::PackInt32ToUInt16, pValuesLow, pValuesHigh );
+      }
       case VectorElementTypes::Int8:    eConvertID = IntrinsicsSSE4_1Enum::ConvertInt8Int16;    break;
       case VectorElementTypes::UInt8:   eConvertID = IntrinsicsSSE4_1Enum::ConvertUInt8Int16;   break;
       default:                          bHandleConversion = false;

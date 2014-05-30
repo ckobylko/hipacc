@@ -627,8 +627,8 @@ namespace Vectorization
       SqrtDouble,
       StoreDouble,                  StoreInteger,           StoreConditionalInteger,
       SubtractDouble,               SubtractInt8,           SubtractInt16,           SubtractInt32,           SubtractInt64,
-      UnpackHighInt8,               UnpackHighInt64,
-      UnpackLowInt8,                UnpackLowInt64,
+      UnpackHighInt8,               UnpackHighInt16,        UnpackHighInt32,         UnpackHighInt64,
+      UnpackLowInt8,                UnpackLowInt16,         UnpackLowInt32,          UnpackLowInt64,
       XorDouble,                    XorInteger
     };
 
