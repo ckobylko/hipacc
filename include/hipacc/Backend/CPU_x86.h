@@ -36,6 +36,7 @@
 #include "hipacc/DSL/ClassRepresentation.h"
 #include "ClangASTHelper.h"
 #include "CodeGeneratorBaseImplT.h"
+#include "InstructionSets.h"
 #include "OptionParsers.h"
 #include "VectorizationAST.h"
 #include <list>
@@ -72,6 +73,39 @@ namespace Backend
       SSSE_3,   //!< ID of the "Supplemental SIMD Extensions 3" instruction set.
       SSE_4_1,  //!< ID of the "Streaming SIMD Extensions 4.1" instruction set.
       SSE_4_2   //!< ID of the "Streaming SIMD Extensions 4.2" instruction set.
+    };
+
+
+    class DumpInstructionSet
+    {
+    private:
+
+      enum DumpFlags
+      {
+        DF_Arithmetic   = 0x00000001,
+        DF_Blend        = 0x00000002,
+        DF_BroadCast    = 0x00000004,
+        DF_CheckActive  = 0x00000008,
+        DF_Convert      = 0x00000010,
+        DF_CreateVector = 0x00000020
+      };
+
+    private:
+
+      ClangASTHelper _ASTHelper;
+
+      uint32_t _uiDumpFlags;
+
+
+      ::clang::ArraySubscriptExpr*  _CreateArraySubscript(::clang::DeclRefExpr *pArrayRef, std::int32_t iIndex);
+      ::clang::StringLiteral*       _CreateElementTypeString(Vectorization::AST::BaseClasses::TypeInfo::KnownTypes eElementType);
+
+
+      ::clang::FunctionDecl* _DumpInstructionSet(Vectorization::InstructionSetBasePtr spInstructionSet, std::string strFunctionName);
+
+    public:
+
+      DumpInstructionSet(::clang::ASTContext &rASTContext, std::string strDumpfile, InstructionSetEnum eIntrSet);
     };
 
 
