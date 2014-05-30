@@ -246,6 +246,10 @@ namespace Backend
      *  \param  bIsLValue           Specifies, whether the static cast expression is used as a L-value of another expression. */
     ::clang::CXXStaticCastExpr*       CreateStaticCast(::clang::Expr *pOperandExpression, const ::clang::QualType &crReturnType, ::clang::CastKind eCastKind, bool bIsLValue = false);
 
+    /** \brief  Creates a string literal expression (i.e. a constant C-string).
+     *  \param  strValue  The value of the string literal. */
+    ::clang::StringLiteral*           CreateStringLiteral(std::string strValue);
+
     /** \brief  Creates an unary operator object of a specified type.
      *  \param  pSubExpression  A pointer to the expression object, which shall be the sub-expression of the operator.
      *  \param  eOperatorKind   The type of the unary operator.
@@ -311,17 +315,18 @@ namespace Backend
 
 
   // Template function specializations
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(bool     TValue)   { return CreateBoolLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int8_t   TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint8_t  TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int16_t  TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint16_t TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int32_t  TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint32_t TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int64_t  TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint64_t TValue)   { return CreateIntegerLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(float    TValue)   { return CreateFloatingLiteral(TValue); }
-  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(double   TValue)   { return CreateFloatingLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(bool         TValue)   { return CreateBoolLiteral(TValue);     }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int8_t       TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint8_t      TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int16_t      TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint16_t     TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int32_t      TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint32_t     TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(int64_t      TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(uint64_t     TValue)   { return CreateIntegerLiteral(TValue);  }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(float        TValue)   { return CreateFloatingLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(double       TValue)   { return CreateFloatingLiteral(TValue); }
+  template<> inline ::clang::Expr* ClangASTHelper::CreateLiteral(std::string  TValue)   { return CreateStringLiteral(TValue);   }
 
 } // end namespace Backend
 } // end namespace hipacc

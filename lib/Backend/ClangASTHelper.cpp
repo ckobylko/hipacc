@@ -217,6 +217,11 @@ CXXStaticCastExpr* ClangASTHelper::CreateStaticCast(Expr *pOperandExpression, co
   return CXXStaticCastExpr::Create(GetASTContext(), crReturnType, eValueKind, eCastKind, pOperandExpression, &CastPath, GetASTContext().getTrivialTypeSourceInfo(crReturnType), SourceLocation(), SourceLocation(), SourceRange());
 }
 
+StringLiteral* ClangASTHelper::CreateStringLiteral(string strValue)
+{
+  return StringLiteral::Create( GetASTContext(), llvm::StringRef(strValue), StringLiteral::Ascii, false, GetASTContext().getPointerType( GetASTContext().CharTy ), SourceLocation() );
+}
+
 UnaryOperator* ClangASTHelper::CreateUnaryOperator(Expr *pSubExpression, UnaryOperatorKind eOperatorKind, const QualType &crResultType)
 {
   return ASTNode::createUnaryOperator(GetASTContext(), pSubExpression, eOperatorKind, crResultType);
