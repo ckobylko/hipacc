@@ -1214,24 +1214,6 @@ void AST::Expressions::BinaryOperator::SetSubExpression(IndexType SubExprIndex, 
 
 
 // Implementation of class AST::Expressions::ArithmeticOperator
-string AST::Expressions::ArithmeticOperator::_GetOperatorTypeString(ArithmeticOperatorType eType)
-{
-  switch (eType)
-  {
-  case ArithmeticOperatorType::Add:           return "Add";
-  case ArithmeticOperatorType::BitwiseAnd:    return "BitwiseAnd";
-  case ArithmeticOperatorType::BitwiseOr:     return "BitwiseOr";
-  case ArithmeticOperatorType::BitwiseXOr:    return "BitwiseXOr";
-  case ArithmeticOperatorType::Divide:        return "Divide";
-  case ArithmeticOperatorType::Modulo:        return "Modulo";
-  case ArithmeticOperatorType::Multiply:      return "Multiply";
-  case ArithmeticOperatorType::ShiftLeft:     return "ShiftLeft";
-  case ArithmeticOperatorType::ShiftRight:    return "ShiftRight";
-  case ArithmeticOperatorType::Subtract:      return "Subtract";
-  default:                                    throw InternalErrorException("Unknown arithmetic operator type!");
-  }
-}
-
 AST::Expressions::ArithmeticOperatorPtr AST::Expressions::ArithmeticOperator::Create(ArithmeticOperatorType eOpType, ExpressionPtr spLHS, ExpressionPtr spRHS)
 {
   ArithmeticOperatorPtr spArithmeticOp = AST::CreateNode<ArithmeticOperator>();
@@ -1247,9 +1229,27 @@ string AST::Expressions::ArithmeticOperator::DumpToXML(const size_t cszIntend) c
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["type"] = _GetOperatorTypeString(_eOpType);
+  mapAttributes["type"] = GetOperatorTypeString(_eOpType);
 
   return XMLSupport::CreateXmlTag(cszIntend, "ArithmeticOperator", _DumpSubExpressionsToXML(cszIntend + 2), mapAttributes);
+}
+
+string AST::Expressions::ArithmeticOperator::GetOperatorTypeString(ArithmeticOperatorType eType)
+{
+  switch (eType)
+  {
+  case ArithmeticOperatorType::Add:           return "Add";
+  case ArithmeticOperatorType::BitwiseAnd:    return "BitwiseAnd";
+  case ArithmeticOperatorType::BitwiseOr:     return "BitwiseOr";
+  case ArithmeticOperatorType::BitwiseXOr:    return "BitwiseXOr";
+  case ArithmeticOperatorType::Divide:        return "Divide";
+  case ArithmeticOperatorType::Modulo:        return "Modulo";
+  case ArithmeticOperatorType::Multiply:      return "Multiply";
+  case ArithmeticOperatorType::ShiftLeft:     return "ShiftLeft";
+  case ArithmeticOperatorType::ShiftRight:    return "ShiftRight";
+  case ArithmeticOperatorType::Subtract:      return "Subtract";
+  default:                                    throw InternalErrorException("Unknown arithmetic operator type!");
+  }
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType() const
@@ -1411,22 +1411,6 @@ void AST::Expressions::AssignmentOperator::SetSubExpression(IndexType SubExprInd
 
 
 // Implementation of class AST::Expressions::RelationalOperator
-string AST::Expressions::RelationalOperator::_GetOperatorTypeString(RelationalOperatorType eType)
-{
-  switch (eType)
-  {
-  case RelationalOperatorType::Equal:         return "Equal";
-  case RelationalOperatorType::Greater:       return "Greater";
-  case RelationalOperatorType::GreaterEqual:  return "GreaterEqual";
-  case RelationalOperatorType::Less:          return "Less";
-  case RelationalOperatorType::LessEqual:     return "LessEqual";
-  case RelationalOperatorType::LogicalAnd:    return "LogicalAnd";
-  case RelationalOperatorType::LogicalOr:     return "LogicalOr";
-  case RelationalOperatorType::NotEqual:      return "NotEqual";
-  default:                                    throw InternalErrorException("Unknown relational operator type!");
-  }
-}
-
 AST::Expressions::RelationalOperatorPtr AST::Expressions::RelationalOperator::Create(RelationalOperatorType eOpType, ExpressionPtr spLHS, ExpressionPtr spRHS)
 {
   RelationalOperatorPtr spNewRelOp = AST::CreateNode< RelationalOperator >();
@@ -1447,7 +1431,7 @@ string AST::Expressions::RelationalOperator::DumpToXML(const size_t cszIntend) c
 
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["type"] = _GetOperatorTypeString(_eOpType);
+  mapAttributes["type"] = GetOperatorTypeString(_eOpType);
 
   return XMLSupport::CreateXmlTag( cszIntend, "RelationalOperator", strXmlString, mapAttributes );
 }
@@ -1476,6 +1460,22 @@ AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetComparisonTy
   KnownTypes eCompType = BaseClasses::TypeInfo::GetPromotedType(TypeLHS.GetType(), TypeRHS.GetType());
 
   return BaseClasses::TypeInfo(eCompType, true, false);
+}
+
+string AST::Expressions::RelationalOperator::GetOperatorTypeString(RelationalOperatorType eType)
+{
+  switch (eType)
+  {
+  case RelationalOperatorType::Equal:         return "Equal";
+  case RelationalOperatorType::Greater:       return "Greater";
+  case RelationalOperatorType::GreaterEqual:  return "GreaterEqual";
+  case RelationalOperatorType::Less:          return "Less";
+  case RelationalOperatorType::LessEqual:     return "LessEqual";
+  case RelationalOperatorType::LogicalAnd:    return "LogicalAnd";
+  case RelationalOperatorType::LogicalOr:     return "LogicalOr";
+  case RelationalOperatorType::NotEqual:      return "NotEqual";
+  default:                                    throw InternalErrorException("Unknown relational operator type!");
+  }
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::RelationalOperator::GetResultType() const
@@ -1609,17 +1609,6 @@ void AST::VectorSupport::BroadCast::SetSubExpression(IndexType SubExprIndex, Exp
 
 
 // Implementation of class AST::VectorSupport::CheckActiveElements
-string AST::VectorSupport::CheckActiveElements::_GetCheckTypeString(CheckType eType)
-{
-  switch (eType)
-  {
-  case CheckType::All:    return "All";
-  case CheckType::Any:    return "Any";
-  case CheckType::None:   return "None";
-  default:                throw InternalErrorException("Unknown check type!");
-  }
-}
-
 AST::VectorSupport::CheckActiveElementsPtr AST::VectorSupport::CheckActiveElements::Create(CheckType eCheckType, ExpressionPtr spSubExpression)
 {
   CheckActiveElementsPtr spCheckElements = AST::CreateNode<CheckActiveElements>();
@@ -1634,7 +1623,7 @@ string AST::VectorSupport::CheckActiveElements::DumpToXML(const size_t cszIntend
 {
   XMLSupport::AttributesMapType mapAttributes;
 
-  mapAttributes["check_type"] = _GetCheckTypeString( GetCheckType() );
+  mapAttributes["check_type"] = GetCheckTypeString( GetCheckType() );
 
   string strXmlString("");
 
@@ -1642,6 +1631,17 @@ string AST::VectorSupport::CheckActiveElements::DumpToXML(const size_t cszIntend
   strXmlString += XMLSupport::CreateXmlTag( cszIntend + 2, "SubExpression", _DumpChildToXml(GetSubExpression(), cszIntend + 4) );
 
   return XMLSupport::CreateXmlTag(cszIntend, "CheckActiveElements", strXmlString, mapAttributes);
+}
+
+string AST::VectorSupport::CheckActiveElements::GetCheckTypeString(CheckType eType)
+{
+  switch (eType)
+  {
+  case CheckType::All:    return "All";
+  case CheckType::Any:    return "Any";
+  case CheckType::None:   return "None";
+  default:                throw InternalErrorException("Unknown check type!");
+  }
 }
 
 AST::BaseClasses::ExpressionPtr AST::VectorSupport::CheckActiveElements::GetSubExpression(IndexType SubExprIndex)

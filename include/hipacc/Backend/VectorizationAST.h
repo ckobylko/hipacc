@@ -1198,9 +1198,6 @@ namespace Vectorization
 
         ArithmeticOperatorType    _eOpType;
 
-        static std::string _GetOperatorTypeString(ArithmeticOperatorType eType);
-
-
       public:
 
         static ArithmeticOperatorPtr Create(ArithmeticOperatorType eOpType = ArithmeticOperatorType::Add, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
@@ -1208,6 +1205,9 @@ namespace Vectorization
         inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator), _eOpType(ArithmeticOperatorType::Add)  {}
 
         virtual ~ArithmeticOperator() {}
+
+
+        static std::string GetOperatorTypeString(ArithmeticOperatorType eType);
 
 
         inline ArithmeticOperatorType GetOperatorType() const                           { return _eOpType; }
@@ -1285,8 +1285,6 @@ namespace Vectorization
 
         RelationalOperatorType  _eOpType;
 
-        static std::string _GetOperatorTypeString(RelationalOperatorType eType);
-
       public:
 
         static RelationalOperatorPtr  Create(RelationalOperatorType eOpType = RelationalOperatorType::Equal, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
@@ -1294,6 +1292,9 @@ namespace Vectorization
         inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator), _eOpType(RelationalOperatorType::Equal)  {}
 
         virtual ~RelationalOperator() {}
+
+
+        static std::string GetOperatorTypeString(RelationalOperatorType eType);
 
 
         BaseClasses::TypeInfo GetComparisonType() const;
@@ -1464,9 +1465,6 @@ namespace Vectorization
         CheckType     _eCheckType;
         ExpressionPtr _spSubExpression;
 
-
-        static std::string _GetCheckTypeString(CheckType eType);
-
       public:
 
         static CheckActiveElementsPtr Create(CheckType eCheckType = CheckType::All, ExpressionPtr spSubExpression = nullptr);
@@ -1474,6 +1472,9 @@ namespace Vectorization
         inline CheckActiveElements() : BaseType(BaseType::VectorExpressionType::CheckActiveElements), _eCheckType(CheckType::All), _spSubExpression(nullptr)  {}
 
         virtual ~CheckActiveElements()  {}
+
+
+        static std::string GetCheckTypeString(CheckType eType);
 
 
         inline CheckType  GetCheckType() const                    { return _eCheckType; }
