@@ -531,6 +531,11 @@ Expr* InstructionSetSSE::InsertElement(VectorElementTypes eElementType, Expr *pV
   }
 }
 
+bool InstructionSetSSE::IsElementTypeSupported(VectorElementTypes eElementType) const
+{
+  return (eElementType == VectorElementTypes::Float);
+}
+
 Expr* InstructionSetSSE::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
 {
   _CheckElementType(eElementType);
@@ -1929,6 +1934,23 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
       return _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, _InsertElementDouble( pVectorRef, pBroadCast, uiIndex ) );
     }
   default:  return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
+  }
+}
+
+bool InstructionSetSSE2::IsElementTypeSupported(VectorElementTypes eElementType) const
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+  case VectorElementTypes::Int8:
+  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16:
+  case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32:
+  case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64:
+  case VectorElementTypes::UInt64:    return true;
+  default:                            return BaseType::IsElementTypeSupported( eElementType );
   }
 }
 
