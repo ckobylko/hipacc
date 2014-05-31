@@ -49,17 +49,34 @@ ArraySubscriptExpr* CPU_x86::DumpInstructionSet::_CreateArraySubscript(DeclRefEx
   return _ASTHelper.CreateArraySubscriptExpression( pArrayRef, _ASTHelper.CreateLiteral(iIndex), pArrayRef->getType()->getAsArrayTypeUnsafe()->getElementType() );
 }
 
-StringLiteral* CPU_x86::DumpInstructionSet::_CreateElementTypeString(Vectorization::AST::BaseClasses::TypeInfo::KnownTypes eElementType)
+StringLiteral* CPU_x86::DumpInstructionSet::_CreateElementTypeString(VectorElementTypes eElementType)
 {
-  return _ASTHelper.CreateStringLiteral( Vectorization::AST::BaseClasses::TypeInfo::GetTypeString(eElementType) );
+  return _ASTHelper.CreateStringLiteral( TypeInfo::GetTypeString(eElementType) );
 }
+
+QualType CPU_x86::DumpInstructionSet::_GetClangType(VectorElementTypes eElementType)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:  return _ASTHelper.GetASTContext().DoubleTy;
+  case VectorElementTypes::Float:   return _ASTHelper.GetASTContext().FloatTy;
+  case VectorElementTypes::Int8:    return _ASTHelper.GetASTContext().CharTy;
+  case VectorElementTypes::UInt8:   return _ASTHelper.GetASTContext().UnsignedCharTy;
+  case VectorElementTypes::Int16:   return _ASTHelper.GetASTContext().ShortTy;
+  case VectorElementTypes::UInt16:  return _ASTHelper.GetASTContext().UnsignedShortTy;
+  case VectorElementTypes::Int32:   return _ASTHelper.GetASTContext().IntTy;
+  case VectorElementTypes::UInt32:  return _ASTHelper.GetASTContext().UnsignedIntTy;
+  case VectorElementTypes::Int64:   return _ASTHelper.GetASTContext().LongLongTy;
+  case VectorElementTypes::UInt64:  return _ASTHelper.GetASTContext().UnsignedLongLongTy;
+  default:                          throw InternalErrorException( "CPU_x86::DumpInstructionSet::_GetClangType() -> Unsupported vector element type detected!" );
+  }
+}
+
 
 FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::InstructionSetBasePtr spInstructionSet, string strFunctionName)
 {
   #define DUMP_INSTR(__container, __instr)  try{ __container.push_back(__instr); } catch (exception &e) { __container.push_back( _ASTHelper.CreateStringLiteral(e.what()) ); }
 
-  typedef Vectorization::AST::BaseClasses::TypeInfo   TypeInfo;
-  typedef TypeInfo::KnownTypes                        VectorElementTypes;
   typedef map< VectorElementTypes, DeclRefExpr* >     VectorDeclRefMapType;
   
   list< VectorElementTypes > lstSupportedElementTypes;
@@ -362,6 +379,221 @@ FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::In
     vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
   }
 
+  // Dump extract element
+  if (_uiDumpFlags & DF_Extract)
+  {
+    vecBody.push_back(_ASTHelper.CreateStringLiteral("ExtractElement"));
+
+    ClangASTHelper::StatementVectorType vecExtractElement;
+
+    for (auto itElementType : lstSupportedElementTypes)
+    {
+      vecExtractElement.push_back( _CreateElementTypeString(itElementType) );
+
+      Expr *pVectorRef = _CreateArraySubscript( mapVectorArrayDecls[ itElementType ], 0 );
+
+      for (uint32_t uiIndex = 0; uiIndex < spInstructionSet->GetVectorElementCount(itElementType); ++uiIndex)
+      {
+        DUMP_INSTR( vecExtractElement, spInstructionSet->ExtractElement( itElementType, pVectorRef, uiIndex ) );
+      }
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecExtractElement) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+  // Dump insert element
+  if (_uiDumpFlags & DF_Insert)
+  {
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("InsertElement") );
+
+    ClangASTHelper::StatementVectorType vecInsertElement;
+
+    for (auto itElementType : lstSupportedElementTypes)
+    {
+      vecInsertElement.push_back( _CreateElementTypeString(itElementType) );
+
+      Expr *pVectorRef    = _CreateArraySubscript( mapVectorArrayDecls[itElementType], 0 );
+      Expr *pInsertValue  = _ASTHelper.CreateIntegerLiteral( 2 );
+
+      for (uint32_t uiIndex = 0; uiIndex < spInstructionSet->GetVectorElementCount(itElementType); ++uiIndex)
+      {
+        DUMP_INSTR( vecInsertElement, spInstructionSet->InsertElement( itElementType, pVectorRef, pInsertValue, uiIndex ) );
+      }
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecInsertElement) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+  // Dump memory transfers
+  if (_uiDumpFlags & DF_MemoryTransfers)
+  {
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("MemoryTransfers") );
+
+    ClangASTHelper::StatementVectorType vecMemoryTransfers;
+
+    VectorDeclRefMapType  mapPointerDecls;
+
+    // Create pointer declarations
+    vecMemoryTransfers.push_back( _ASTHelper.CreateStringLiteral("Pointer declarations") );
+    for (auto itElementType : lstSupportedElementTypes)
+    {
+      QualType qtPointerType = _ASTHelper.GetPointerType( _GetClangType(itElementType) );
+
+      VarDecl *pPointerDecl = _ASTHelper.CreateVariableDeclaration( pFunctionDecl, string("p") + TypeInfo::GetTypeString(itElementType), qtPointerType, nullptr );
+
+      mapPointerDecls[ itElementType ] = _ASTHelper.CreateDeclarationReferenceExpression( pPointerDecl );
+
+      vecMemoryTransfers.push_back( _ASTHelper.CreateDeclarationStatement(pPointerDecl) );
+    }
+    vecMemoryTransfers.push_back( _ASTHelper.CreateStringLiteral("") );
+
+
+    const char *apcDumpName[] = { "LoadVector", "StoreVector", "StoreVectorMasked" };
+
+    for (int i = 0; i <= 2; ++i)
+    {
+      vecMemoryTransfers.push_back( _ASTHelper.CreateStringLiteral(apcDumpName[i]) );
+
+      ClangASTHelper::StatementVectorType vecCurrentTransfer;
+      
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        vecCurrentTransfer.push_back(_CreateElementTypeString(itElementType));
+
+        Expr *pVectorRef  = _CreateArraySubscript( mapVectorArrayDecls[itElementType], 0 );
+        Expr *pPointerRef = mapPointerDecls[itElementType];
+
+        if (i == 0)
+        {
+          DUMP_INSTR( vecCurrentTransfer, spInstructionSet->LoadVector(itElementType, pPointerRef) );
+        }
+        else if (i == 1)
+        {
+          DUMP_INSTR( vecCurrentTransfer, spInstructionSet->StoreVector(itElementType, pPointerRef, pVectorRef) );
+        }
+        else
+        {
+          Expr *pMaskRef = _CreateArraySubscript(mapVectorArrayDecls[itElementType], 1);
+
+          DUMP_INSTR( vecCurrentTransfer, spInstructionSet->StoreVectorMasked(itElementType, pPointerRef, pVectorRef, pMaskRef) );
+        }
+      }
+
+      vecMemoryTransfers.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentTransfer) );
+      vecMemoryTransfers.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecMemoryTransfers) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+  // Dump relational operators
+  if (_uiDumpFlags & DF_Relational)
+  {
+    typedef Vectorization::AST::Expressions::RelationalOperator   RelationalOperator;
+    typedef RelationalOperator::RelationalOperatorType            RelationalOperatorType;
+
+    RelationalOperatorType aeRelationalOps[] =  { RelationalOperatorType::Equal,     RelationalOperatorType::Greater,   RelationalOperatorType::GreaterEqual,
+                                                  RelationalOperatorType::Less,      RelationalOperatorType::LessEqual, RelationalOperatorType::LogicalAnd,
+                                                  RelationalOperatorType::LogicalOr, RelationalOperatorType::NotEqual };
+
+
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("RelationalOperator") );
+
+    ClangASTHelper::StatementVectorType vecRelationalOperators;
+
+    for (auto eCurrentOp : aeRelationalOps)
+    {
+      vecRelationalOperators.push_back( _ASTHelper.CreateStringLiteral( RelationalOperator::GetOperatorTypeString(eCurrentOp) ) );
+
+      ClangASTHelper::StatementVectorType vecCurrentOp;
+
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        auto itArrayDecl = mapVectorArrayDecls[itElementType];
+
+        vecCurrentOp.push_back( _CreateElementTypeString(itElementType) );
+        DUMP_INSTR( vecCurrentOp, spInstructionSet->RelationalOperator( itElementType, eCurrentOp, _CreateArraySubscript(itArrayDecl, 0), _CreateArraySubscript(itArrayDecl, 1) ) );
+      }
+
+      vecRelationalOperators.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentOp) );
+      vecRelationalOperators.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecRelationalOperators) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+  // Dump shift elements
+  if (_uiDumpFlags & DF_ShiftElements)
+  {
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("ShiftElements") );
+
+    ClangASTHelper::StatementVectorType vecShiftElements;
+
+    const char *apcDumpName[] = { "Shift left by zero", "Shift left by constant", "Shift right by zero", "Shift left by constant" };
+
+    for (int i = 0; i <= 3; ++i)
+    {
+      vecShiftElements.push_back( _ASTHelper.CreateStringLiteral(apcDumpName[i]) );
+
+      ClangASTHelper::StatementVectorType vecCurrentShift;
+      
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        vecCurrentShift.push_back( _CreateElementTypeString(itElementType) );
+
+        Expr *pVectorRef  = _CreateArraySubscript( mapVectorArrayDecls[itElementType], 0 );
+
+        DUMP_INSTR( vecCurrentShift, spInstructionSet->ShiftElements( itElementType, pVectorRef, i < 2, (i & 1) ? (i + 1) : 0 ) );
+      }
+
+      vecShiftElements.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentShift) );
+      vecShiftElements.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecShiftElements) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+  // Dump unary operators
+  if (_uiDumpFlags & DF_Unary)
+  {
+    typedef Vectorization::AST::Expressions::UnaryOperator    UnaryOperator;
+    typedef UnaryOperator::UnaryOperatorType                  UnaryOperatorType;
+
+    UnaryOperatorType aeUnaryOps[] =  { UnaryOperatorType::AddressOf,     UnaryOperatorType::BitwiseNot,    UnaryOperatorType::LogicalNot,
+                                        UnaryOperatorType::Minus,         UnaryOperatorType::Plus,          UnaryOperatorType::PostDecrement,
+                                        UnaryOperatorType::PostIncrement, UnaryOperatorType::PreDecrement,  UnaryOperatorType::PreIncrement };
+
+
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("UnaryOperator") );
+
+    ClangASTHelper::StatementVectorType vecUnaryOperators;
+
+    for (auto eCurrentOp : aeUnaryOps)
+    {
+      vecUnaryOperators.push_back( _ASTHelper.CreateStringLiteral( UnaryOperator::GetOperatorTypeString(eCurrentOp) ) );
+
+      ClangASTHelper::StatementVectorType vecCurrentOp;
+
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        auto itArrayDecl = mapVectorArrayDecls[itElementType];
+
+        vecCurrentOp.push_back( _CreateElementTypeString(itElementType) );
+        DUMP_INSTR( vecCurrentOp, spInstructionSet->UnaryOperator( itElementType, eCurrentOp, _CreateArraySubscript(itArrayDecl, 0) ) );
+      }
+
+      vecUnaryOperators.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentOp) );
+      vecUnaryOperators.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecUnaryOperators) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
 
 
   pFunctionDecl->setBody( _ASTHelper.CreateCompoundStatement(vecBody) );
@@ -393,6 +625,12 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   _uiDumpFlags |= DF_CheckActive;
   _uiDumpFlags |= DF_Convert;
   _uiDumpFlags |= DF_CreateVector;
+  _uiDumpFlags |= DF_Extract;
+  _uiDumpFlags |= DF_Insert;
+  _uiDumpFlags |= DF_MemoryTransfers;
+  _uiDumpFlags |= DF_Relational;
+  _uiDumpFlags |= DF_ShiftElements;
+  _uiDumpFlags |= DF_Unary;
 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;

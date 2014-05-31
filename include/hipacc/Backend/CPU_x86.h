@@ -80,14 +80,23 @@ namespace Backend
     {
     private:
 
+      typedef Vectorization::AST::BaseClasses::TypeInfo   TypeInfo;
+      typedef TypeInfo::KnownTypes                        VectorElementTypes;
+
       enum DumpFlags
       {
-        DF_Arithmetic   = 0x00000001,
-        DF_Blend        = 0x00000002,
-        DF_BroadCast    = 0x00000004,
-        DF_CheckActive  = 0x00000008,
-        DF_Convert      = 0x00000010,
-        DF_CreateVector = 0x00000020
+        DF_Arithmetic       = 0x00000001,
+        DF_Blend            = 0x00000002,
+        DF_BroadCast        = 0x00000004,
+        DF_CheckActive      = 0x00000008,
+        DF_Convert          = 0x00000010,
+        DF_CreateVector     = 0x00000020,
+        DF_Extract          = 0x00000040,
+        DF_Insert           = 0x00000080,
+        DF_MemoryTransfers  = 0x00000100,
+        DF_Relational       = 0x00000200,
+        DF_ShiftElements    = 0x00000400,
+        DF_Unary            = 0x00000800
       };
 
     private:
@@ -98,7 +107,9 @@ namespace Backend
 
 
       ::clang::ArraySubscriptExpr*  _CreateArraySubscript(::clang::DeclRefExpr *pArrayRef, std::int32_t iIndex);
-      ::clang::StringLiteral*       _CreateElementTypeString(Vectorization::AST::BaseClasses::TypeInfo::KnownTypes eElementType);
+      ::clang::StringLiteral*       _CreateElementTypeString(VectorElementTypes eElementType);
+
+      ::clang::QualType             _GetClangType(VectorElementTypes eElementType);
 
 
       ::clang::FunctionDecl* _DumpInstructionSet(Vectorization::InstructionSetBasePtr spInstructionSet, std::string strFunctionName);
