@@ -485,7 +485,7 @@ Expr* InstructionSetSSE::ExtractElement(VectorElementTypes eElementType, Expr *p
 
     IntegerLiteral *pControlFlags = _GetASTHelper().CreateIntegerLiteral(iControlFlags);
 
-    pIntermediateValue = _CreateFunctionCall(IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, pVectorRef, pControlFlags);
+    pIntermediateValue = _CreateFunctionCall(IntrinsicsSSEEnum::ShuffleFloat, pVectorRef, CreateZeroVector(eElementType), pControlFlags);
   }
 
   return _CreateFunctionCall(IntrinsicsSSEEnum::ExtractLowestFloat, pIntermediateValue);
@@ -570,7 +570,14 @@ Expr* InstructionSetSSE::RelationalOperator(VectorElementTypes eElementType, Rel
 
 Expr* InstructionSetSSE::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
 {
-  throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+  if (uiCount == 0)
+  {
+    return pVectorRef;  // Nothing to do
+  }
+  else
+  {
+    throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+  }
 }
 
 Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
@@ -578,6 +585,13 @@ Expr* InstructionSetSSE::StoreVector(VectorElementTypes eElementType, Expr *pPoi
   _CheckElementType(eElementType);
 
   return _CreateFunctionCall(IntrinsicsSSEEnum::StoreFloat, pPointerRef, pVectorValue);
+}
+
+Expr* InstructionSetSSE::StoreVectorMasked(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue, Expr *pMaskRef)
+{
+  _CheckElementType(eElementType);
+
+  return StoreVector( eElementType, pPointerRef, BlendVectors(eElementType, pMaskRef, pVectorValue, LoadVector(eElementType, pPointerRef) ) );
 }
 
 Expr* InstructionSetSSE::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
@@ -1766,7 +1780,7 @@ Expr* InstructionSetSSE2::ExtractElement(VectorElementTypes eElementType, Expr *
       else if (uiIndex == 1)
       {
         // Swap the highest and lowest vector element
-        pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, pVectorRef, pVectorRef, _GetASTHelper().CreateIntegerLiteral(1) );
+        pIntermediateValue = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, pVectorRef, CreateZeroVector(eElementType), _GetASTHelper().CreateIntegerLiteral(1) );
       }
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::ExtractLowestDouble, pIntermediateValue);
@@ -1981,7 +1995,7 @@ Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType(VectorElementTypes::Int32) ) );
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::LoadInteger, pPointerCast);
     }
@@ -2068,11 +2082,42 @@ Expr* InstructionSetSSE2::StoreVector(VectorElementTypes eElementType, Expr *pPo
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType(VectorElementTypes::Int32) ) );
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::StoreInteger, pPointerCast, pVectorValue);
     }
   default:  return BaseType::StoreVector(eElementType, pPointerRef, pVectorValue);
+  }
+}
+
+Expr* InstructionSetSSE2::StoreVectorMasked(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue, Expr *pMaskRef)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      Expr *pCastedVector = _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, pVectorValue );
+      Expr *pCastedMask   = _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, pMaskRef );
+
+      return StoreVectorMasked( VectorElementTypes::UInt64, pPointerRef, pCastedVector, pCastedMask );
+    }
+  case VectorElementTypes::Float:
+    {
+      Expr *pCastedVector = _CreateFunctionCall( IntrinsicsSSE2Enum::CastFloatToInteger, pVectorValue );
+      Expr *pCastedMask   = _CreateFunctionCall( IntrinsicsSSE2Enum::CastFloatToInteger, pMaskRef );
+
+      return StoreVectorMasked( VectorElementTypes::UInt32, pPointerRef, pCastedVector, pCastedMask );
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      Expr *pCastedPointer = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( _GetClangType(VectorElementTypes::Int8) ) );
+
+      return _CreateFunctionCall( IntrinsicsSSE2Enum::StoreConditionalInteger, pVectorValue, pMaskRef, pCastedPointer );
+    }
+  default:    return BaseType::StoreVectorMasked( eElementType, pPointerRef, pVectorValue, pMaskRef );
   }
 }
 
