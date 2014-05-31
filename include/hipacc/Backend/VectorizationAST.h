@@ -1095,9 +1095,6 @@ namespace Vectorization
 
         UnaryOperatorType    _eOpType;
 
-        static std::string _GetOperatorTypeString(UnaryOperatorType eType);
-
-
       public:
 
         static UnaryOperatorPtr Create(UnaryOperatorType eType = UnaryOperatorType::Plus, BaseClasses::ExpressionPtr spSubExpression = nullptr);
@@ -1105,6 +1102,9 @@ namespace Vectorization
         inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator), _eOpType(UnaryOperatorType::Plus)  {}
 
         virtual ~UnaryOperator()  {}
+
+
+        static std::string GetOperatorTypeString(UnaryOperatorType eType);
 
 
         inline UnaryOperatorType  GetOperatorType() const                     { return _eOpType; }

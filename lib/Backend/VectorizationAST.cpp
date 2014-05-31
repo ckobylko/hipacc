@@ -1118,7 +1118,24 @@ AST::BaseClasses::TypeInfo AST::Expressions::Parenthesis::GetResultType() const
 
 
 // Implementation of class AST::Expressions::UnaryOperator
-string AST::Expressions::UnaryOperator::_GetOperatorTypeString(UnaryOperatorType eType)
+AST::Expressions::UnaryOperatorPtr AST::Expressions::UnaryOperator::Create(UnaryOperatorType eType, BaseClasses::ExpressionPtr spSubExpression)
+{
+  UnaryOperatorPtr spNewUnaryOp = AST::CreateNode<UnaryOperator>();
+
+  spNewUnaryOp->SetOperatorType(eType);
+  spNewUnaryOp->SetSubExpression(spSubExpression);
+
+  return spNewUnaryOp;
+}
+
+string AST::Expressions::UnaryOperator::DumpToXML(const size_t cszIntend) const
+{
+  XMLSupport::AttributesMapType mapAttributes;
+  mapAttributes["type"] = GetOperatorTypeString( GetOperatorType() );
+  return XMLSupport::CreateXmlTag(cszIntend, "UnaryOperator", _DumpSubExpressionToXML(cszIntend + 2), mapAttributes);
+}
+
+string AST::Expressions::UnaryOperator::GetOperatorTypeString(UnaryOperatorType eType)
 {
   switch (eType)
   {
@@ -1133,23 +1150,6 @@ string AST::Expressions::UnaryOperator::_GetOperatorTypeString(UnaryOperatorType
   case UnaryOperatorType::PreIncrement:     return "PreIncrement";
   default:                                  throw InternalErrorException("Unknown unary operator type!");
   }
-}
-
-AST::Expressions::UnaryOperatorPtr AST::Expressions::UnaryOperator::Create(UnaryOperatorType eType, BaseClasses::ExpressionPtr spSubExpression)
-{
-  UnaryOperatorPtr spNewUnaryOp = AST::CreateNode<UnaryOperator>();
-
-  spNewUnaryOp->SetOperatorType(eType);
-  spNewUnaryOp->SetSubExpression(spSubExpression);
-
-  return spNewUnaryOp;
-}
-
-string AST::Expressions::UnaryOperator::DumpToXML(const size_t cszIntend) const
-{
-  XMLSupport::AttributesMapType mapAttributes;
-  mapAttributes["type"] = _GetOperatorTypeString( GetOperatorType() );
-  return XMLSupport::CreateXmlTag(cszIntend, "UnaryOperator", _DumpSubExpressionToXML(cszIntend + 2), mapAttributes);
 }
 
 AST::BaseClasses::TypeInfo AST::Expressions::UnaryOperator::GetResultType() const
