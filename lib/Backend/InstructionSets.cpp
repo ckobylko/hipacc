@@ -2301,7 +2301,7 @@ Expr* InstructionSetSSE3::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, GetVectorType(VectorElementTypes::Int32) );
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType(VectorElementTypes::Int32) ) );
 
       return _CreateFunctionCall(IntrinsicsSSE3Enum::LoadInteger, pPointerCast);
     }
