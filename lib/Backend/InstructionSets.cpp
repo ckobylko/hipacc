@@ -293,6 +293,18 @@ QualType InstructionSetBase::_GetFunctionReturnType(string strFuntionName)
   return vecFunctionsDecls.front()->getResultType();
 }
 
+ClangASTHelper::ExpressionVectorType InstructionSetBase::_SwapExpressionOrder(const ClangASTHelper::ExpressionVectorType &crvecExpressions)
+{
+  ClangASTHelper::ExpressionVectorType vecSwappedExpressions;
+
+  for (auto itExpr = crvecExpressions.end(); itExpr != crvecExpressions.begin(); itExpr--)
+  {
+    vecSwappedExpressions.push_back( *(itExpr - 1) );
+  }
+
+  return vecSwappedExpressions;
+}
+
 
 
 // Implementation of class InstructionSetSSE
@@ -355,7 +367,6 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::ReciprocalFloat,             "rcp_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::ReciprocalSqrtFloat,         "rsqrt_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::SetFloat,                    "set_ps"      );
-  _InitIntrinsic( IntrinsicsSSEEnum::SetReverseFloat,             "setr_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::SetZeroFloat,                "setzero_ps"  );
   _InitIntrinsic( IntrinsicsSSEEnum::ShuffleFloat,                "shuffle_ps"  );
   _InitIntrinsic( IntrinsicsSSEEnum::SqrtFloat,                   "sqrt_ps"     );
@@ -448,14 +459,18 @@ Expr* InstructionSetSSE::CreateVector(VectorElementTypes eElementType, const Cla
 {
   _CheckElementType(eElementType);
 
-  IntrinsicsSSEEnum eIntrinID = bReversedOrder ? IntrinsicsSSEEnum::SetReverseFloat : IntrinsicsSSEEnum::SetFloat;
+  if (! bReversedOrder)
+  {
+    // SSE vector creation methods expect the arguments in reversed order
+    return CreateVector( eElementType, _SwapExpressionOrder( crvecElements ), true );
+  }
 
   if (crvecElements.size() != GetVectorElementCount(eElementType))
   {
     throw RuntimeErrorException("The number of init expressions must be equal to the vector element count!");
   }
 
-  return _CreateFunctionCall(eIntrinID, crvecElements);
+  return _CreateFunctionCall( IntrinsicsSSEEnum::SetFloat, crvecElements );
 }
 
 Expr* InstructionSetSSE::CreateZeroVector(VectorElementTypes eElementType)
@@ -1061,15 +1076,14 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
             // No SSE support for this conversion => Extract elements, convert them one by one and recreate the vector
             ClangASTHelper::ExpressionVectorType vecConvertedElements;
 
-            // Vector creation needs elements in reversed order
-            for (uint32_t uiIdx = 1; uiIdx != -1; --uiIdx)
+            for (uint32_t uiIdx = 0; uiIdx < GetVectorElementCount(eTargetType); ++uiIdx)
             {
               Expr *pElement = ExtractElement( eSourceType, crvecVectorRefs.front(), uiIdx + (uiGroupIndex << 1) );
 
               vecConvertedElements.push_back( _CreateValueCast( pElement, _GetClangType(eTargetType), CK_IntegralToFloating ) );
             }
 
-            return CreateVector(eTargetType, vecConvertedElements, false);
+            return CreateVector( eTargetType, vecConvertedElements, false );
           }
         }
       case VectorElementTypes::Float:
@@ -1083,13 +1097,12 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
             // No SSE support for this conversion => Extract elements, convert them one by one and recreate the vector
             ClangASTHelper::ExpressionVectorType vecConvertedElements;
 
-            // Vector creation needs elements in reversed order
-            for (uint32_t uiIdx = 3; uiIdx != -1; --uiIdx)
+            for (uint32_t uiIdx = 0; uiIdx < GetVectorElementCount(eTargetType); ++uiIdx)
             {
               vecConvertedElements.push_back( _CreateValueCast( ExtractElement(eSourceType, crvecVectorRefs.front(), uiIdx), _GetClangType(eTargetType), CK_IntegralToFloating ) );
             }
 
-            return CreateVector(eTargetType, vecConvertedElements, false);
+            return CreateVector( eTargetType, vecConvertedElements, false );
           }
         }
       case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // No difference between signed and unsigned vectors => nothing to do
@@ -1161,12 +1174,12 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           ClangASTHelper::ExpressionVectorType vecConvertedElements;
 
           // Vector creation needs elements in reversed order
-          for (uint32_t uiIdx = 1; uiIdx != -1; --uiIdx)
+          for (uint32_t uiIdx = 0; uiIdx < GetVectorElementCount(eTargetType); ++uiIdx)
           {
             vecConvertedElements.push_back( _CreateValueCast( ExtractElement(eSourceType, crvecVectorRefs.front(), uiIdx), _GetClangType(eTargetType), CK_IntegralToFloating ) );
           }
 
-          return CreateVector(eTargetType, vecConvertedElements, false);
+          return CreateVector( eTargetType, vecConvertedElements, false );
         }
       case VectorElementTypes::Float:
         {
@@ -1231,25 +1244,20 @@ Expr* InstructionSetSSE2::_CompareInt64(VectorElementTypes eElementType, Expr *p
 {
   QualType qtBool = _GetClangType(VectorElementTypes::Bool);
 
-  // Extract the elements and compare
-  Expr  *pElement0 = _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pExprLHS, 0), ExtractElement(eElementType, pExprRHS, 0), eOpKind, qtBool );
-  Expr  *pElement1 = _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pExprLHS, 1), ExtractElement(eElementType, pExprRHS, 1), eOpKind, qtBool );
-
-
-  // Conditional set the correct mask value for each element
-  pElement0 = _GetASTHelper().CreateConditionalOperator( _GetASTHelper().CreateParenthesisExpression(pElement0), _GetASTHelper().CreateIntegerLiteral(-1L),
-                                                         _GetASTHelper().CreateIntegerLiteral(0L), pElement0->getType() );
-
-  pElement1 = _GetASTHelper().CreateConditionalOperator( _GetASTHelper().CreateParenthesisExpression(pElement1), _GetASTHelper().CreateIntegerLiteral(-1L),
-                                                         _GetASTHelper().CreateIntegerLiteral(0L), pElement1->getType() );
-
-
-  // Create the result vector
   ClangASTHelper::ExpressionVectorType vecArgs;
 
-  // SSE expects the arguments of the set function in reversed order
-  vecArgs.push_back(pElement1);
-  vecArgs.push_back(pElement0);
+  for (uint32_t uiIndex = 0; uiIndex < GetVectorElementCount(eElementType); ++uiIndex)
+  {
+    // Extract the elements and compare
+    Expr  *pElement = _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pExprLHS, uiIndex), ExtractElement(eElementType, pExprRHS, uiIndex), eOpKind, qtBool );
+
+
+    // Conditional set the correct mask value for each element
+    pElement = _GetASTHelper().CreateConditionalOperator( _GetASTHelper().CreateParenthesisExpression(pElement), _GetASTHelper().CreateIntegerLiteral(-1L),
+                                                          _GetASTHelper().CreateIntegerLiteral(0L), pElement->getType() );
+
+    vecArgs.push_back( pElement );
+  }
 
   return CreateVector( eElementType, vecArgs, false );
 }
@@ -1390,12 +1398,6 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::SetInt32,  "set_epi32"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::SetInt64,  "set_epi64x" );
 
-  // Set reverse methods
-  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseDouble, "setr_pd"     );
-  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt8,   "setr_epi8"   );
-  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt16,  "setr_epi16"  );
-  _InitIntrinsic( IntrinsicsSSE2Enum::SetReverseInt32,  "setr_epi32"  );
-
   // Zero vector creation functions
   _InitIntrinsic( IntrinsicsSSE2Enum::SetZeroDouble,  "setzero_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::SetZeroInteger, "setzero_si128" );
@@ -1534,10 +1536,10 @@ Expr* InstructionSetSSE2::_SeparatedArithmeticOpInteger(VectorElementTypes eElem
   ClangASTHelper::ExpressionVectorType vecSeparatedExprs;
 
   // Extract all elements one by one and do the compuation (keep in mind that SSE expects the reversed order of creation args)
-  for (uint32_t uiIndex = static_cast<uint32_t>(GetVectorElementCount(eElementType)); uiIndex != static_cast<uint32_t>(0); --uiIndex)
+  for (uint32_t uiIndex = 0; uiIndex < GetVectorElementCount(eElementType); ++uiIndex)
   {
-    Expr *pElemLHS = ExtractElement( eElementType, pExprLHS, uiIndex - 1 );
-    Expr *pElemRHS = ExtractElement( eElementType, pExprRHS, uiIndex - 1 );
+    Expr *pElemLHS = ExtractElement( eElementType, pExprLHS, uiIndex );
+    Expr *pElemRHS = ExtractElement( eElementType, pExprRHS, uiIndex );
 
     vecSeparatedExprs.push_back( _GetASTHelper().CreateBinaryOperator(pElemLHS, pElemRHS, eOpKind, pElemLHS->getType()) );
   }
@@ -1693,51 +1695,23 @@ Expr* InstructionSetSSE2::CreateOnesVector(VectorElementTypes eElementType, bool
 
 Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
 {
+  if (! bReversedOrder)
+  {
+    // SSE vector creation methods expect the arguments in reversed order
+    return CreateVector( eElementType, _SwapExpressionOrder( crvecElements ), true );
+  }
+
+
   IntrinsicsSSE2Enum eIntrinID = IntrinsicsSSE2Enum::SetDouble;
 
   switch (eElementType)
   {
-  case VectorElementTypes::Double:
-    {
-      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseDouble : IntrinsicsSSE2Enum::SetDouble;
-      break;
-    }
-  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
-    {
-      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt8 : IntrinsicsSSE2Enum::SetInt8;
-      break;
-    }
-  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
-    {
-      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt16 : IntrinsicsSSE2Enum::SetInt16;
-      break;
-    }
-  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
-    {
-      eIntrinID = bReversedOrder ? IntrinsicsSSE2Enum::SetReverseInt32 : IntrinsicsSSE2Enum::SetInt32;
-      break;
-    }
-  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
-    {
-      if (bReversedOrder)
-      {
-        ClangASTHelper::ExpressionVectorType vecElements;
-
-        for (auto itElem = crvecElements.end(); itElem != crvecElements.begin(); itElem--)
-        {
-          vecElements.push_back( *(itElem-1) );
-        }
-
-        return CreateVector(eElementType, vecElements, false);
-      }
-      else
-      {
-        eIntrinID = IntrinsicsSSE2Enum::SetInt64;
-      }
-
-      break;
-    }
-  default:  return BaseType::CreateVector(eElementType, crvecElements, bReversedOrder);
+  case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsSSE2Enum::SetDouble;  break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE2Enum::SetInt8;    break;
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsSSE2Enum::SetInt16;   break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE2Enum::SetInt32;   break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE2Enum::SetInt64;   break;
+  default:                                                          return BaseType::CreateVector(eElementType, crvecElements, bReversedOrder);
   }
 
   if (crvecElements.size() != GetVectorElementCount(eElementType))
@@ -1745,7 +1719,7 @@ Expr* InstructionSetSSE2::CreateVector(VectorElementTypes eElementType, const Cl
     throw RuntimeErrorException("The number of init expressions must be equal to the vector element count!");
   }
 
-  return _CreateFunctionCall(eIntrinID, crvecElements);
+  return _CreateFunctionCall( eIntrinID, crvecElements );
 }
 
 Expr* InstructionSetSSE2::CreateZeroVector(VectorElementTypes eElementType)
@@ -2069,8 +2043,10 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
         // This is unsupported by SSE => Extract elements and shift them separately
         ClangASTHelper::ExpressionVectorType vecElements;
 
-        vecElements.push_back( _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pVectorRef, 1), pShiftCount, BO_Shr, _GetClangType(eElementType) ) );
-        vecElements.push_back( _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pVectorRef, 0), pShiftCount, BO_Shr, _GetClangType(eElementType) ) );
+        for (uint32_t uiIndex = 0; uiIndex < GetVectorElementCount(eElementType); ++uiIndex)
+        {
+          vecElements.push_back( _GetASTHelper().CreateBinaryOperator( ExtractElement(eElementType, pVectorRef, uiIndex), pShiftCount, BO_Shr, _GetClangType(eElementType) ) );
+        }
 
         return CreateVector( eElementType, vecElements, false );
       }

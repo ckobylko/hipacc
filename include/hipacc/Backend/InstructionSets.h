@@ -272,6 +272,9 @@ namespace Vectorization
     }
 
 
+    ClangASTHelper::ExpressionVectorType _SwapExpressionOrder(const ClangASTHelper::ExpressionVectorType &crvecExpressions);
+
+
   private:
     /** \name Clang bugfixing helper methods */
     //@{
@@ -462,7 +465,6 @@ namespace Vectorization
       ReciprocalFloat,
       ReciprocalSqrtFloat,
       SetFloat,
-      SetReverseFloat,
       SetZeroFloat,
       ShuffleFloat,
       SqrtFloat,
@@ -664,7 +666,6 @@ namespace Vectorization
       OrDouble,                     OrInteger,
       PackInt16ToInt8,              PackInt16ToUInt8,       PackInt32ToInt16,
       SetDouble,                    SetInt8,                SetInt16,                SetInt32,                SetInt64,
-      SetReverseDouble,             SetReverseInt8,         SetReverseInt16,         SetReverseInt32,
       SetZeroDouble,                SetZeroInteger,
       ShiftLeftInt16,               ShiftLeftInt32,         ShiftLeftInt64,          ShiftLeftVectorBytes,
       ShiftRightArithInt16,         ShiftRightArithInt32,   ShiftRightLogInt16,      ShiftRightLogInt32,      ShiftRightLogInt64,  ShiftRightVectorBytes,
