@@ -574,6 +574,8 @@ namespace Vectorization
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
 
 
+    virtual ::clang::Expr* _CreateFullBitMask(VectorElementTypes eElementType);
+
     ::clang::Expr* _MergeVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
 
     virtual ::clang::Expr* _UnpackVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
@@ -756,13 +758,15 @@ namespace Vectorization
 
     ::clang::Expr* _ArithmeticOpInteger(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
     ::clang::Expr* _CompareInt64(VectorElementTypes eElementType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
-    ::clang::Expr* _InsertElementDouble(::clang::Expr *pVectorRef, ::clang::Expr *pBroadCastedValue, std::uint32_t uiIndex);
     ::clang::Expr* _RelationalOpInteger(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
     ::clang::Expr* _SeparatedArithmeticOpInteger(VectorElementTypes eElementType, ::clang::BinaryOperatorKind eOpKind, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
 
   protected:
 
     InstructionSetSSE2(::clang::ASTContext &rAstContext);
+
+
+    virtual ::clang::Expr* _CreateFullBitMask(VectorElementTypes eElementType) final override;
 
     ::clang::Expr* _ShiftIntegerVectorBytes(::clang::Expr *pVectorRef, std::uint32_t uiByteCount, bool bShiftLeft);
 

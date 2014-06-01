@@ -366,6 +366,13 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::XorFloat,                    "xor_ps"      );
 }
 
+Expr* InstructionSetSSE::_CreateFullBitMask(VectorElementTypes eElementType)
+{
+  _CheckElementType(eElementType);
+
+  return RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
+}
+
 Expr* InstructionSetSSE::_MergeVectors(VectorElementTypes eElementType, Expr *pVectorRef1, Expr *pVectorRef2, bool bLowHalf)
 {
   _CheckElementType( eElementType );
@@ -603,9 +610,7 @@ Expr* InstructionSetSSE::UnaryOperator(VectorElementTypes eElementType, UnaryOpe
   case UnaryOperatorType::AddressOf:      return _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(pSubExpr->getType()) );
   case UnaryOperatorType::BitwiseNot: case UnaryOperatorType::LogicalNot:
     {
-      Expr *pFullBitMask = RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
-
-      return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, pFullBitMask );
+      return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, _CreateFullBitMask(eElementType) );
     }
   case UnaryOperatorType::Minus:          return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
   case UnaryOperatorType::Plus:           return pSubExpr;
@@ -1249,6 +1254,19 @@ Expr* InstructionSetSSE2::_CompareInt64(VectorElementTypes eElementType, Expr *p
   return CreateVector( eElementType, vecArgs, false );
 }
 
+Expr* InstructionSetSSE2::_CreateFullBitMask(VectorElementTypes eElementType)
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  return RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return CreateOnesVector( VectorElementTypes::Int32, true );
+  default:                                                          return BaseType::_CreateFullBitMask( eElementType );
+  }
+}
+
 void InstructionSetSSE2::_InitIntrinsicsMap()
 {
   // Addition functions
@@ -1430,21 +1448,6 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   // Bitwise "xor" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::XorDouble,  "xor_pd"    );
   _InitIntrinsic( IntrinsicsSSE2Enum::XorInteger, "xor_si128" );
-}
-
-Expr* InstructionSetSSE2::_InsertElementDouble(Expr *pVectorRef, Expr *pBroadCastedValue, uint32_t uiIndex)
-{
-  if (uiIndex == 0)
-  {
-    return _CreateFunctionCall( IntrinsicsSSE2Enum::InsertLowestDouble, pVectorRef, pBroadCastedValue );
-  }
-  else
-  {
-    Expr *pInsertExpr = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble,      pVectorRef,  pVectorRef, _GetASTHelper().CreateIntegerLiteral(1) );
-    pInsertExpr       = _CreateFunctionCall( IntrinsicsSSE2Enum::InsertLowestDouble, pInsertExpr, pBroadCastedValue );
-
-    return _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, pVectorRef, pInsertExpr, _GetASTHelper().CreateIntegerLiteral(0) );
-  }
 }
 
 Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -1894,7 +1897,9 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
     {
       _CheckInsertIndex(eElementType, uiIndex);
 
-      return _InsertElementDouble( pVectorRef, BroadCast(eElementType, pElementValue), uiIndex );
+      IntrinsicsSSE2Enum eIntrinID = (uiIndex == 0) ? IntrinsicsSSE2Enum::InsertLowestDouble : IntrinsicsSSE2Enum::UnpackLowDouble;
+
+      return _CreateFunctionCall( eIntrinID, pVectorRef, BroadCast(eElementType, pElementValue) );
     }
   case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
     {
@@ -1956,13 +1961,16 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
     {
       _CheckInsertIndex(eElementType, uiIndex);
 
-      // No real support available => Do dirty hack via the "double" routine
-      Expr *pBroadCast = BroadCast(eElementType, pElementValue);
+      Expr *pBroadCast = BroadCast( eElementType, pElementValue );
 
-      pBroadCast = _CreateFunctionCall( IntrinsicsSSE2Enum::CastIntegerToDouble, pBroadCast );
-      pVectorRef = _CreateFunctionCall( IntrinsicsSSE2Enum::CastIntegerToDouble, pVectorRef );
-
-      return _CreateFunctionCall( IntrinsicsSSE2Enum::CastDoubleToInteger, _InsertElementDouble( pVectorRef, pBroadCast, uiIndex ) );
+      if (uiIndex == 0)
+      {
+        return _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackHighInt64, pBroadCast, pVectorRef );
+      }
+      else
+      {
+        return _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackLowInt64, pVectorRef, pBroadCast );
+      }
     }
   default:  return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
   }
@@ -2154,9 +2162,7 @@ Expr* InstructionSetSSE2::UnaryOperator(VectorElementTypes eElementType, UnaryOp
   }
   else if ( (eOpType == UnaryOperatorType::BitwiseNot) || (eOpType == UnaryOperatorType::LogicalNot) )
   {
-    Expr *pFullBitMask = RelationalOperator( eElementType, RelationalOperatorType::Equal, CreateZeroVector(eElementType), CreateZeroVector(eElementType) );
-
-    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, pFullBitMask );
+    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, _CreateFullBitMask(eElementType) );
   }
   else if (eOpType == UnaryOperatorType::Minus)
   {
