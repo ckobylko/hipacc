@@ -619,18 +619,18 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   }
 
   // Select the requested instruction set parts
-  _uiDumpFlags |= DF_Arithmetic;
+  _uiDumpFlags |= DF_Arithmetic;        // TODO: Check me
   _uiDumpFlags |= DF_Blend;
   _uiDumpFlags |= DF_BroadCast;
   _uiDumpFlags |= DF_CheckActive;
-  _uiDumpFlags |= DF_Convert;
+  _uiDumpFlags |= DF_Convert;           // TODO: Check me
   _uiDumpFlags |= DF_CreateVector;
   _uiDumpFlags |= DF_Extract;
   _uiDumpFlags |= DF_Insert;
   _uiDumpFlags |= DF_MemoryTransfers;
-  _uiDumpFlags |= DF_Relational;
-  _uiDumpFlags |= DF_ShiftElements;
-  _uiDumpFlags |= DF_Unary;
+  _uiDumpFlags |= DF_Relational;        // TODO: Check me
+  _uiDumpFlags |= DF_ShiftElements;     // TODO: Check me
+  _uiDumpFlags |= DF_Unary;             // TODO: Check me
 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;
