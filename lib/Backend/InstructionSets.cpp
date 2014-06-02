@@ -572,6 +572,11 @@ Expr* InstructionSetSSE::LoadVector(VectorElementTypes eElementType, Expr *pPoin
   return _CreateFunctionCall(IntrinsicsSSEEnum::LoadFloat, pPointerRef);
 }
 
+Expr* InstructionSetSSE::LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex)
+{
+  throw RuntimeErrorException( "Gathered vector loads are not supported in the SSE instruction set!" );
+}
+
 Expr* InstructionSetSSE::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
   _CheckElementType(eElementType);
@@ -2003,6 +2008,48 @@ Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPoi
     }
   default:  return BaseType::LoadVector(eElementType, pPointerRef);
   }
+}
+
+Expr* InstructionSetSSE2::LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex)
+{
+  switch (eIndexElementType)
+  {
+  case VectorElementTypes::Int32: case VectorElementTypes::Int64:   break;
+  default:  throw RuntimeErrorException( string("Only index element types \"") + AST::BaseClasses::TypeInfo::GetTypeString( VectorElementTypes::Int32 ) + ("\" and \"") +
+                                         AST::BaseClasses::TypeInfo::GetTypeString( VectorElementTypes::Int64 ) + ("\" supported for gathered vector loads!") );
+  }
+
+  if ( GetVectorElementCount(eElementType) > (GetVectorElementCount(eIndexElementType) * crvecIndexExprs.size()) )
+  {
+    throw RuntimeErrorException( "The number of vector elements must be less or equal to the number of index elements times the number of index vectors for gathered vector loads!" );
+  }
+  else if ( (uiGroupIndex != 0) && (uiGroupIndex >= (GetVectorElementCount(eIndexElementType) / GetVectorElementCount(eElementType))) )
+  {
+    throw RuntimeErrorException( "The group index must be smaller than the size spread between the index element type and the vector element type!" );
+  }
+
+
+  const uint32_t cuiIndexOffset = uiGroupIndex * static_cast<uint32_t>( GetVectorElementCount(eIndexElementType) / GetVectorElementCount(eElementType) );
+
+  ClangASTHelper::ExpressionVectorType vecLoadedElements;
+
+  for (size_t szVecIdx = static_cast<size_t>(0); szVecIdx < crvecIndexExprs.size(); ++szVecIdx)
+  {
+    for (size_t szElemIdx = static_cast<size_t>(0); szElemIdx < GetVectorElementCount(eIndexElementType); ++szElemIdx)
+    {
+      if (vecLoadedElements.size() == GetVectorElementCount(eElementType))
+      {
+        // If more indices are given than required, break as soon as all elements are loaded
+        break;
+      }
+
+      Expr *pCurrentOffset = ExtractElement( eIndexElementType, crvecIndexExprs[szVecIdx], static_cast<uint32_t>(szElemIdx) + cuiIndexOffset );
+
+      vecLoadedElements.push_back( _GetASTHelper().CreateArraySubscriptExpression( pPointerRef, pCurrentOffset, _GetClangType(eElementType), false ) );
+    }
+  }
+
+  return CreateVector( eElementType, vecLoadedElements, false );
 }
 
 Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
