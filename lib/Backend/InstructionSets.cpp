@@ -2148,7 +2148,15 @@ Expr* InstructionSetSSE2::UnaryOperator(VectorElementTypes eElementType, UnaryOp
   }
   else if (eOpType == UnaryOperatorType::Minus)
   {
-    return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
+    switch (eElementType)
+    {
+    case VectorElementTypes::Double:                                  return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+    case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return ArithmeticOperator( eElementType, ArithmeticOperatorType::Subtract, CreateZeroVector(eElementType), pSubExpr );
+    default:                                                          return BaseType::UnaryOperator(eElementType, eOpType, pSubExpr);
+    }
   }
   else if (eOpType == UnaryOperatorType::Plus)
   {

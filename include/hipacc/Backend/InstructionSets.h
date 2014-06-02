@@ -170,16 +170,8 @@ namespace Vectorization
     template < typename IntrinsicIDType >
     inline ::clang::Expr* _CreatePostfixedUnaryOp(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
-      // Create the assignment expression which does the computation
-      ::clang::Expr *pAssignment = nullptr;
-      {
-        ClangASTHelper::ExpressionVectorType vecArgs;
-        vecArgs.push_back( pVectorRef );
-        vecArgs.push_back( CreateOnesVector(eElementType, false) );
-
-        pAssignment = _CreateFunctionCall( crIntrinMap, eIntrinID, vecArgs );
-        pAssignment = _GetASTHelper().CreateBinaryOperator( pVectorRef, pAssignment, BO_Assign, pVectorRef->getType() );
-      }
+      // Create the assignment expression which does the computation (identical to the prefixed counterpart)
+      ::clang::Expr *pAssignment = _CreatePrefixedUnaryOp( crIntrinMap, eIntrinID, eElementType, pVectorRef );
 
       // Create a reversion expression which is required to restore the old value
       ::clang::Expr *pRevert = nullptr;
