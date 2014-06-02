@@ -654,7 +654,7 @@ namespace Vectorization
       MaxDouble,                    MaxUInt8,               MaxInt16,
       MinDouble,                    MinUInt8,               MinInt16,
       MoveMaskDouble,               MoveMaskInt8,
-      MultiplyDouble,               MultiplyInt16,
+      MultiplyDouble,               MultiplyInt16,          MultiplyUInt32,
       OrDouble,                     OrInteger,
       PackInt16ToInt8,              PackInt16ToUInt8,       PackInt32ToInt16,
       SetDouble,                    SetInt8,                SetInt16,                SetInt32,                SetInt64,

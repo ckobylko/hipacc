@@ -687,7 +687,22 @@ Expr* InstructionSetSSE2::_ArithmeticOpInteger(VectorElementTypes eElementType, 
         return ConvertVectorDown( ceIntermediateType, eElementType, vecResultVectors );
       }
     case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyInt16, pExprLHS, pExprRHS );
-    default:                                                          return _SeparatedArithmeticOpInteger( eElementType, BO_Mul, pExprLHS, pExprRHS );
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      {
+        ClangASTHelper::ExpressionVectorType vecHalfVectors;
+
+        // Multiply the low half of the vector
+        vecHalfVectors.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyUInt32, pExprLHS, pExprRHS ) );
+
+        // Multiply the high half of the vector
+        Expr *pHighLHS = _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackHighInt64, pExprLHS, CreateZeroVector(eElementType) );
+        Expr *pHighRHS = _CreateFunctionCall( IntrinsicsSSE2Enum::UnpackHighInt64, pExprRHS, CreateZeroVector(eElementType) );
+        vecHalfVectors.push_back( _CreateFunctionCall( IntrinsicsSSE2Enum::MultiplyUInt32, pHighLHS, pHighRHS ) );
+
+        // Pack vectors back into the element type
+        return ConvertVectorDown( VectorElementTypes::UInt64, eElementType, vecHalfVectors );
+      }
+    default:    return _SeparatedArithmeticOpInteger(eElementType, BO_Mul, pExprLHS, pExprRHS);
     }
   case ArithmeticOperatorType::Modulo:      return _SeparatedArithmeticOpInteger( eElementType, BO_Rem, pExprLHS, pExprRHS );
   case ArithmeticOperatorType::ShiftLeft:   return _SeparatedArithmeticOpInteger( eElementType, BO_Shl, pExprLHS, pExprRHS );
@@ -1381,6 +1396,7 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   // Multiplication functions
   _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyDouble, "mul_pd"      );
   _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyInt16,  "mullo_epi16" );
+  _InitIntrinsic( IntrinsicsSSE2Enum::MultiplyUInt32, "mul_epu32"   );
 
   // Bitwise "or" functions
   _InitIntrinsic( IntrinsicsSSE2Enum::OrDouble,  "or_pd"    );
