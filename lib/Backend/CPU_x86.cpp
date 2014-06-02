@@ -33,6 +33,7 @@
 #include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
 #include "hipacc/Backend/Vectorizer.h"
+#include <algorithm>
 #include <list>
 #include <map>
 #include <sstream>
@@ -533,7 +534,7 @@ FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::In
 
     ClangASTHelper::StatementVectorType vecShiftElements;
 
-    const char *apcDumpName[] = { "Shift left by zero", "Shift left by constant", "Shift right by zero", "Shift left by constant" };
+    const char *apcDumpName[] = { "Shift left by zero", "Shift left by constant", "Shift right by zero", "Shift right by constant" };
 
     for (int i = 0; i <= 3; ++i)
     {
@@ -595,6 +596,80 @@ FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::In
     vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
   }
 
+  // Dump vectorized memory transfers
+  if (_uiDumpFlags & DF_VecMemTransfers)
+  {
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("VectorizedMemoryTransfers") );
+
+    ClangASTHelper::StatementVectorType vecVecMemTransfers;
+
+    VectorDeclRefMapType  mapPointerDecls;
+
+    // Create pointer declarations
+    vecVecMemTransfers.push_back( _ASTHelper.CreateStringLiteral("Pointer declarations") );
+    for (auto itElementType : lstSupportedElementTypes)
+    {
+      QualType qtPointerType = _ASTHelper.GetPointerType( _GetClangType(itElementType) );
+
+      VarDecl *pPointerDecl = _ASTHelper.CreateVariableDeclaration( pFunctionDecl, string("p") + TypeInfo::GetTypeString(itElementType), qtPointerType, nullptr );
+
+      mapPointerDecls[ itElementType ] = _ASTHelper.CreateDeclarationReferenceExpression( pPointerDecl );
+
+      vecVecMemTransfers.push_back( _ASTHelper.CreateDeclarationStatement(pPointerDecl) );
+    }
+    vecVecMemTransfers.push_back( _ASTHelper.CreateStringLiteral("") );
+
+
+    const char *apcDumpName[] = { "LoadVectorGathered" };
+
+    VectorElementTypes aeIndexElementTypes[] = { VectorElementTypes::Int32, VectorElementTypes::Int64 };
+
+    for (int i = 0; i <= 0; ++i)
+    {
+      vecVecMemTransfers.push_back( _ASTHelper.CreateStringLiteral(apcDumpName[i]) );
+
+      ClangASTHelper::StatementVectorType vecCurrentTransfer;
+      
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        for (auto itIndexType : aeIndexElementTypes)
+        {
+          auto itIndexTypeEntry = mapVectorArrayDecls.find( itIndexType );
+          if ( itIndexTypeEntry == mapVectorArrayDecls.end() )
+          {
+            continue;
+          }
+
+          vecCurrentTransfer.push_back( _ASTHelper.CreateStringLiteral( TypeInfo::GetTypeString(itElementType) + string("[ ") + TypeInfo::GetTypeString(itIndexType) + string(" ]") ) );
+
+          ClangASTHelper::ExpressionVectorType vecIndexVectors;
+
+          for (size_t szElementCount = static_cast<size_t>(0); szElementCount < spInstructionSet->GetVectorElementCount(itElementType); szElementCount += spInstructionSet->GetVectorElementCount(itIndexType))
+          {
+            vecIndexVectors.push_back( _CreateArraySubscript( itIndexTypeEntry->second, szElementCount / spInstructionSet->GetVectorElementCount(itIndexType) ) );
+          }
+
+          Expr *pPointerRef   = mapPointerDecls[itElementType];
+
+          if (i == 0)
+          {
+            const uint32_t cuiMaxIndex = max( static_cast<uint32_t>(spInstructionSet->GetVectorElementCount(itIndexType) / spInstructionSet->GetVectorElementCount(itElementType)), static_cast<uint32_t>(1) );
+
+            for (uint32_t uiGroupIndex = 0; uiGroupIndex < cuiMaxIndex; ++uiGroupIndex)
+            {
+              DUMP_INSTR( vecCurrentTransfer, spInstructionSet->LoadVectorGathered(itElementType, itIndexType, pPointerRef, vecIndexVectors, uiGroupIndex) );
+            }
+          }
+        }
+      }
+
+      vecVecMemTransfers.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentTransfer) );
+      vecVecMemTransfers.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecVecMemTransfers) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
 
   pFunctionDecl->setBody( _ASTHelper.CreateCompoundStatement(vecBody) );
   return pFunctionDecl;
@@ -619,7 +694,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   }
 
   // Select the requested instruction set parts
-  _uiDumpFlags |= DF_Arithmetic;        // TODO: Check me
+  _uiDumpFlags |= DF_Arithmetic;
   _uiDumpFlags |= DF_Blend;
   _uiDumpFlags |= DF_BroadCast;
   _uiDumpFlags |= DF_CheckActive;
@@ -628,9 +703,10 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   _uiDumpFlags |= DF_Extract;
   _uiDumpFlags |= DF_Insert;
   _uiDumpFlags |= DF_MemoryTransfers;
-  _uiDumpFlags |= DF_Relational;        // TODO: Check me
-  _uiDumpFlags |= DF_ShiftElements;     // TODO: Check me
-  _uiDumpFlags |= DF_Unary;             // TODO: Check me
+  _uiDumpFlags |= DF_Relational;
+  _uiDumpFlags |= DF_ShiftElements;
+  _uiDumpFlags |= DF_Unary;
+  _uiDumpFlags |= DF_VecMemTransfers;
 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;

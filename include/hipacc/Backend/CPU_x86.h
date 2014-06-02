@@ -96,7 +96,8 @@ namespace Backend
         DF_MemoryTransfers  = 0x00000100,
         DF_Relational       = 0x00000200,
         DF_ShiftElements    = 0x00000400,
-        DF_Unary            = 0x00000800
+        DF_Unary            = 0x00000800,
+        DF_VecMemTransfers  = 0x00001000
       };
 
     private:
