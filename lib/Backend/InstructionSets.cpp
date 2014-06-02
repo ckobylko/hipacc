@@ -2000,7 +2000,7 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
     {
     case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
       {
-        // Convert vector to UInt16 data type, do the shift and convert back
+        // Convert vector to UInt16 data type, do the shift and convert back (there is no arithmetic left shift)
         ClangASTHelper::ExpressionVectorType vecShiftedVectors;
 
         for (uint32_t uiGroupIdx = 0; uiGroupIdx <= 1; ++uiGroupIdx)
@@ -2023,16 +2023,18 @@ Expr* InstructionSetSSE2::ShiftElements(VectorElementTypes eElementType, Expr *p
     {
     case VectorElementTypes::Int8: case VectorElementTypes::UInt8:
       {
-        // Convert vector to UInt16 data type, do the shift and convert back
+        // Convert vector to a signed / unsigned 16-bit integer data type, do the shift and convert back
+        const VectorElementTypes ceIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(2, AST::BaseClasses::TypeInfo::IsSigned(eElementType)).GetType();
+
         ClangASTHelper::ExpressionVectorType vecShiftedVectors;
 
         for (uint32_t uiGroupIdx = 0; uiGroupIdx <= 1; ++uiGroupIdx)
         {
-          Expr *pConvertedVector = ConvertVectorUp( VectorElementTypes::UInt8, VectorElementTypes::UInt16, pVectorRef, uiGroupIdx );
-          vecShiftedVectors.push_back( ShiftElements(VectorElementTypes::UInt16, pConvertedVector, bShiftLeft, uiCount) );
+          Expr *pConvertedVector = ConvertVectorUp( eElementType, ceIntermediateType, pVectorRef, uiGroupIdx );
+          vecShiftedVectors.push_back( ShiftElements(ceIntermediateType, pConvertedVector, bShiftLeft, uiCount) );
         }
 
-        return ConvertVectorDown( VectorElementTypes::UInt16, VectorElementTypes::UInt8, vecShiftedVectors );
+        return ConvertVectorDown( ceIntermediateType, VectorElementTypes::UInt8, vecShiftedVectors );
       }
     case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightArithInt16, pVectorRef, pShiftCount );
     case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE2Enum::ShiftRightLogInt16,   pVectorRef, pShiftCount );
