@@ -1466,14 +1466,6 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
   {
     return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Equal, pExprLHS, pExprRHS) );
   }
-  else if (eOpType == RelationalOperatorType::GreaterEqual)
-  {
-    return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Less, pExprLHS, pExprRHS) );
-  }
-  else if (eOpType == RelationalOperatorType::LessEqual)
-  {
-    return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Greater, pExprLHS, pExprRHS) );
-  }
   else if (eOpType == RelationalOperatorType::Equal)
   {
     switch (eElementType)
@@ -1508,13 +1500,25 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
   {
     switch (eOpType)
     {
+    case RelationalOperatorType::GreaterEqual:
+      switch (eElementType)
+      {
+      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_GE );
+      default:                          return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Less, pExprLHS, pExprRHS) );
+      }
+    case RelationalOperatorType::LessEqual:
+      switch (eElementType)
+      {
+      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_LE );
+      default:                          return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Greater, pExprLHS, pExprRHS) );
+      }
     case RelationalOperatorType::Greater:
       switch (eElementType)
       {
       case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareGreaterThanInt8,  pExprLHS, pExprRHS );
       case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareGreaterThanInt16, pExprLHS, pExprRHS );
       case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareGreaterThanInt32, pExprLHS, pExprRHS );
-      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_GE );
+      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_GT );
       default:                          throw InternalErrorException("Unexpected vector element type detected!");
       }
     case RelationalOperatorType::Less:
@@ -1523,7 +1527,7 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
       case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareLessThanInt8,  pExprLHS, pExprRHS );
       case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareLessThanInt16, pExprLHS, pExprRHS );
       case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSE2Enum::CompareLessThanInt32, pExprLHS, pExprRHS );
-      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_LE );
+      case VectorElementTypes::Int64:   return _CompareInt64( eElementType, pExprLHS, pExprRHS, BO_LT );
       default:                          throw InternalErrorException("Unexpected vector element type detected!");
       }
     default:  throw InternalErrorException("Unexpected relational operation detected!");
@@ -2768,14 +2772,14 @@ Expr* InstructionSetSSE4_2::RelationalOperator(VectorElementTypes eElementType, 
     case RelationalOperatorType::Greater:       return _CreateFunctionCall( IntrinsicsSSE4_2Enum::CompareGreaterThanInt64, pExprLHS, pExprRHS );
     case RelationalOperatorType::GreaterEqual:
       {
-        Expr *pEqualExpr    = RelationalOperator(eElementType, RelationalOperatorType::Equal,   pExprLHS, pExprRHS);
-        Expr *pGreaterExpr  = RelationalOperator(eElementType, RelationalOperatorType::Greater, pExprLHS, pExprRHS);
+        Expr *pEqualExpr    = RelationalOperator( eElementType, RelationalOperatorType::Equal,   pExprLHS, pExprRHS );
+        Expr *pGreaterExpr  = RelationalOperator( eElementType, RelationalOperatorType::Greater, pExprLHS, pExprRHS );
 
         return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseOr, pEqualExpr, pGreaterExpr );
       }
-    case RelationalOperatorType::Less:          return UnaryOperator(eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::GreaterEqual, pExprLHS, pExprRHS));
-    case RelationalOperatorType::LessEqual:     return UnaryOperator(eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Greater, pExprLHS, pExprRHS) );
-    default:                                    return BaseType::RelationalOperator(eElementType, eOpType, pExprLHS, pExprRHS);
+    case RelationalOperatorType::Less:          return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::GreaterEqual, pExprLHS, pExprRHS) );
+    case RelationalOperatorType::LessEqual:     return UnaryOperator( eElementType, UnaryOperatorType::LogicalNot, RelationalOperator(eElementType, RelationalOperatorType::Greater,      pExprLHS, pExprRHS) );
+    default:                                    return BaseType::RelationalOperator( eElementType, eOpType, pExprLHS, pExprRHS );
     }
   default:  return BaseType::RelationalOperator(eElementType, eOpType, pExprLHS, pExprRHS);
   }
