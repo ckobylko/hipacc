@@ -33,7 +33,6 @@
 #include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
 #include <algorithm>
-#include <list>
 #include <map>
 #include <sstream>
 #include <utility>
@@ -885,7 +884,7 @@ CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::Sc
       AST::BaseClasses::VariableInfoPtr spVarInfo = itVarDecl->LookupVariableInfo();
       AST::BaseClasses::TypeInfo        &rVarType = spVarInfo->GetTypeInfo();
 
-      if (rVarType.IsArray())
+      if (rVarType.IsArray() || spVarInfo->GetVectorize())
       {
         // Remove const flag, otherwise the assignments will not compile
         if (! rVarType.GetPointer())
@@ -903,10 +902,45 @@ CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::Sc
   // Build child statements
   for (AST::IndexType iChildIdx = static_cast<AST::IndexType>(0); iChildIdx < spScope->GetChildCount(); ++iChildIdx)
   {
-    // TODO: Implement
+    AST::BaseClasses::NodePtr spNode = spScope->GetChild( iChildIdx );
+
+    Stmt *pChildStmt = nullptr;
+
+    if (spNode->IsType< AST::Scope >())
+    {
+      pChildStmt = _BuildCompoundStatement( spNode->CastToType< AST::Scope >() );
+    }
+    else if (spNode->IsType< AST::BaseClasses::ControlFlowStatement >())
+    {
+      // TODO: Implement
+
+
+      continue;
+    }
+    else if (spNode->IsType< AST::BaseClasses::Expression >())
+    {
+      // TODO: Implement
+
+
+
+      continue;
+    }
+    else
+    {
+      // TODO: As soon as everything is implemented, throw an error here
+      continue;
+    }
+
+    vecChildren.push_back(pChildStmt);
   }
 
   return _GetASTHelper().CreateCompoundStatement(vecChildren);
+}
+
+Stmt* CPU_x86::VASTExportInstructionSet::_BuildExpressionStatement(AST::BaseClasses::ExpressionPtr spExpression)
+{
+  // TODO: Implement
+  return nullptr;
 }
 
 VectorElementTypes CPU_x86::VASTExportInstructionSet::_GetMaskElementType()
@@ -924,6 +958,30 @@ VectorElementTypes CPU_x86::VASTExportInstructionSet::_GetMaskElementType()
 
   // If no mask type has been determined earlier, return the largest possible type
   return VectorElementTypes::UInt64;
+}
+
+CPU_x86::VASTExportInstructionSet::VectorElementTypesSetType CPU_x86::VASTExportInstructionSet::_GetUsedVectorElementTypes(AST::BaseClasses::ExpressionPtr spExpression)
+{
+  VectorElementTypesSetType setElementTypes;
+
+  // Add the result type of the current expression if it is a vectorized expression
+  if (spExpression->IsVectorized())
+  {
+    setElementTypes.insert( spExpression->GetResultType().GetType() );
+  }
+
+  // Parse all children
+  for (AST::IndexType iSubExprIdx = static_cast<AST::IndexType>(0); iSubExprIdx < spExpression->GetSubExpressionCount(); ++iSubExprIdx)
+  {
+    VectorElementTypesSetType setSubElementTypes = _GetUsedVectorElementTypes( spExpression->GetSubExpression(iSubExprIdx) );
+
+    for (auto itSubType : setSubElementTypes)
+    {
+      setElementTypes.insert( itSubType );
+    }
+  }
+
+  return std::move( setElementTypes );
 }
 
 size_t CPU_x86::VASTExportInstructionSet::_GetVectorArraySize(Vectorization::VectorElementTypes eElementType)
@@ -966,6 +1024,25 @@ QualType CPU_x86::VASTExportInstructionSet::_GetVectorizedType(AST::BaseClasses:
   }
 
   return qtReturnType;
+}
+
+bool CPU_x86::VASTExportInstructionSet::_NeedsUnwrap(AST::BaseClasses::ExpressionPtr spExpression)
+{
+  for (AST::IndexType iSubExprIdx = static_cast<AST::IndexType>(0); iSubExprIdx < spExpression->GetSubExpressionCount(); ++iSubExprIdx)
+  {
+    AST::BaseClasses::ExpressionPtr spSubExpr = spExpression->GetSubExpression( iSubExprIdx );
+
+    if (spSubExpr->IsType<AST::Expressions::FunctionCall>())
+    {
+      return true;
+    }
+    else if ( _NeedsUnwrap(spSubExpr) )
+    {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 FunctionDecl* CPU_x86::VASTExportInstructionSet::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops)

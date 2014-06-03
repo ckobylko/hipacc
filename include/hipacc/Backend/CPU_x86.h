@@ -41,6 +41,7 @@
 #include "VectorizationAST.h"
 #include "Vectorizer.h"
 #include <list>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -341,6 +342,8 @@ namespace Backend
 
       typedef Vectorization::Vectorizer::VASTExporterBase     BaseType;
 
+      typedef std::set< Vectorization::VectorElementTypes >   VectorElementTypesSetType;
+
 
       const Vectorization::InstructionSetBasePtr  _spInstructionSet;
       const size_t                                _cVectorWidth;
@@ -356,6 +359,13 @@ namespace Backend
     private:
 
       ::clang::CompoundStmt*  _BuildCompoundStatement(Vectorization::AST::ScopePtr spScope);
+
+      ::clang::Stmt*          _BuildExpressionStatement(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+
+      static VectorElementTypesSetType _GetUsedVectorElementTypes(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+      static bool _NeedsUnwrap(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
 
       virtual ::clang::QualType _GetVectorizedType(Vectorization::AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
