@@ -32,13 +32,13 @@
 
 #include "hipacc/AST/ASTNode.h"
 #include "hipacc/Backend/CPU_x86.h"
-#include "hipacc/Backend/Vectorizer.h"
 #include <algorithm>
 #include <list>
 #include <map>
 #include <sstream>
 #include <utility>
 
+using namespace clang::hipacc::Backend::Vectorization;
 using namespace clang::hipacc::Backend;
 using namespace clang::hipacc;
 using namespace clang;
@@ -861,6 +861,137 @@ HipaccMask* CPU_x86::HipaccHelper::GetMaskFromMapping(const string &crstrParamNa
 
 
 
+// Implementation of class CPU_x86::VASTExportInstructionSet
+CPU_x86::VASTExportInstructionSet::VASTExportInstructionSet(size_t VectorWidth, ASTContext &rAstContext, InstructionSetBasePtr spInstructionSet) :  BaseType(rAstContext),
+                                                                                                                                                    _cVectorWidth(VectorWidth),
+                                                                                                                                                    _spInstructionSet(spInstructionSet)
+{
+  if (! _spInstructionSet)
+  {
+    throw InternalErrors::NullPointerException( "spInstructionSet" );
+  }
+}
+
+CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::ScopePtr spScope)
+{
+  ClangASTHelper::StatementVectorType vecChildren;
+
+  // Declare all array variables
+  {
+    AST::Scope::VariableDeclarationVectorType vecVarDecls = spScope->GetVariableDeclarations();
+
+    for (auto itVarDecl : vecVarDecls)
+    {
+      AST::BaseClasses::VariableInfoPtr spVarInfo = itVarDecl->LookupVariableInfo();
+      AST::BaseClasses::TypeInfo        &rVarType = spVarInfo->GetTypeInfo();
+
+      if (rVarType.IsArray())
+      {
+        // Remove const flag, otherwise the assignments will not compile
+        if (! rVarType.GetPointer())
+        {
+          rVarType.SetConst(false);
+        }
+
+        ::clang::ValueDecl *pValueDecl = _BuildValueDeclaration(itVarDecl);
+
+        vecChildren.push_back( _GetASTHelper().CreateDeclarationStatement(pValueDecl) );
+      }
+    }
+  }
+
+  // Build child statements
+  for (AST::IndexType iChildIdx = static_cast<AST::IndexType>(0); iChildIdx < spScope->GetChildCount(); ++iChildIdx)
+  {
+    // TODO: Implement
+  }
+
+  return _GetASTHelper().CreateCompoundStatement(vecChildren);
+}
+
+VectorElementTypes CPU_x86::VASTExportInstructionSet::_GetMaskElementType()
+{
+  const VectorElementTypes caeMaskElementType[] = { VectorElementTypes::UInt8, VectorElementTypes::UInt16, VectorElementTypes::UInt32 };
+
+  // Return the smallest mask type which does not waste vector elements
+  for (auto itMaskElemType : caeMaskElementType)
+  {
+    if (_cVectorWidth >= _spInstructionSet->GetVectorElementCount(itMaskElemType))
+    {
+      return itMaskElemType;
+    }
+  }
+
+  // If no mask type has been determined earlier, return the largest possible type
+  return VectorElementTypes::UInt64;
+}
+
+size_t CPU_x86::VASTExportInstructionSet::_GetVectorArraySize(Vectorization::VectorElementTypes eElementType)
+{
+  return max( static_cast<size_t>(1), _cVectorWidth / _spInstructionSet->GetVectorElementCount(eElementType) );
+}
+
+QualType CPU_x86::VASTExportInstructionSet::_GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo)
+{
+  if (crOriginalTypeInfo.GetPointer())
+  {
+    return _ConvertTypeInfo( crOriginalTypeInfo );
+  }
+
+  AST::BaseClasses::TypeInfo::KnownTypes eElementType = crOriginalTypeInfo.GetType();
+  if (eElementType == AST::BaseClasses::TypeInfo::KnownTypes::Bool)
+  {
+    // Change the element type to the current mask type
+    eElementType = _GetMaskElementType();
+  }
+
+
+  QualType qtReturnType = _spInstructionSet->GetVectorType( eElementType );
+
+  // If this vector type is translated into a vector array, add its dimension
+  {
+    const size_t cszArraySize = _GetVectorArraySize( eElementType );
+
+    if ( cszArraySize > static_cast<size_t>(1) )
+    {
+      qtReturnType = _GetASTHelper().GetConstantArrayType( qtReturnType, cszArraySize );
+    }
+  }
+
+
+  // Add the user-defined array dimensions
+  for (auto itDim = crOriginalTypeInfo.GetArrayDimensions().end(); itDim != crOriginalTypeInfo.GetArrayDimensions().begin(); itDim--)
+  {
+    qtReturnType = _GetASTHelper().GetConstantArrayType( qtReturnType, *(itDim-1) );
+  }
+
+  return qtReturnType;
+}
+
+FunctionDecl* CPU_x86::VASTExportInstructionSet::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops)
+{
+  if (! spVASTFunction)
+  {
+    throw InternalErrors::NullPointerException("spVASTFunction");
+  }
+
+
+  // Create the function declaration statement
+  ::clang::FunctionDecl *pFunctionDecl = _BuildFunctionDeclaration( spVASTFunction );
+
+
+  // Build the function body
+  pFunctionDecl->setBody( _BuildCompoundStatement( spVASTFunction->GetBody() ) );
+
+
+  // Reset exporter state
+  _Reset();
+
+  return pFunctionDecl;
+}
+
+
+
 // Implementation of class CPU_x86::CodeGenerator::Descriptor
 CPU_x86::CodeGenerator::Descriptor::Descriptor()
 {
@@ -1378,6 +1509,20 @@ string CPU_x86::CodeGenerator::_GetImageDeclarationString(string strName, Hipacc
 }
 
 
+InstructionSetBasePtr CPU_x86::CodeGenerator::_CreateInstructionSet(::clang::ASTContext &rAstContext)
+{
+  switch ( _eInstructionSet )
+  {
+  case InstructionSetEnum::SSE:       return InstructionSetBase::Create< InstructionSetSSE    >( rAstContext );
+  case InstructionSetEnum::SSE_2:     return InstructionSetBase::Create< InstructionSetSSE2   >( rAstContext );
+  case InstructionSetEnum::SSE_3:     return InstructionSetBase::Create< InstructionSetSSE3   >( rAstContext );
+  case InstructionSetEnum::SSSE_3:    return InstructionSetBase::Create< InstructionSetSSSE3  >( rAstContext );
+  case InstructionSetEnum::SSE_4_1:   return InstructionSetBase::Create< InstructionSetSSE4_1 >( rAstContext );
+  case InstructionSetEnum::SSE_4_2:   return InstructionSetBase::Create< InstructionSetSSE4_2 >( rAstContext );
+  default:                            throw InternalErrorException( "Unexpected instruction set selected!" );
+  }
+}
+
 string CPU_x86::CodeGenerator::_FormatFunctionHeader(FunctionDecl *pFunctionDecl, HipaccHelper &rHipaccHelper, bool bCheckUsage, bool bPrintActualImageType)
 {
   vector< string > vecParamStrings;
@@ -1661,9 +1806,21 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_8.xml");
 
 
-    DumpInstructionSet(rHipaccHelper.GetKernelFunction()->getASTContext(), "Dump_IS.cpp", _eInstructionSet);
+    ::clang::ASTContext &rAstContext    = pSubFunction->getASTContext();
+    const size_t        cszVectorWidth  = _GetVectorWidth(spVecFunction);
 
-    return Vectorizer.ConvertVASTFunctionDecl(spVecFunction, _GetVectorWidth(spVecFunction), pSubFunction->getASTContext(), _bUnrollVectorLoops);
+    if (_eInstructionSet == InstructionSetEnum::Array)
+    {
+      return Vectorizer.ConvertVASTFunctionDecl( spVecFunction, cszVectorWidth, rAstContext, _bUnrollVectorLoops );
+    }
+    else
+    {
+      DumpInstructionSet( rAstContext, "Dump_IS.cpp", _eInstructionSet );
+
+      VASTExportInstructionSet Exporter( cszVectorWidth, rAstContext, _CreateInstructionSet(rAstContext) );
+
+      return Exporter.ExportVASTFunction( spVecFunction, _bUnrollVectorLoops );
+    }
   }
   catch (std::exception &e)
   {

@@ -39,6 +39,7 @@
 #include "InstructionSets.h"
 #include "OptionParsers.h"
 #include "VectorizationAST.h"
+#include "Vectorizer.h"
 #include <list>
 #include <utility>
 #include <vector>
@@ -333,6 +334,42 @@ namespace Backend
     };
 
 
+
+    class VASTExportInstructionSet final : public Vectorization::Vectorizer::VASTExporterBase
+    {
+    private:
+
+      typedef Vectorization::Vectorizer::VASTExporterBase     BaseType;
+
+
+      const Vectorization::InstructionSetBasePtr  _spInstructionSet;
+      const size_t                                _cVectorWidth;
+
+
+    private:
+
+      Vectorization::VectorElementTypes _GetMaskElementType();
+
+      size_t _GetVectorArraySize(Vectorization::VectorElementTypes eElementType);
+
+
+    private:
+
+      ::clang::CompoundStmt*  _BuildCompoundStatement(Vectorization::AST::ScopePtr spScope);
+
+
+      virtual ::clang::QualType _GetVectorizedType(Vectorization::AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
+
+
+    public:
+
+      VASTExportInstructionSet(size_t VectorWidth, ::clang::ASTContext &rAstContext, Vectorization::InstructionSetBasePtr spInstructionSet);
+
+      ::clang::FunctionDecl* ExportVASTFunction(Vectorization::AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops);
+
+    };
+
+
   public:
 
     /** \brief    The code generator for x86-CPUs.
@@ -494,6 +531,11 @@ namespace Backend
        *  \param  pHipaccMemoryObject   A pointer to the <b>HipaccMemory</b> object representing the image to be declared.
        *  \param  bConstPointer         Determines, whether the image buffer shall be treated as read-only. */
       static std::string _GetImageDeclarationString(std::string strName, HipaccMemory *pHipaccMemoryObject, bool bConstPointer = false);
+
+
+      /** \brief  Creates the instruction set of the selected type.
+       *  \param  rAstContext   A reference to the currently used Clang AST context. */
+      Vectorization::InstructionSetBasePtr  _CreateInstructionSet(::clang::ASTContext &rAstContext);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
        *  \param    pKernelFunction         A pointer to the AST object declaring the kernel function.
