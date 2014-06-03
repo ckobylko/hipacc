@@ -83,6 +83,8 @@ namespace Vectorization
 
       void _AddKnownFunctionDeclaration(::clang::FunctionDecl *pFunctionDecl);
 
+      ::clang::QualType _GetVariableType(AST::BaseClasses::VariableInfoPtr spVariableInfo);
+
 
     protected:
 
@@ -115,7 +117,7 @@ namespace Vectorization
       FunctionDeclVectorType  _GetMatchingFunctionDeclarations(std::string strFunctionName, unsigned int uiParamCount);
 
 
-      virtual AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) = 0;
+      virtual ::clang::QualType _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) = 0;
 
 
       bool _HasValueDeclaration(std::string strDeclName);
@@ -274,8 +276,7 @@ namespace Vectorization
     {
     private:
 
-      typedef VASTExporterBase                    BaseType;
-      typedef BaseType::FunctionDeclVectorType    FunctionDeclVectorType;
+      typedef VASTExporterBase    BaseType;
 
 
       class VectorIndex final
@@ -331,7 +332,7 @@ namespace Vectorization
       ::clang::Stmt*          _BuildLoop(AST::ControlFlow::LoopPtr spLoop);
 
 
-      virtual AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
+      virtual ::clang::QualType _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
 
 
     public:

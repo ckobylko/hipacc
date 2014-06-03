@@ -817,14 +817,7 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
     AST::Expressions::IdentifierPtr spParameter = spFunction->GetParameter(iParamIdx);
     vecArgumentNames.push_back( spParameter->GetName() );
 
-    AST::BaseClasses::VariableInfoPtr spParamInfo = spParameter->LookupVariableInfo();
-    AST::BaseClasses::TypeInfo        ParamType   = spParamInfo->GetTypeInfo();
-    if (spParamInfo->GetVectorize())
-    {
-      ParamType = _GetVectorizedType( ParamType );
-    }
-
-    vecArgumentTypes.push_back( _ConvertTypeInfo(ParamType) );
+    vecArgumentTypes.push_back( _GetVariableType( spParameter->LookupVariableInfo() ) );
   }
 
   // Build the function declaration and add it to the map (required for recursive calls)
@@ -854,15 +847,7 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
 
   string strVariableName = spIdentifier->GetName();
 
-  AST::BaseClasses::VariableInfoPtr spVariableInfo = spIdentifier->LookupVariableInfo();
-
-  AST::BaseClasses::TypeInfo VariableType = spVariableInfo->GetTypeInfo();
-  if (spVariableInfo->GetVectorize())
-  {
-    VariableType = _GetVectorizedType(VariableType);
-  }
-
-  ::clang::ValueDecl *pVarDecl = _GetASTHelper().CreateVariableDeclaration( _pDeclContext, strVariableName, _ConvertTypeInfo( VariableType ), pInitExpression );
+  ::clang::ValueDecl *pVarDecl = _GetASTHelper().CreateVariableDeclaration( _pDeclContext, strVariableName, _GetVariableType( spIdentifier->LookupVariableInfo() ), pInitExpression );
 
   _mapKnownDeclarations[ strVariableName ] = pVarDecl;
 
@@ -984,6 +969,18 @@ Vectorizer::VASTExporterBase::FunctionDeclVectorType Vectorizer::VASTExporterBas
   vecFunctionDecls.insert( vecFunctionDecls.begin(), rvecKnownFunctionDecls.begin(), rvecKnownFunctionDecls.end() );
 
   return std::move( vecFunctionDecls );
+}
+
+::clang::QualType Vectorizer::VASTExporterBase::_GetVariableType(AST::BaseClasses::VariableInfoPtr spVariableInfo)
+{
+  if ( spVariableInfo->GetVectorize() )
+  {
+    return _GetVectorizedType( spVariableInfo->GetTypeInfo() );
+  }
+  else
+  {
+    return _ConvertTypeInfo( spVariableInfo->GetTypeInfo() );
+  }
 }
 
 bool Vectorizer::VASTExporterBase::_HasValueDeclaration(string strDeclName)
@@ -1674,20 +1671,16 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 }
 
 
-AST::BaseClasses::TypeInfo Vectorizer::VASTExportArray::_GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo)
+::clang::QualType Vectorizer::VASTExportArray::_GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo)
 {
-  if (crOriginalTypeInfo.GetPointer())
-  {
-    return crOriginalTypeInfo;
-  }
-  else
-  {
-    AST::BaseClasses::TypeInfo ReturnType = crOriginalTypeInfo;
+  AST::BaseClasses::TypeInfo ReturnType = crOriginalTypeInfo;
 
+  if (! crOriginalTypeInfo.GetPointer())
+  {
     ReturnType.GetArrayDimensions().push_back( _VectorWidth );
-
-    return ReturnType;
   }
+
+  return _ConvertTypeInfo( ReturnType );
 }
 
 ::clang::FunctionDecl* Vectorizer::VASTExportArray::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops)
