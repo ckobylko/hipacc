@@ -53,6 +53,86 @@ namespace Vectorization
 {
   class Vectorizer final
   {
+  public:
+
+    class VASTExporterBase
+    {
+    protected:
+
+      typedef ClangASTHelper::FunctionDeclarationVectorType   FunctionDeclVectorType;
+      typedef ClangASTHelper::QualTypeVectorType              QualTypeVectorType;
+
+    private:
+
+      typedef std::map< unsigned int, FunctionDeclVectorType >        FunctionDeclParamCountMapType;
+      typedef std::map< std::string, FunctionDeclParamCountMapType >  FunctionDeclNameMapType;
+
+
+      ClangASTHelper            _ASTHelper;
+      ::clang::DeclContext      *_pDeclContext;
+
+      FunctionDeclNameMapType                       _mapKnownFunctions;
+      std::map< std::string, ::clang::ValueDecl* >  _mapKnownDeclarations;
+
+
+    private:
+
+      VASTExporterBase(const VASTExporterBase &)            = delete;
+      VASTExporterBase& operator=(const VASTExporterBase &) = delete;
+
+
+      void _AddKnownFunctionDeclaration(::clang::FunctionDecl *pFunctionDecl);
+
+
+    protected:
+
+      VASTExporterBase(::clang::ASTContext &rAstContext);
+
+      inline ClangASTHelper&      _GetASTHelper()     { return _ASTHelper; }
+      inline ::clang::ASTContext& _GetASTContext()    { return _GetASTHelper().GetASTContext(); }
+
+      void _Reset();
+
+
+
+      ::clang::Expr*          _BuildConstant(AST::Expressions::ConstantPtr spConstant);
+
+      ::clang::FunctionDecl*  _BuildFunctionDeclaration(AST::FunctionDeclarationPtr spFunction);
+
+      ::clang::ValueDecl*     _BuildValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);
+
+
+      ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
+
+
+      ::clang::DeclRefExpr*   _CreateDeclarationReference(std::string strValueName);
+
+      ::clang::ParenExpr*     _CreateParenthesis(::clang::Expr *pSubExpr);
+
+
+      ::clang::FunctionDecl*  _GetFirstMatchingFunctionDeclaration(std::string strFunctionName, const QualTypeVectorType &crvecArgTypes);
+
+      FunctionDeclVectorType  _GetMatchingFunctionDeclarations(std::string strFunctionName, unsigned int uiParamCount);
+
+
+      virtual AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) = 0;
+
+
+      bool _HasValueDeclaration(std::string strDeclName);
+
+
+    public:
+
+      virtual ~VASTExporterBase()
+      {
+        _Reset();
+
+        _mapKnownFunctions.clear();
+      }
+    };
+
+
+
   private:
 
     typedef AST::IndexType IndexType;
@@ -190,13 +270,13 @@ namespace Vectorization
     };
 
 
-    class VASTExportArray final
+    class VASTExportArray final : public VASTExporterBase
     {
     private:
 
-      typedef ClangASTHelper::FunctionDeclarationVectorType           FunctionDeclVectorType;
-      typedef std::map< unsigned int, FunctionDeclVectorType >        FunctionDeclParamCountMapType;
-      typedef std::map< std::string, FunctionDeclParamCountMapType >  FunctionDeclNameMapType;
+      typedef VASTExporterBase                    BaseType;
+      typedef BaseType::FunctionDeclVectorType    FunctionDeclVectorType;
+
 
       class VectorIndex final
       {
@@ -230,23 +310,15 @@ namespace Vectorization
 
     private:
 
-      ClangASTHelper        _ASTHelper;
-
       const IndexType       _VectorWidth;
-      ::clang::DeclContext  *_pDeclContext;
 
       ::clang::ValueDecl    *_pVectorIndexExpr;
 
-
-      std::map< std::string, ::clang::ValueDecl* >  _mapKnownDeclarations;
-      FunctionDeclNameMapType                       _mapKnownFunctions;
 
 
     private:
 
       ::clang::CompoundStmt*  _BuildCompoundStatement(AST::ScopePtr spScope);
-
-      ::clang::Expr*          _BuildConstant(AST::Expressions::ConstantPtr spConstant);
 
       ::clang::Expr*          _BuildExpression(AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex);
 
@@ -258,16 +330,8 @@ namespace Vectorization
 
       ::clang::Stmt*          _BuildLoop(AST::ControlFlow::LoopPtr spLoop);
 
-      ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
-      ::clang::ValueDecl* _CreateValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);
-
-      AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo);
-
-      bool _HasValueDeclaration(std::string strDeclName);
-
-
-      FunctionDeclVectorType _GetMatchingFunctionDeclarations( std::string strFunctionName, unsigned int uiParamCount );
+      virtual AST::BaseClasses::TypeInfo _GetVectorizedType(AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
 
 
     public:
