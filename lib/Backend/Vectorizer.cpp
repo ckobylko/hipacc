@@ -1024,17 +1024,20 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
   // Declare all array variables
   {
-    AST::Scope::VariableDeclarationVectorType vecVarDecls;
+    AST::Scope::VariableDeclarationVectorType vecVarDecls = spScope->GetVariableDeclarations();
 
-    for each (auto itVarDecl in vecVarDecls)
+    for (auto itVarDecl : vecVarDecls)
     {
       AST::BaseClasses::VariableInfoPtr spVarInfo = itVarDecl->LookupVariableInfo();
       AST::BaseClasses::TypeInfo        &rVarType = spVarInfo->GetTypeInfo();
 
-      if ( rVarType.IsArray() && (! rVarType.GetPointer()) )
+      if (rVarType.IsArray())
       {
         // Remove const flag, otherwise the assignments will not compile
-        rVarType.SetConst(false);
+        if (! rVarType.GetPointer())
+        {
+          rVarType.SetConst(false);
+        }
 
         ::clang::ValueDecl *pValueDecl = _BuildValueDeclaration(itVarDecl);
         
