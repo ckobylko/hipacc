@@ -920,7 +920,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           // Packed conversion not possible => Extract and convert both values separately
           Expr *pValueLow   = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, crvecVectorRefs.front() );
 
-          Expr *pValueHigh  = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, crvecVectorRefs.front(), crvecVectorRefs.front(), _GetASTHelper().CreateIntegerLiteral( 1 ) );
+          Expr *pValueHigh  = _CreateFunctionCall( IntrinsicsSSE2Enum::ShuffleDouble, crvecVectorRefs.front(), CreateZeroVector(eSourceType), _GetASTHelper().CreateIntegerLiteral( 1 ) );
           pValueHigh        = _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, pValueHigh );
 
           return _CreateFunctionCall( IntrinsicsSSE2Enum::SetInt64, pValueHigh, pValueLow );
@@ -960,7 +960,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           Expr *pSourceRef = crvecVectorRefs.front();
           if (uiGroupIndex != 0)
           {
-            pSourceRef = _MergeVectors( eSourceType, pSourceRef, pSourceRef, false );
+            pSourceRef = _MergeVectors( eSourceType, CreateZeroVector(eSourceType), pSourceRef, false );
           }
 
           return _CreateFunctionCall( IntrinsicsSSE2Enum::ConvertFloatDouble, pSourceRef );
