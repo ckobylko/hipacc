@@ -1007,8 +1007,6 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           return _CreateFunctionCall( (uiGroupIndex == 0) ? IntrinsicsSSE2Enum::UnpackLowInt8 : IntrinsicsSSE2Enum::UnpackHighInt8, crvecVectorRefs.front(), pInterleaveVector );
         }
       case VectorElementTypes::Int32:  case VectorElementTypes::UInt32:
-      case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
-      case VectorElementTypes::Double: case VectorElementTypes::Float:
         {
           // Convert into a signed / unsigned 16-bit integer intermediate type and then do the final conversion
           const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(2, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
@@ -1022,6 +1020,35 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
           }
 
           return ConvertVectorUp( ceIntermediateType, eTargetType, pConvertedVector, uiGroupIndex );
+        }
+      case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
+      case VectorElementTypes::Double: case VectorElementTypes::Float:
+        {
+          // Convert into a 32-bit integer intermediate type and then do the final conversion
+          VectorElementTypes  eIntermediateType;
+          if ( (eTargetType == VectorElementTypes::Int64) || (eTargetType == VectorElementTypes::UInt64) )
+          {
+            // Unsigned integer conversions are faster, but only possible if the source type is unsigned => select proper intermediate type
+            eIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(4, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+          }
+          else
+          {
+            // Signed integer to floating point conversions are much faster than their unsigned counterparts
+            // => intermediate type is "Int32" (it can hold the whole "UInt16" value range)
+            eIntermediateType = VectorElementTypes::Int32;
+          }
+
+          const uint32_t cuiSwapIndex   = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) ) >> 2;
+
+          ClangASTHelper::ExpressionVectorType vecConvertedVectors;
+          vecConvertedVectors.push_back( ConvertVectorUp( eSourceType, eIntermediateType, crvecVectorRefs.front(), uiGroupIndex / cuiSwapIndex ) );
+
+          if (uiGroupIndex >= cuiSwapIndex)
+          {
+            uiGroupIndex %= cuiSwapIndex;
+          }
+
+          return _ConvertVector( eIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
         }
       }
 
@@ -1057,19 +1084,31 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
       case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
       case VectorElementTypes::Double: case VectorElementTypes::Float:
         {
-          // Convert into a signed / unsigned 32-bit integer intermediate type and then do the final conversion
-          const VectorElementTypes  ceIntermediateType  = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(4, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
-          const uint32_t            cuiSwapIndex        = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) ) >> 1;
+          // Convert into a 32-bit integer intermediate type and then do the final conversion
+          VectorElementTypes  eIntermediateType;
+          if ( (eTargetType == VectorElementTypes::Int64) || (eTargetType == VectorElementTypes::UInt64) )
+          {
+            // Unsigned integer conversions are faster, but only possible if the source type is unsigned => select proper intermediate type
+            eIntermediateType = AST::BaseClasses::TypeInfo::CreateSizedIntegerType(4, AST::BaseClasses::TypeInfo::IsSigned(eSourceType)).GetType();
+          }
+          else
+          {
+            // Signed integer to floating point conversions are much faster than their unsigned counterparts
+            // => intermediate type is "Int32" (it can hold the whole "UInt16" value range)
+            eIntermediateType = VectorElementTypes::Int32;
+          }
+
+          const uint32_t cuiSwapIndex   = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) / AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) ) >> 1;
 
           ClangASTHelper::ExpressionVectorType vecConvertedVectors;
-          vecConvertedVectors.push_back( ConvertVectorUp( eSourceType, ceIntermediateType, crvecVectorRefs.front(), uiGroupIndex / cuiSwapIndex ) );
+          vecConvertedVectors.push_back( ConvertVectorUp( eSourceType, eIntermediateType, crvecVectorRefs.front(), uiGroupIndex / cuiSwapIndex ) );
 
           if (uiGroupIndex >= cuiSwapIndex)
           {
             uiGroupIndex -= cuiSwapIndex;
           }
 
-          return _ConvertVector( ceIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
+          return _ConvertVector( eIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
         }
       }
 
