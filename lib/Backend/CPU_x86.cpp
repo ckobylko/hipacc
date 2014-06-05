@@ -697,7 +697,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   _uiDumpFlags |= DF_Blend;
   _uiDumpFlags |= DF_BroadCast;
   _uiDumpFlags |= DF_CheckActive;
-  _uiDumpFlags |= DF_Convert;           // TODO: Check me
+  _uiDumpFlags |= DF_Convert;
   _uiDumpFlags |= DF_CreateVector;
   _uiDumpFlags |= DF_Extract;
   _uiDumpFlags |= DF_Insert;
