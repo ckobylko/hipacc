@@ -345,6 +345,47 @@ namespace Backend
       typedef std::set< Vectorization::VectorElementTypes >   VectorElementTypesSetType;
 
 
+      class VectorIndex final
+      {
+      public:
+
+        enum class IndexTypeEnum
+        {
+          VectorStart,
+          SingleElement
+        };
+
+      private:
+
+        IndexTypeEnum   _eIndexType;
+        std::uint32_t   _uiIndex;
+        std::uint32_t   _uiElementCount;
+
+      public:
+
+        VectorIndex(IndexTypeEnum eIndexType, std::uint32_t uiIndex, std::uint32_t uiElementCount)
+        {
+          _eIndexType       = eIndexType;
+          _uiIndex          = uiIndex;
+          _uiElementCount   = uiElementCount;
+        }
+
+        inline VectorIndex(const VectorIndex &crRVal)   { *this = crRVal; }
+
+        inline VectorIndex& operator=(const VectorIndex &crRVal)
+        {
+          _eIndexType       = crRVal._eIndexType;
+          _uiIndex          = crRVal._uiIndex;
+          _uiElementCount   = crRVal._uiElementCount;
+        }
+
+
+        inline std::uint32_t  GetElementCount() const   { return _uiElementCount; }
+        inline std::uint32_t  GetElementIndex() const   { return _uiIndex; }
+        inline std::uint32_t  GetGroupIndex() const     { return GetElementIndex() / GetElementCount(); }
+      };
+
+
       const Vectorization::InstructionSetBasePtr  _spInstructionSet;
       const size_t                                _cVectorWidth;
 
@@ -360,12 +401,23 @@ namespace Backend
 
       ::clang::CompoundStmt*  _BuildCompoundStatement(Vectorization::AST::ScopePtr spScope);
 
+      ::clang::Expr*          _BuildScalarExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+      ::clang::Expr*          _BuildVectorExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex);
+
       ::clang::Stmt*          _BuildExpressionStatement(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+
+      VectorIndex _CreateVectorIndex(Vectorization::VectorElementTypes eElementType, size_t szGroupIndex);
+
+      Vectorization::VectorElementTypes _GetExpressionElementType(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
 
       static VectorElementTypesSetType _GetUsedVectorElementTypes(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
       static bool _NeedsUnwrap(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+      ::clang::Expr*          _TranslateMemoryAccessToPointerRef(Vectorization::AST::Expressions::MemoryAccessPtr spMemoryAccess, const VectorIndex &crVectorIndex);
 
 
       virtual ::clang::QualType _GetVectorizedType(Vectorization::AST::BaseClasses::TypeInfo &crOriginalTypeInfo) final override;
