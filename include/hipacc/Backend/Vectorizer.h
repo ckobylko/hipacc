@@ -104,7 +104,12 @@ namespace Vectorization
       ::clang::ValueDecl*     _BuildValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);
 
 
-      ::clang::QualType _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
+      static ::clang::BinaryOperatorKind  _ConvertArithmeticOperatorType(AST::Expressions::ArithmeticOperator::ArithmeticOperatorType eOpType);
+
+      static ::clang::BinaryOperatorKind  _ConvertRelationalOperatorType(AST::Expressions::RelationalOperator::RelationalOperatorType eOpType);
+
+
+      ::clang::QualType       _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
 
       ::clang::DeclRefExpr*   _CreateDeclarationReference(std::string strValueName);

@@ -855,6 +855,44 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
 }
 
 
+::clang::BinaryOperatorKind Vectorizer::VASTExporterBase::_ConvertArithmeticOperatorType(AST::Expressions::ArithmeticOperator::ArithmeticOperatorType eOpType)
+{
+  typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  OperatorType;
+
+  switch (eOpType)
+  {
+  case OperatorType::Add:         return ::clang::BO_Add;
+  case OperatorType::BitwiseAnd:  return ::clang::BO_And;
+  case OperatorType::BitwiseOr:   return ::clang::BO_Or;
+  case OperatorType::BitwiseXOr:  return ::clang::BO_Xor;
+  case OperatorType::Divide:      return ::clang::BO_Div;
+  case OperatorType::Modulo:      return ::clang::BO_Rem;
+  case OperatorType::Multiply:    return ::clang::BO_Mul;
+  case OperatorType::ShiftLeft:   return ::clang::BO_Shl;
+  case OperatorType::ShiftRight:  return ::clang::BO_Shr;
+  case OperatorType::Subtract:    return ::clang::BO_Sub;
+  default:                        throw InternalErrorException("Unknown VAST arithmetic operator type detected!");
+  }
+}
+
+::clang::BinaryOperatorKind Vectorizer::VASTExporterBase::_ConvertRelationalOperatorType(AST::Expressions::RelationalOperator::RelationalOperatorType eOpType)
+{
+  typedef AST::Expressions::RelationalOperator::RelationalOperatorType  OperatorType;
+
+  switch (eOpType)
+  {
+  case OperatorType::Equal:         return ::clang::BO_EQ;
+  case OperatorType::Greater:       return ::clang::BO_GT;
+  case OperatorType::GreaterEqual:  return ::clang::BO_GE;
+  case OperatorType::Less:          return ::clang::BO_LT;
+  case OperatorType::LessEqual:     return ::clang::BO_LE;
+  case OperatorType::LogicalAnd:    return ::clang::BO_LAnd;
+  case OperatorType::LogicalOr:     return ::clang::BO_LOr;
+  case OperatorType::NotEqual:      return ::clang::BO_NE;
+  default:                          throw InternalErrorException("Unknown VAST relational operator type detected!");
+  }
+}
+
 ::clang::QualType Vectorizer::VASTExporterBase::_ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo)
 {
   typedef AST::BaseClasses::TypeInfo::KnownTypes    KnownTypes;
@@ -1345,24 +1383,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
     if (spBinaryOperator->IsType<AST::Expressions::ArithmeticOperator>())
     {
-      typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType OperatorType;
-
-      OperatorType eOperatorType = spBinaryOperator->CastToType<AST::Expressions::ArithmeticOperator>()->GetOperatorType();
-
-      switch (eOperatorType)
-      {
-      case OperatorType::Add:         eOpCode = ::clang::BO_Add;  break;
-      case OperatorType::BitwiseAnd:  eOpCode = ::clang::BO_And;  break;
-      case OperatorType::BitwiseOr:   eOpCode = ::clang::BO_Or;   break;
-      case OperatorType::BitwiseXOr:  eOpCode = ::clang::BO_Xor;  break;
-      case OperatorType::Divide:      eOpCode = ::clang::BO_Div;  break;
-      case OperatorType::Modulo:      eOpCode = ::clang::BO_Rem;  break;
-      case OperatorType::Multiply:    eOpCode = ::clang::BO_Mul;  break;
-      case OperatorType::ShiftLeft:   eOpCode = ::clang::BO_Shl;  break;
-      case OperatorType::ShiftRight:  eOpCode = ::clang::BO_Shr;  break;
-      case OperatorType::Subtract:    eOpCode = ::clang::BO_Sub;  break;
-      default:                        throw InternalErrorException("Unknown VAST arithmetic operator type detected!");
-      }
+      eOpCode = _ConvertArithmeticOperatorType( spBinaryOperator->CastToType<AST::Expressions::ArithmeticOperator>()->GetOperatorType() );
     }
     else if (spBinaryOperator->IsType<AST::Expressions::AssignmentOperator>())
     {
@@ -1371,22 +1392,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
     else if (spBinaryOperator->IsType<AST::Expressions::RelationalOperator>())
     {
-      typedef AST::Expressions::RelationalOperator::RelationalOperatorType OperatorType;
-
-      OperatorType eOperatorType = spBinaryOperator->CastToType<AST::Expressions::RelationalOperator>()->GetOperatorType();
-
-      switch (eOperatorType)
-      {
-      case OperatorType::Equal:         eOpCode = ::clang::BO_EQ;     break;
-      case OperatorType::Greater:       eOpCode = ::clang::BO_GT;     break;
-      case OperatorType::GreaterEqual:  eOpCode = ::clang::BO_GE;     break;
-      case OperatorType::Less:          eOpCode = ::clang::BO_LT;     break;
-      case OperatorType::LessEqual:     eOpCode = ::clang::BO_LE;     break;
-      case OperatorType::LogicalAnd:    eOpCode = ::clang::BO_LAnd;   break;
-      case OperatorType::LogicalOr:     eOpCode = ::clang::BO_LOr;    break;
-      case OperatorType::NotEqual:      eOpCode = ::clang::BO_NE;     break;
-      default:                          throw InternalErrorException("Unknown VAST relational operator type detected!");
-      }
+      eOpCode = _ConvertRelationalOperatorType( spBinaryOperator->CastToType<AST::Expressions::RelationalOperator>()->GetOperatorType() );
     }
     else
     {
