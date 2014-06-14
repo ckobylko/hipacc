@@ -36,6 +36,14 @@
 #include <stdexcept>
 #include <string>
 
+
+#ifdef _MSC_VER
+#define DECLARE_NOEXCEPT
+#else
+#define DECLARE_NOEXCEPT noexcept (true)
+#endif
+
+
 namespace clang
 {
 namespace hipacc
@@ -59,7 +67,7 @@ namespace Backend
      *  \param  strMessage  The message which shall be displayed. */
     inline BackendException(std::string strMessage) : BaseType(std::string("Backend exception: ") + strMessage) {}
 
-    virtual ~BackendException() {}
+    virtual ~BackendException() DECLARE_NOEXCEPT  {}
   };
 
   /** \brief    Root class for all internal errors of the backend. 
@@ -77,7 +85,7 @@ namespace Backend
      *  \param  strMessage  The message which shall be displayed. */
     inline InternalErrorException(std::string strMessage) : BaseType(std::string("Internal error: ") + strMessage)  {}
 
-    virtual ~InternalErrorException() {}
+    virtual ~InternalErrorException() DECLARE_NOEXCEPT  {}
   };
 
   /** \brief    Root class for all run-time errors of the backend.
@@ -95,7 +103,7 @@ namespace Backend
      *  \param  strMessage  The message which shall be displayed. */
     inline RuntimeErrorException(std::string strMessage) : BaseType(std::string("Runtime error: ") + strMessage)  {}
 
-    virtual ~RuntimeErrorException()	{}
+    virtual ~RuntimeErrorException() DECLARE_NOEXCEPT {}
   };
 
   //@}

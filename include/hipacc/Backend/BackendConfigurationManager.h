@@ -271,7 +271,7 @@ namespace Backend
         // Set all switches Aliases
         KnownSwitches::AliasesVectorType vecAliases = SwitchClass::GetAliases();
 
-        for each (std::string strAlias in vecAliases)
+        for (std::string strAlias : vecAliases)
         {
           _mapSwitchAliases[strAlias] = strSwitch;
         }

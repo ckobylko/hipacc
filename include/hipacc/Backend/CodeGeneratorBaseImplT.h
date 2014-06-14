@@ -194,7 +194,7 @@ namespace Backend
       // Parse option
       try
       {
-        return typename SwitchClass::OptionParser::Parse(strOption);
+        return SwitchClass::OptionParser::Parse(strOption);
       }
       catch (RuntimeErrors::InvalidOptionException &)
       {

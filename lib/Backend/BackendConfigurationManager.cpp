@@ -59,7 +59,7 @@ void BackendConfigurationManager::ConsoleOutput::_PrintSwitches(const CommonDefi
 {
   // Fetch maximum width of switch string
   size_t szMaxSwitchWidth = static_cast<size_t>(0);
-  for each (auto itCurrentSwitch in crvecSwitches)
+  for (auto itCurrentSwitch : crvecSwitches)
   {
     size_t szCurrentSize = itCurrentSwitch.first.length();
 
@@ -80,7 +80,7 @@ void BackendConfigurationManager::ConsoleOutput::_PrintSwitches(const CommonDefi
 
 
   // Re-format every switch entry and print it
-  for each (auto itCurrentSwitch in crvecSwitches)
+  for (auto itCurrentSwitch : crvecSwitches)
   {
     // Pad the switch key
     string strPrintString  = _GetPadString(_cszPadLeft) + itCurrentSwitch.first;
@@ -200,8 +200,8 @@ void BackendConfigurationManager::ConsoleOutput::PrintVersion()
 
 
 // Implementation of class BackendConfigurationManager
-BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr),
-                                                                                              _ConsoleOutput(static_cast<size_t>(110))
+BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _ConsoleOutput( static_cast<size_t>(110) ), _pCompilerOptions(pCompilerOptions),
+                                                                                              _spSelectedCodeGenerator(nullptr)
 {
   _strInputFile   = "";
   _strOutputFile  = "";
@@ -279,7 +279,7 @@ size_t BackendConfigurationManager::_HandleSwitch(std::string strSwitch, CommonD
 
 
       // Print the specific switches for all known code generators
-      for each (auto itCodeGenerator in _mapCodeGenerators)
+      for (auto itCodeGenerator : _mapCodeGenerators)
       {
         _ConsoleOutput.PrintCodeGeneratorSwitches(itCodeGenerator.second);
       }
