@@ -88,13 +88,13 @@ namespace Backend
       }
 
       /** \brief  Copy constructor. */
-      inline CompilerSwitchInfoT(CompilerSwitchInfoT &crRVal)
+      inline CompilerSwitchInfoT(const CompilerSwitchInfoT &crRVal)
       {
         *this = crRVal;
       }
 
       /** \brief  Assignment operator. */
-      inline CompilerSwitchInfoT& operator=(CompilerSwitchInfoT &crRVal)
+      inline CompilerSwitchInfoT& operator=(const CompilerSwitchInfoT &crRVal)
       {
         _eSwitchType = crRVal._eSwitchType;
         _strDescription = crRVal._strDescription;
