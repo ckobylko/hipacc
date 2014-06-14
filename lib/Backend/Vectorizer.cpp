@@ -838,6 +838,23 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
   return pFunctionDecl;
 }
 
+::clang::Stmt* Vectorizer::VASTExporterBase::_BuildLoopControlStatement(AST::ControlFlow::LoopControlStatementPtr spLoopControl)
+{
+  typedef AST::ControlFlow::LoopControlStatement::LoopControlType   LoopControlType;
+
+  if (spLoopControl->IsVectorized())
+  {
+    throw InternalErrorException("Cannot handle vectorized loop control statements!");
+  }
+
+  switch ( spLoopControl->GetControlType() )
+  {
+  case LoopControlType::Break:      return _GetASTHelper().CreateBreakStatement();
+  case LoopControlType::Continue:   return _GetASTHelper().CreateContinueStatement();
+  default:                          throw InternalErrorException("Unknown VAST loop control statement detected!");
+  }
+}
+
 ::clang::ValueDecl* Vectorizer::VASTExporterBase::_BuildValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression)
 {
   if (_pDeclContext == nullptr)
@@ -1285,20 +1302,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
       }
       else if (spControlFlow->IsType<AST::ControlFlow::LoopControlStatement>())
       {
-        typedef AST::ControlFlow::LoopControlStatement::LoopControlType   LoopControlType;
-
-        AST::ControlFlow::LoopControlStatementPtr spLoopCtrlStmt = spControlFlow->CastToType<AST::ControlFlow::LoopControlStatement>();
-        if (spLoopCtrlStmt->IsVectorized())
-        {
-          throw InternalErrorException("Cannot handle vectorized loop control statements!");
-        }
-
-        switch (spLoopCtrlStmt->GetControlType())
-        {
-        case LoopControlType::Break:      pChildStmt = _GetASTHelper().CreateBreakStatement();     break;
-        case LoopControlType::Continue:   pChildStmt = _GetASTHelper().CreateContinueStatement();  break;
-        default:                          throw InternalErrorException("Unknown VAST loop control statement detected!");
-        }
+        pChildStmt = _BuildLoopControlStatement( spControlFlow->CastToType<AST::ControlFlow::LoopControlStatement>() );
       }
       else if (spControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {

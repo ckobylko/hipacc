@@ -101,6 +101,8 @@ namespace Vectorization
 
       ::clang::FunctionDecl*  _BuildFunctionDeclaration(AST::FunctionDeclarationPtr spFunction);
 
+      ::clang::Stmt*          _BuildLoopControlStatement(AST::ControlFlow::LoopControlStatementPtr spLoopControl);
+
       ::clang::ValueDecl*     _BuildValueDeclaration(AST::Expressions::IdentifierPtr spIdentifier, ::clang::Expr *pInitExpression = nullptr);
 
 
