@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
 
     // Fetch the commands vector the clang invocation and convert it to clang's format
     vecArguments = BackendConfigManager.GetClangArguments();
-    for each (auto itArgument in vecArguments)
+    for (auto itArgument : vecArguments)
     {
       char *pcArgument = (char*) calloc(itArgument.size() + 1, sizeof(char));
       if (pcArgument == NULL)
