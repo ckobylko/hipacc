@@ -1058,7 +1058,29 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
   }
   else if (spExpression->IsType< AST::Expressions::UnaryExpression    >())
   {
-    // TODO: Implement
+    AST::Expressions::UnaryExpressionPtr  spUnaryExpression = spExpression->CastToType< AST::Expressions::UnaryExpression >();
+    AST::BaseClasses::TypeInfo            ResultType        = spUnaryExpression->GetResultType();
+    AST::BaseClasses::ExpressionPtr       spSubExpression   = spUnaryExpression->GetSubExpression();
+    Expr                                  *pSubExpr         = _BuildScalarExpression( spSubExpression );
+
+    if      (spUnaryExpression->IsType< AST::Expressions::Conversion    >())
+    {
+      pReturnExpr = _CreateCast( spSubExpression->GetResultType(), ResultType, pSubExpr );
+    }
+    else if (spUnaryExpression->IsType< AST::Expressions::Parenthesis   >())
+    {
+      pReturnExpr = _CreateParenthesis( pSubExpr );
+    }
+    else if (spUnaryExpression->IsType< AST::Expressions::UnaryOperator >())
+    {
+      ::clang::UnaryOperatorKind eOpCode = _ConvertUnaryOperatorType( spUnaryExpression->CastToType<AST::Expressions::UnaryOperator>()->GetOperatorType() );
+
+      pReturnExpr = _GetASTHelper().CreateUnaryOperator( pSubExpr, eOpCode, _ConvertTypeInfo(ResultType) );
+    }
+    else
+    {
+      throw InternalErrorException("Unknown VAST unary expression node detected!");
+    }
   }
   else if (spExpression->IsType< AST::Expressions::Value              >())
   {
@@ -1193,14 +1215,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
           vecRelationalExprs.push_back( _spInstructionSet->RelationalOperator( eElementType, eOperatorType, pExprLHS, pExprRHS ) );
         }
 
-        if (vecRelationalExprs.size() == static_cast<size_t>(1))
-        {
-          pReturnExpr = _spInstructionSet->ConvertMaskSameSize( eElementType, _GetMaskElementType(), vecRelationalExprs.front() );
-        }
-        else
-        {
-          pReturnExpr = _spInstructionSet->ConvertMaskDown( eElementType, _GetMaskElementType(), vecRelationalExprs );
-        }
+        pReturnExpr = _ConvertMaskDown( eElementType, vecRelationalExprs );
       }
       else
       {
@@ -1214,7 +1229,55 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
   }
   else if (spExpression->IsType< AST::Expressions::UnaryExpression    >())
   {
-    // TODO: Implement
+    AST::Expressions::UnaryExpressionPtr  spUnaryExpression = spExpression->CastToType< AST::Expressions::UnaryExpression >();
+    AST::BaseClasses::ExpressionPtr       spSubExpression   = spUnaryExpression->GetSubExpression();
+    AST::BaseClasses::TypeInfo            ResultType        = spExpression->GetResultType();
+    VectorElementTypes                    eSubElementType   = _GetExpressionElementType( spSubExpression );
+
+    if      (spUnaryExpression->IsType< AST::Expressions::Conversion    >())
+    {
+      // TODO: Implement
+    }
+    else if (spUnaryExpression->IsType< AST::Expressions::Parenthesis   >())
+    {
+      pReturnExpr = _CreateParenthesis( _BuildVectorExpression( spSubExpression, crVectorIndex ) );
+    }
+    else if (spUnaryExpression->IsType< AST::Expressions::UnaryOperator >())
+    {
+      typedef AST::Expressions::UnaryOperator::UnaryOperatorType  OperatorType;
+
+      OperatorType eOpType = spUnaryExpression->CastToType< AST::Expressions::UnaryOperator >()->GetOperatorType();
+
+      if (spSubExpression->GetResultType().IsSingleValue())
+      {
+        if (eOpType == OperatorType::LogicalNot)
+        {
+          // This operator creates a mask => Apply it to all vector elements and convert the resulting masks
+          ClangASTHelper::ExpressionVectorType vecSubExpressions;
+
+          for (size_t szGroupIndex = 0; szGroupIndex < _GetVectorArraySize( eSubElementType ); ++szGroupIndex)
+          {
+            Expr *pSubExpr = _BuildVectorExpression( spSubExpression, _CreateVectorIndex(eSubElementType, szGroupIndex) );
+
+            vecSubExpressions.push_back( _spInstructionSet->UnaryOperator( eSubElementType, eOpType, pSubExpr ) );
+          }
+
+          pReturnExpr = _ConvertMaskDown( eSubElementType, vecSubExpressions );
+        }
+        else
+        {
+          pReturnExpr = _spInstructionSet->UnaryOperator( eSubElementType, eOpType, _BuildVectorExpression(spSubExpression, crVectorIndex) );
+        }
+      }
+      else
+      {
+        pReturnExpr = _GetASTHelper().CreateUnaryOperator( _BuildVectorExpression(spSubExpression, crVectorIndex), _ConvertUnaryOperatorType(eOpType), _ConvertTypeInfo(ResultType) );
+      }
+    }
+    else
+    {
+      throw InternalErrorException("Unknown VAST unary expression node detected!");
+    }
   }
   else if (spExpression->IsType< AST::Expressions::Value              >())
   {
@@ -1366,6 +1429,16 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
   }
 
   return pReturnExpr;
+}
+
+Expr* CPU_x86::VASTExportInstructionSet::_ConvertMaskDown(VectorElementTypes eSourceElementType, const ClangASTHelper::ExpressionVectorType &crvecSubExpressions)
+{
+  switch ( crvecSubExpressions.size() )
+  {
+  case 0:   throw InternalErrorException("The source expression vector for a mask conversion cannot be empty!");
+  case 1:   return _spInstructionSet->ConvertMaskSameSize( eSourceElementType, _GetMaskElementType(), crvecSubExpressions.front() );
+  default:  return _spInstructionSet->ConvertMaskDown( eSourceElementType, _GetMaskElementType(), crvecSubExpressions );
+  }
 }
 
 CPU_x86::VASTExportInstructionSet::VectorIndex CPU_x86::VASTExportInstructionSet::_CreateVectorIndex(VectorElementTypes eElementType, size_t szGroupIndex)

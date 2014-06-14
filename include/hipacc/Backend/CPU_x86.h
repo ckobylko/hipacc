@@ -408,6 +408,8 @@ namespace Backend
       ::clang::Stmt*          _BuildExpressionStatement(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
 
+      ::clang::Expr*          _ConvertMaskDown(Vectorization::VectorElementTypes eSourceElementType, const ClangASTHelper::ExpressionVectorType &crvecSubExpressions);
+
       VectorIndex _CreateVectorIndex(Vectorization::VectorElementTypes eElementType, size_t szGroupIndex);
 
       Vectorization::VectorElementTypes _GetExpressionElementType(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
