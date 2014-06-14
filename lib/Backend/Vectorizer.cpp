@@ -893,6 +893,26 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
   }
 }
 
+::clang::UnaryOperatorKind Vectorizer::VASTExporterBase::_ConvertUnaryOperatorType(AST::Expressions::UnaryOperator::UnaryOperatorType eOpType)
+{
+  typedef AST::Expressions::UnaryOperator::UnaryOperatorType  OperatorType;
+
+  switch (eOpType)
+  {
+  case OperatorType::AddressOf:       return UO_AddrOf;
+  case OperatorType::BitwiseNot:      return UO_Not;
+  case OperatorType::LogicalNot:      return UO_LNot;
+  case OperatorType::Minus:           return UO_Minus;
+  case OperatorType::Plus:            return UO_Plus;
+  case OperatorType::PostDecrement:   return UO_PostDec;
+  case OperatorType::PostIncrement:   return UO_PostInc;
+  case OperatorType::PreDecrement:    return UO_PreDec;
+  case OperatorType::PreIncrement:    return UO_PreInc;
+  default:                            throw InternalErrorException("Unknown VAST unary operator type detected!");
+  }
+}
+
+
 ::clang::QualType Vectorizer::VASTExporterBase::_ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo)
 {
   typedef AST::BaseClasses::TypeInfo::KnownTypes    KnownTypes;
@@ -1344,25 +1364,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
     else if (spUnaryExpression->IsType<AST::Expressions::UnaryOperator>())
     {
-      typedef AST::Expressions::UnaryOperator::UnaryOperatorType  OperatorType;
-
-      OperatorType eOperatorType = spUnaryExpression->CastToType<AST::Expressions::UnaryOperator>()->GetOperatorType();
-
-      ::clang::UnaryOperatorKind eOpCode;
-
-      switch (eOperatorType)
-      {
-      case OperatorType::AddressOf:       eOpCode = UO_AddrOf;    break;
-      case OperatorType::BitwiseNot:      eOpCode = UO_Not;       break;
-      case OperatorType::LogicalNot:      eOpCode = UO_LNot;      break;
-      case OperatorType::Minus:           eOpCode = UO_Minus;     break;
-      case OperatorType::Plus:            eOpCode = UO_Plus;      break;
-      case OperatorType::PostDecrement:   eOpCode = UO_PostDec;   break;
-      case OperatorType::PostIncrement:   eOpCode = UO_PostInc;   break;
-      case OperatorType::PreDecrement:    eOpCode = UO_PreDec;    break;
-      case OperatorType::PreIncrement:    eOpCode = UO_PreInc;    break;
-      default:                            throw InternalErrorException("Unknown VAST unary operator type detected!");
-      }
+      ::clang::UnaryOperatorKind eOpCode = _ConvertUnaryOperatorType( spUnaryExpression->CastToType<AST::Expressions::UnaryOperator>()->GetOperatorType() );
 
       pReturnExpr = _GetASTHelper().CreateUnaryOperator( pSubExpr, eOpCode, _ConvertTypeInfo(ResultType) );
     }

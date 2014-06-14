@@ -108,6 +108,8 @@ namespace Vectorization
 
       static ::clang::BinaryOperatorKind  _ConvertRelationalOperatorType(AST::Expressions::RelationalOperator::RelationalOperatorType eOpType);
 
+      static ::clang::UnaryOperatorKind   _ConvertUnaryOperatorType(AST::Expressions::UnaryOperator::UnaryOperatorType eOpType);
+
 
       ::clang::QualType       _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
