@@ -30,6 +30,7 @@
 //
 //===---------------------------------------------------------------------------------===//
 
+#include "hipacc/Backend/BackendExceptions.h"
 #include "hipacc/Backend/ClangASTHelper.h"
 
 using namespace clang::hipacc::Backend;
@@ -155,6 +156,43 @@ FunctionDecl* ClangASTHelper::CreateFunctionDeclaration(string strFunctionName, 
 IfStmt* ClangASTHelper::CreateIfStatement(Expr *pCondition, Stmt *pThenBranch, Stmt *pElseBranch)
 {
   return ASTNode::createIfStmt(GetASTContext(), pCondition, pThenBranch, pElseBranch, nullptr);
+}
+
+IfStmt* ClangASTHelper::CreateIfStatement(const ExpressionVectorType &crvecConditions, const StatementVectorType &crvecBranchBodies, Stmt *pDefaultBranch)
+{
+  const size_t cszBranchCount = crvecConditions.size();
+
+  if (cszBranchCount != crvecBranchBodies.size())
+  {
+    throw RuntimeErrorException("The number of branch conditions must be equal to the number of branch bodies!");
+  }
+
+  switch (cszBranchCount)
+  {
+  case 0:   return CreateIfStatement( CreateBoolLiteral(true), pDefaultBranch, nullptr );
+  case 1:   return CreateIfStatement( crvecConditions.front(), crvecBranchBodies.front(), pDefaultBranch );
+
+  default:
+
+    // Create branch statements
+    VectorType< IfStmt* > vecIfStatements;
+    for (size_t szIdx = static_cast<size_t>(0); szIdx < cszBranchCount; ++szIdx)
+    {
+      vecIfStatements.push_back( CreateIfStatement( crvecConditions[szIdx], crvecBranchBodies[szIdx], nullptr ) );
+    }
+
+    // Link branch statements to a multi-branch statement
+    for (size_t szIdx = static_cast<size_t>(1); szIdx < cszBranchCount; ++szIdx)
+    {
+      vecIfStatements[szIdx - 1]->setElse( vecIfStatements[szIdx] );
+    }
+
+    // Link default branch
+    vecIfStatements.back()->setElse( pDefaultBranch );
+
+    // Return the root of the cascade
+    return vecIfStatements.front();
+  }
 }
 
 ImplicitCastExpr* ClangASTHelper::CreateImplicitCastExpression(Expr *pOperandExpression, const QualType &crReturnType, CastKind eCastKind, bool bIsLValue)

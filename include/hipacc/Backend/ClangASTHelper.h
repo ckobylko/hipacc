@@ -171,7 +171,18 @@ namespace Backend
      *  \param  crvecArgumentTypes  A vector containing the qualified types of the function arguments. */
     ::clang::FunctionDecl*            CreateFunctionDeclaration(std::string strFunctionName, const ::clang::QualType &crReturnType, const StringVectorType &crvecArgumentNames, const QualTypeVectorType &crvecArgumentTypes);
 
+    /** \brief  Constructs an <b>"if-then-else"</b>-statement.
+     *  \param  pCondition    A pointer to the condition expression of the <b>if</b>-branch.
+     *  \param  pThenBranch   A pointer to the body statement of the <b>if</b>-branch.
+     *  \param  pElseBranch   A pointer to the body statement of the <b>else</b>-branch. If set to <b>nullptr</b>, no <b>else</b>-branch will be created. */
     ::clang::IfStmt*                  CreateIfStatement(::clang::Expr *pCondition, ::clang::Stmt *pThenBranch, ::clang::Stmt *pElseBranch = nullptr);
+
+    /** \brief    Constructs a multi-branch <b>if</b>-statement (i.e. a <b>"if-{else if}-else"</b>-statement).
+     *  \param    crvecConditions     A vector containing the conditions of all <b>if / else if</b> branches.
+     *  \param    crvecBranchBodies   A vector containing the body statements of all conditional branches.
+     *  \param    pDefaultBranch      A pointer to the body statement of the final <b>else</b>-branch. If set to <b>nullptr</b>, no <b>else</b>-branch will be created.
+     *  \remarks  The number of conditions must be equal to the number of branch bodies. */
+    ::clang::IfStmt*                  CreateIfStatement(const ExpressionVectorType &crvecConditions, const StatementVectorType &crvecBranchBodies, ::clang::Stmt *pDefaultBranch = nullptr);
 
     /** \brief  Creates an implicit cast expression object.
      *  \param  pOperandExpression  A pointer to the expression object whose return type shall be implicitly casted.
