@@ -906,18 +906,93 @@ CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::Sc
 
     Stmt *pChildStmt = nullptr;
 
-    if (spNode->IsType< AST::Scope >())
+    if      (spNode->IsType< AST::Scope                             >())
     {
       pChildStmt = _BuildCompoundStatement( spNode->CastToType< AST::Scope >() );
     }
     else if (spNode->IsType< AST::BaseClasses::ControlFlowStatement >())
     {
-      // TODO: Implement
+      AST::BaseClasses::ControlFlowStatementPtr spControlFlow = spNode->CastToType< AST::BaseClasses::ControlFlowStatement >();
+      if (spControlFlow->IsVectorized())
+      {
+        throw RuntimeErrorException("Cannot handle vectorized control flow statements => Rebuild the control flow before calling the export!");
+      }
+
+      if      (spControlFlow->IsType< AST::ControlFlow::BranchingStatement   >())
+      {
+        AST::ControlFlow::BranchingStatementPtr spBranchingStatement = spControlFlow->CastToType< AST::ControlFlow::BranchingStatement >();
+
+        ClangASTHelper::ExpressionVectorType  vecConditions;
+        ClangASTHelper::StatementVectorType   vecBranchBodies;
+
+        for (AST::IndexType iBranchIdx = static_cast<AST::IndexType>(0); iBranchIdx < spBranchingStatement->GetConditionalBranchesCount(); ++iBranchIdx)
+        {
+          AST::ControlFlow::ConditionalBranchPtr spCurrentBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
+
+          vecConditions.push_back( _BuildScalarExpression( spCurrentBranch->GetCondition() ) );
+          vecBranchBodies.push_back( _BuildCompoundStatement( spCurrentBranch->GetBody() ) );
+        }
 
 
-      continue;
+        AST::ScopePtr spDefaultBranch = spBranchingStatement->GetDefaultBranch();
+        ::clang::Stmt *pDefaultBranch = ( spDefaultBranch->GetChildCount() > 0 ) ? _BuildCompoundStatement( spDefaultBranch ) : nullptr;
+
+        pChildStmt = _GetASTHelper().CreateIfStatement( vecConditions, vecBranchBodies, pDefaultBranch );
+      }
+      else if (spControlFlow->IsType< AST::ControlFlow::Loop                 >())
+      {
+        AST::ControlFlow::LoopPtr spLoop = spControlFlow->CastToType< AST::ControlFlow::Loop >();
+
+        ::clang::CompoundStmt *pLoopBody      = _BuildCompoundStatement( spLoop->GetBody() );
+        ::clang::Expr         *pConditionExpr = _BuildScalarExpression( spLoop->GetCondition() );
+        ::clang::Expr         *pIncrementExpr = nullptr;
+
+        if (spLoop->GetIncrement())
+        {
+          AST::BaseClasses::ExpressionPtr spIncrement = spLoop->GetIncrement();
+
+          if (spIncrement->IsVectorized())
+          {
+            VectorElementTypes eElementType = _GetExpressionElementType( spIncrement );
+
+            ClangASTHelper::ExpressionVectorType vecIncExpressions;
+
+            // Create one increment expression for each vector group
+            for (size_t szIdx = static_cast<size_t>(0); szIdx < _GetVectorArraySize( eElementType ); ++szIdx)
+            {
+              vecIncExpressions.push_back( _CreateParenthesis( _BuildVectorExpression(spIncrement, _CreateVectorIndex(eElementType, szIdx)) ) );
+            }
+
+            // Collapse increment expressions into a comma separated list
+            for (size_t szIdx = static_cast<size_t>(1); szIdx < vecIncExpressions.size(); ++szIdx)
+            {
+              vecIncExpressions[0] = _GetASTHelper().CreateBinaryOperatorComma( vecIncExpressions[0], vecIncExpressions[szIdx] );
+            }
+
+            pIncrementExpr = vecIncExpressions.front();
+          }
+          else
+          {
+            pIncrementExpr = _BuildScalarExpression( spIncrement );
+          }
+        }
+
+        pChildStmt = _BuildLoop( spLoop->GetLoopType(), pConditionExpr, pLoopBody, pIncrementExpr );
+      }
+      else if (spControlFlow->IsType< AST::ControlFlow::LoopControlStatement >())
+      {
+        pChildStmt = _BuildLoopControlStatement( spControlFlow->CastToType<AST::ControlFlow::LoopControlStatement>() );
+      }
+      else if (spControlFlow->IsType< AST::ControlFlow::ReturnStatement      >())
+      {
+        pChildStmt = _GetASTHelper().CreateReturnStatement();
+      }
+      else
+      {
+        throw InternalErrorException("Unsupported VAST control flow statement detected!");
+      }
     }
-    else if (spNode->IsType< AST::BaseClasses::Expression >())
+    else if (spNode->IsType< AST::BaseClasses::Expression           >())
     {
       AST::BaseClasses::ExpressionPtr spExpression  = spNode->CastToType< AST::BaseClasses::Expression >();
       bool                            bHandled      = false;
@@ -976,8 +1051,7 @@ CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::Sc
     }
     else
     {
-      // TODO: As soon as everything is implemented, throw an error here
-      continue;
+      throw InternalErrorException("Unsupported VAST node detected!");
     }
 
     vecChildren.push_back(pChildStmt);
