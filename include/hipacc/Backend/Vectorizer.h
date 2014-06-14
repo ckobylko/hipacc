@@ -114,6 +114,13 @@ namespace Vectorization
       ::clang::QualType       _ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo);
 
 
+      ::clang::CastExpr*      _CreateCast(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr);
+
+      ::clang::CastExpr*      _CreateCastPointer(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr);
+
+      ::clang::CastExpr*      _CreateCastSingleValue(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr);
+
+
       ::clang::DeclRefExpr*   _CreateDeclarationReference(std::string strValueName);
 
       ::clang::ParenExpr*     _CreateParenthesis(::clang::Expr *pSubExpr);

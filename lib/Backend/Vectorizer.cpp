@@ -912,7 +912,6 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
   }
 }
 
-
 ::clang::QualType Vectorizer::VASTExporterBase::_ConvertTypeInfo(const AST::BaseClasses::TypeInfo &crTypeInfo)
 {
   typedef AST::BaseClasses::TypeInfo::KnownTypes    KnownTypes;
@@ -957,6 +956,116 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
   return qtReturnType;
 }
 
+
+::clang::CastExpr* Vectorizer::VASTExporterBase::_CreateCast(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr)
+{
+  if (crTargetType.IsArray())
+  {
+    throw RuntimeErrorException("Conversions into array types are not supported!");
+  }
+  else if (crTargetType.GetPointer())
+  {
+    return _CreateCastPointer(crSourceType, crTargetType, pSubExpr);
+  }
+  else
+  {
+    return _CreateCastSingleValue(crSourceType, crTargetType, pSubExpr);
+  }
+}
+
+::clang::CastExpr* Vectorizer::VASTExporterBase::_CreateCastPointer(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr)
+{
+  if (! crTargetType.GetPointer())
+  {
+    throw InternalErrorException("Expected a pointer type as target type!");
+  }
+
+  ::clang::CastKind eCastKind = ::clang::CK_ReinterpretMemberPointer;
+
+  if (crSourceType.IsArray())
+  {
+    if (crSourceType.GetArrayDimensions().size() > 1)
+    {
+      throw RuntimeErrorException("Cannot convert multi-dimensional arrays into pointers!");
+    }
+    else if (crSourceType.GetPointer())
+    {
+      throw RuntimeErrorException("Cannot convert pointer arrays into pointers!");
+    }
+
+    eCastKind = ::clang::CK_ArrayToPointerDecay;
+  }
+  else if (crSourceType.IsSingleValue())
+  {
+    throw RuntimeErrorException("Cannot convert a single value into a pointer!");
+  }
+
+  return _GetASTHelper().CreateReinterpretCast( pSubExpr, _ConvertTypeInfo(crTargetType), eCastKind, (! crTargetType.GetConst()) );
+}
+
+::clang::CastExpr* Vectorizer::VASTExporterBase::_CreateCastSingleValue(const AST::BaseClasses::TypeInfo &crSourceType, const AST::BaseClasses::TypeInfo &crTargetType, ::clang::Expr *pSubExpr)
+{
+  typedef AST::BaseClasses::TypeInfo::KnownTypes  KnownTypes;
+
+  if (! crTargetType.IsSingleValue())
+  {
+    throw InternalErrorException("Expected a single value type as target type!");
+  }
+  else if (! crSourceType.IsSingleValue())
+  {
+    throw RuntimeErrorException("Cannot dereference a type by a conversion!");
+  }
+
+
+  AST::BaseClasses::TypeInfo TargetType( crTargetType );
+  TargetType.SetConst(false);
+
+  KnownTypes eTargetType = TargetType.GetType();
+  KnownTypes eSourceType = crSourceType.GetType();
+
+  ::clang::CastKind eCastKind = ::clang::CK_IntegralCast;
+
+  if ( (eTargetType == KnownTypes::Unknown) || (eSourceType == KnownTypes::Unknown) )
+  {
+    throw InternalErrorException("Cannot convert in between unknown types!");
+  }
+  else if ( (eSourceType == KnownTypes::Float) || (eSourceType == KnownTypes::Double) )
+  {
+    switch (eTargetType)
+    {
+    case KnownTypes::Bool:                            eCastKind = ::clang::CK_FloatingToBoolean;  break;
+    case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_FloatingCast;       break;
+    case KnownTypes::Int8:  case KnownTypes::UInt8:
+    case KnownTypes::Int16: case KnownTypes::UInt16:
+    case KnownTypes::Int32: case KnownTypes::UInt32:
+    case KnownTypes::Int64: case KnownTypes::UInt64:  eCastKind = ::clang::CK_FloatingToIntegral; break;
+    default:                                          throw InternalErrorException("Unknown conversion target type detected!");
+    }
+  }
+  else if ( (eSourceType == KnownTypes::Int8)  || (eSourceType == KnownTypes::UInt8)  ||
+            (eSourceType == KnownTypes::Int16) || (eSourceType == KnownTypes::UInt16) ||
+            (eSourceType == KnownTypes::Int32) || (eSourceType == KnownTypes::UInt32) ||
+            (eSourceType == KnownTypes::Int64) || (eSourceType == KnownTypes::UInt64) )
+  {
+    switch (eTargetType)
+    {
+    case KnownTypes::Bool:                            eCastKind = ::clang::CK_IntegralToBoolean;  break;
+    case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_IntegralToFloating; break;
+    case KnownTypes::Int8:  case KnownTypes::UInt8:
+    case KnownTypes::Int16: case KnownTypes::UInt16:
+    case KnownTypes::Int32: case KnownTypes::UInt32:
+    case KnownTypes::Int64: case KnownTypes::UInt64:  eCastKind = ::clang::CK_IntegralCast;       break;
+    default:                                          throw InternalErrorException("Unknown conversion target type detected!");
+    }
+  }
+  else
+  {
+    throw InternalErrorException("Unknown conversion source type detected!");
+  }
+
+  return _GetASTHelper().CreateStaticCast( pSubExpr, _ConvertTypeInfo(TargetType), eCastKind );
+}
+
 ::clang::DeclRefExpr* Vectorizer::VASTExporterBase::_CreateDeclarationReference(std::string strValueName)
 {
   if (! _HasValueDeclaration(strValueName))
@@ -971,6 +1080,7 @@ void Vectorizer::VASTExporterBase::_AddKnownFunctionDeclaration(::clang::Functio
 {
   return _GetASTHelper().CreateParenthesisExpression( pSubExpr );
 }
+
 
 ::clang::FunctionDecl* Vectorizer::VASTExporterBase::_GetFirstMatchingFunctionDeclaration(string strFunctionName, const QualTypeVectorType &crvecArgTypes)
 {
@@ -1284,79 +1394,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
 
     if (spUnaryExpression->IsType<AST::Expressions::Conversion>())
     {
-      AST::BaseClasses::TypeInfo  SubExpressionType = spSubExpression->GetResultType();
-
-      if (ResultType.IsArray())
-      {
-        throw RuntimeErrorException("Conversions into array types are not supported!");
-      }
-      else if (ResultType.GetPointer())
-      {
-        ::clang::CastKind eCastKind = ::clang::CK_ReinterpretMemberPointer;
-
-        if (SubExpressionType.IsArray())
-        {
-          if (SubExpressionType.GetArrayDimensions().size() > 1)
-          {
-            throw RuntimeErrorException("Cannot convert multi-dimensional arrays into pointers!");
-          }
-          else if (SubExpressionType.GetPointer())
-          {
-            throw RuntimeErrorException("Cannot convert pointer arrays into pointers!");
-          }
-
-          eCastKind = ::clang::CK_ArrayToPointerDecay;
-        }
-        else if (SubExpressionType.IsSingleValue())
-        {
-          throw RuntimeErrorException("Cannot convert a single value into a pointer!");
-        }
-
-        pReturnExpr = _GetASTHelper().CreateReinterpretCast(pSubExpr, _ConvertTypeInfo(ResultType), eCastKind, (! ResultType.GetConst()) );
-      }
-      else
-      {
-        if (SubExpressionType.IsSingleValue())
-        {
-          typedef AST::BaseClasses::TypeInfo::KnownTypes  KnownTypes;
-
-          ResultType.SetConst(false);
-
-          KnownTypes eRetType = ResultType.GetType();
-          KnownTypes eSubType = SubExpressionType.GetType();
-
-          ::clang::CastKind eCastKind = ::clang::CK_IntegralCast;
-
-          if ( (eRetType == KnownTypes::Unknown) || (eSubType == KnownTypes::Unknown) )
-          {
-            throw InternalErrorException("Cannot convert in between unknown types!");
-          }
-          if ((eSubType == KnownTypes::Float) || (eSubType == KnownTypes::Double))
-          {
-            switch (eRetType)
-            {
-            case KnownTypes::Bool:                            eCastKind = ::clang::CK_FloatingToBoolean;  break;
-            case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_FloatingCast;       break;
-            default:                                          eCastKind = ::clang::CK_FloatingToIntegral; break;
-            }
-          }
-          else
-          {
-            switch (eRetType)
-            {
-            case KnownTypes::Bool:                            eCastKind = ::clang::CK_IntegralToBoolean;  break;
-            case KnownTypes::Float: case KnownTypes::Double:  eCastKind = ::clang::CK_IntegralToFloating; break;
-            default:                                          eCastKind = ::clang::CK_IntegralCast;       break;
-            }
-          }
-
-          pReturnExpr = _GetASTHelper().CreateStaticCast( pSubExpr, _ConvertTypeInfo(ResultType), eCastKind, (! ResultType.GetConst()) );
-        }
-        else
-        {
-          throw RuntimeErrorException("Cannot dereference a type by a conversion!");
-        }
-      }
+      pReturnExpr = _CreateCast( spSubExpression->GetResultType(), ResultType, pSubExpr );
     }
     else if (spUnaryExpression->IsType<AST::Expressions::Parenthesis>())
     {
