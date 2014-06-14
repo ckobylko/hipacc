@@ -403,6 +403,8 @@ namespace Backend
 
       ::clang::Expr*          _BuildScalarExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
+      ::clang::CallExpr*      _BuildScalarFunctionCall(std::string strFunctionName, const ClangASTHelper::ExpressionVectorType &crVecArguments);
+
       ::clang::Expr*          _BuildVectorConversion(Vectorization::VectorElementTypes eTargetElementType, Vectorization::AST::BaseClasses::ExpressionPtr spSubExpression, const VectorIndex &crVectorIndex);
 
       ::clang::Expr*          _BuildVectorExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex);

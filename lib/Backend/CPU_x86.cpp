@@ -1021,7 +1021,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
     throw InternalErrorException("Expected a scalar expression!");
   }
 
-  Expr *pReturnExpr = _GetASTHelper().CreateLiteral(0);  // TODO: Replace by nullptr
+  Expr *pReturnExpr = nullptr;
 
   if      (spExpression->IsType< AST::Expressions::BinaryOperator     >())
   {
@@ -1053,7 +1053,16 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
   }
   else if (spExpression->IsType< AST::Expressions::FunctionCall       >())
   {
-    // TODO: Implement
+    AST::Expressions::FunctionCallPtr spFunctionCall = spExpression->CastToType< AST::Expressions::FunctionCall >();
+
+    ClangASTHelper::ExpressionVectorType vecArguments;
+
+    for (AST::IndexType iParamIndex = static_cast<AST::IndexType>(0); iParamIndex < spFunctionCall->GetCallParameterCount(); ++iParamIndex)
+    {
+      vecArguments.push_back( _BuildScalarExpression( spFunctionCall->GetCallParameter(iParamIndex) ) );
+    }
+
+    pReturnExpr = _BuildScalarFunctionCall( spFunctionCall->GetName(), vecArguments );
   }
   else if (spExpression->IsType< AST::Expressions::UnaryExpression    >())
   {
@@ -1132,6 +1141,25 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
   }
 
   return pReturnExpr;
+}
+
+CallExpr* CPU_x86::VASTExportInstructionSet::_BuildScalarFunctionCall(string strFunctionName, const ClangASTHelper::ExpressionVectorType &crVecArguments)
+{
+  ClangASTHelper::QualTypeVectorType vecArgumentTypes;
+
+  for (auto itArgument : crVecArguments)
+  {
+    vecArgumentTypes.push_back( itArgument->getType() );
+  }
+
+  // Find the first exactly matching function
+  ::clang::FunctionDecl *pCalleeDecl = _GetFirstMatchingFunctionDeclaration( strFunctionName, vecArgumentTypes );
+  if (pCalleeDecl == nullptr)
+  {
+    throw RuntimeErrorException(string("Could not find matching FunctionDecl object for function call \"") + strFunctionName + string("\"!"));
+  }
+
+  return _GetASTHelper().CreateFunctionCall( pCalleeDecl, crVecArguments );
 }
 
 Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTypes eTargetElementType, AST::BaseClasses::ExpressionPtr spSubExpression, const VectorIndex &crVectorIndex)
