@@ -1038,7 +1038,6 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
     }
     else if (spBinaryOp->IsType< AST::Expressions::AssignmentOperator >())
     {
-      // TODO: Add support for masked assignments - maybe...
       eOpCode = BO_Assign;
     }
     else if (spBinaryOp->IsType< AST::Expressions::RelationalOperator >())
@@ -1133,6 +1132,78 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildScalarExpression(AST::BaseClasses
   }
 
   return pReturnExpr;
+}
+
+Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTypes eTargetElementType, AST::BaseClasses::ExpressionPtr spSubExpression, const VectorIndex &crVectorIndex)
+{
+  const size_t              cszTargetElementCount = _spInstructionSet->GetVectorElementCount( eTargetElementType );
+  const VectorElementTypes  ceSourceElementType   = spSubExpression->GetResultType().GetType();
+
+  if (ceSourceElementType == VectorElementTypes::Bool)   // Mask conversions
+  {
+    if (eTargetElementType == VectorElementTypes::Bool)
+    {
+      // Nothing to do, just return the sub-expression
+      return _BuildVectorExpression( spSubExpression, crVectorIndex );
+    }
+    else
+    {
+      // This is a conversion of a mask into a numeric type => Blend zeros and ones
+      const size_t cszMaskElementCount    = _spInstructionSet->GetVectorElementCount( _GetMaskElementType() );
+
+      // Convert the mask expression into the target type
+      Expr *pConvertedMask = nullptr;
+      if (cszMaskElementCount == cszTargetElementCount)
+      {
+        pConvertedMask = _spInstructionSet->ConvertMaskSameSize( _GetMaskElementType(), eTargetElementType, _BuildVectorExpression(spSubExpression, crVectorIndex) );
+      }
+      else if (cszMaskElementCount > cszTargetElementCount)
+      {
+        const VectorIndex cMaskIndex            = _CreateVectorIndex( _GetMaskElementType(), static_cast< size_t >( crVectorIndex.GetElementIndex() ) / cszMaskElementCount );
+        const uint32_t    cuiConvertGroupIndex  = ( crVectorIndex.GetElementIndex() - cMaskIndex.GetElementIndex() ) / crVectorIndex.GetElementCount();
+
+        pConvertedMask = _spInstructionSet->ConvertMaskUp( _GetMaskElementType(), eTargetElementType, _BuildVectorExpression(spSubExpression, cMaskIndex), cuiConvertGroupIndex );
+      }
+      else
+      {
+        throw InternalErrorException("The mask element type is expected to be the smallest element type used inside a function!");
+      }
+
+      // Create the final output
+      return _spInstructionSet->BlendVectors( eTargetElementType, pConvertedMask, _spInstructionSet->CreateOnesVector(eTargetElementType), _spInstructionSet->CreateZeroVector(eTargetElementType) );
+    }
+  }
+  else    // Numeric conversion
+  {
+    const size_t cszSourceElementCount = _spInstructionSet->GetVectorElementCount( ceSourceElementType );
+
+    if (cszSourceElementCount == cszTargetElementCount)       // Same size conversion
+    {
+      return _spInstructionSet->ConvertVectorSameSize( ceSourceElementType, eTargetElementType, _BuildVectorExpression(spSubExpression, crVectorIndex) );
+    }
+    else if (cszSourceElementCount > cszTargetElementCount)   // Upward conversion   => Select a specific group
+    {
+      const VectorIndex cSourceIndex          = _CreateVectorIndex( ceSourceElementType, static_cast< size_t >( crVectorIndex.GetElementIndex() ) / cszSourceElementCount );
+      const uint32_t    cuiConvertGroupIndex  = ( crVectorIndex.GetElementIndex() - cSourceIndex.GetElementIndex() ) / crVectorIndex.GetElementCount();
+
+      return _spInstructionSet->ConvertVectorUp( ceSourceElementType, eTargetElementType, _BuildVectorExpression(spSubExpression, cSourceIndex), cuiConvertGroupIndex );
+    }
+    else                                                      // Downward conversion => Merge multiple vectors
+    {
+      const size_t cszGroupOffset = static_cast< size_t >( crVectorIndex.GetElementIndex() ) / cszSourceElementCount;
+
+      ClangASTHelper::ExpressionVectorType vecSubExpressions;
+
+      for (size_t szGroup = static_cast<size_t>(0); szGroup < (cszTargetElementCount / cszSourceElementCount); ++szGroup)
+      {
+        const VectorIndex cSourceIndex = _CreateVectorIndex( ceSourceElementType, cszGroupOffset + szGroup );
+
+        vecSubExpressions.push_back( _BuildVectorExpression( spSubExpression, cSourceIndex ) );
+      }
+
+      return _spInstructionSet->ConvertVectorDown( ceSourceElementType, eTargetElementType, vecSubExpressions );
+    }
+  }
 }
 
 Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex)
@@ -1236,7 +1307,24 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
 
     if      (spUnaryExpression->IsType< AST::Expressions::Conversion    >())
     {
-      // TODO: Implement
+      if (ResultType.IsArray())
+      {
+        throw RuntimeErrorException("Conversions into array types are not supported!");
+      }
+      else if (ResultType.GetPointer())
+      {
+        throw RuntimeErrorException("Explicit pointer conversions are not supported!");
+      }
+      else
+      {
+        AST::BaseClasses::TypeInfo SubExprType = spSubExpression->GetResultType();
+        if (! SubExprType.IsSingleValue())
+        {
+          throw RuntimeErrorException("Cannot dereference a type by a conversion!");
+        }
+
+        pReturnExpr = _BuildVectorConversion( ResultType.GetType(), spSubExpression, crVectorIndex );
+      }
     }
     else if (spUnaryExpression->IsType< AST::Expressions::Parenthesis   >())
     {
