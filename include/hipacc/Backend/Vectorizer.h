@@ -81,8 +81,6 @@ namespace Vectorization
       VASTExporterBase& operator=(const VASTExporterBase &) = delete;
 
 
-      void _AddKnownFunctionDeclaration(::clang::FunctionDecl *pFunctionDecl);
-
       ::clang::QualType _GetVariableType(AST::BaseClasses::VariableInfoPtr spVariableInfo);
 
 
@@ -95,6 +93,8 @@ namespace Vectorization
 
       void _Reset();
 
+
+      void _AddKnownFunctionDeclaration(::clang::FunctionDecl *pFunctionDecl);
 
 
       ::clang::Expr*          _BuildConstant(AST::Expressions::ConstantPtr spConstant);
