@@ -1220,6 +1220,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTyp
     {
       const size_t cszGroupOffset = static_cast< size_t >( crVectorIndex.GetElementIndex() ) / cszSourceElementCount;
 
+      // Build all required sub-expressions
       ClangASTHelper::ExpressionVectorType vecSubExpressions;
 
       for (size_t szGroup = static_cast<size_t>(0); szGroup < (cszTargetElementCount / cszSourceElementCount); ++szGroup)
@@ -1229,7 +1230,54 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTyp
         vecSubExpressions.push_back( _BuildVectorExpression( spSubExpression, cSourceIndex ) );
       }
 
-      return _spInstructionSet->ConvertVectorDown( ceSourceElementType, eTargetElementType, vecSubExpressions );
+
+      // Generate a conversion helper function if required (just for cleaning up the source code a bit)
+      const string cstrConversionHelperName  = string("_ConvertVectorDown")  + AST::BaseClasses::TypeInfo::GetTypeString( ceSourceElementType ) +
+                                              string("To")                  + AST::BaseClasses::TypeInfo::GetTypeString( eTargetElementType );
+      {
+        ClangASTHelper::QualTypeVectorType vecArgumentTypes;
+        for (auto itSubExpr : vecSubExpressions)
+        {
+          vecArgumentTypes.push_back( itSubExpr->getType() );
+        }
+
+        FunctionDecl *pConversionHelper = _GetFirstMatchingFunctionDeclaration( cstrConversionHelperName, vecArgumentTypes );
+        if (! pConversionHelper)
+        {
+          // Create the argument names
+          ClangASTHelper::StringVectorType vecArgumentNames;
+          for (size_t szParamIdx = static_cast<size_t>(0); szParamIdx < vecArgumentTypes.size(); ++szParamIdx)
+          {
+            stringstream ssParamName;
+            ssParamName << "value" << szParamIdx;
+            vecArgumentNames.push_back( ssParamName.str() );
+          }
+
+
+          // Create the function declaration
+          pConversionHelper = _GetASTHelper().CreateFunctionDeclaration( cstrConversionHelperName, _spInstructionSet->GetVectorType(eTargetElementType), vecArgumentNames, vecArgumentTypes );
+
+          // Create the function body (i.e. the actual downward conversion)
+          {
+            ClangASTHelper::ExpressionVectorType vecHelperFuncParams;
+            for (unsigned int uiParamIdx = 0; uiParamIdx < pConversionHelper->getNumParams(); ++uiParamIdx)
+            {
+              vecHelperFuncParams.push_back( _GetASTHelper().CreateDeclarationReferenceExpression( pConversionHelper->getParamDecl( uiParamIdx ) ) );
+            }
+
+            Stmt *pBody = _GetASTHelper().CreateReturnStatement( _spInstructionSet->ConvertVectorDown( ceSourceElementType, eTargetElementType, vecHelperFuncParams ) );
+
+            pConversionHelper->setBody( _GetASTHelper().CreateCompoundStatement( pBody ) );
+          }
+
+
+          // Add the generated helper function to the known functions
+          _AddKnownFunctionDeclaration( pConversionHelper );
+          _vecHelperFunctions.push_back( pConversionHelper );
+        }
+      }
+
+      return _BuildScalarFunctionCall( cstrConversionHelperName, vecSubExpressions );
     }
   }
 }
@@ -1745,6 +1793,10 @@ FunctionDecl* CPU_x86::VASTExportInstructionSet::ExportVASTFunction(AST::Functio
   {
     throw InternalErrors::NullPointerException("spVASTFunction");
   }
+
+
+  // Clear helper functions from previous call
+  _vecHelperFunctions.clear();
 
 
   // Create the function declaration statement
@@ -2464,7 +2516,7 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
   }
 }
 
-::clang::FunctionDecl* CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper)
+::clang::FunctionDecl* CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper, llvm::raw_ostream &rOutputStream)
 {
   try
   {
@@ -2590,7 +2642,18 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
 
       VASTExportInstructionSet Exporter( cszVectorWidth, rAstContext, _CreateInstructionSet(rAstContext) );
 
-      return Exporter.ExportVASTFunction( spVecFunction, _bUnrollVectorLoops );
+      ::clang::FunctionDecl *pExportedKernelFunction = Exporter.ExportVASTFunction( spVecFunction, _bUnrollVectorLoops );
+
+
+      // Print all generated helper functions
+      for (auto itHelperFunction : Exporter.GetGeneratedHelperFunctions())
+      {
+        rOutputStream << "\ninline ";
+        itHelperFunction->print( rOutputStream, GetPrintingPolicy() );
+        rOutputStream << "\n";
+      }
+
+      return pExportedKernelFunction;
     }
   }
   catch (std::exception &e)
@@ -2697,7 +2760,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
       // Vectorize the kernel sub-function and print it
-      ::clang::FunctionDecl *pVecSubFunction = _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper);
+      ::clang::FunctionDecl *pVecSubFunction = _VectorizeKernelSubFunction(DeclCallPair.first, hipaccHelper, rOutputStream);
       pSubFuncCallVectorized = ASTHelper.CreateFunctionCall(pVecSubFunction, SubFuncBuilder.GetCallParameters());
 
       rOutputStream << "inline " << _FormatFunctionHeader(pVecSubFunction, hipaccHelper, false, true);

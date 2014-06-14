@@ -386,8 +386,10 @@ namespace Backend
       };
 
 
-      const Vectorization::InstructionSetBasePtr  _spInstructionSet;
-      const size_t                                _cVectorWidth;
+      const Vectorization::InstructionSetBasePtr      _spInstructionSet;
+      const size_t                                    _cVectorWidth;
+
+      ClangASTHelper::FunctionDeclarationVectorType   _vecHelperFunctions;
 
 
     private:
@@ -435,6 +437,8 @@ namespace Backend
 
       ::clang::FunctionDecl* ExportVASTFunction(Vectorization::AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops);
 
+
+      inline const ClangASTHelper::FunctionDeclarationVectorType& GetGeneratedHelperFunctions() const   { return _vecHelperFunctions; }
     };
 
 
@@ -625,8 +629,9 @@ namespace Backend
       /** \brief    Vectorizes a kernel sub-function.
        *  \param    pSubFunction    A pointer to the function which shall be vectorized.
        *  \param    rHipaccHelper   A reference to the HIPAcc helper object which encapsulates the kernel.
+       *  \param    rOutputStream     A reference to the LLVM output stream the kernel shall be written to.
        *  \return   A pointer to the function declaration statement of the vectorized kernel sub-function. */
-      ::clang::FunctionDecl* _VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper);
+      ::clang::FunctionDecl* _VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper, llvm::raw_ostream &rOutputStream);
 
 
     private:
