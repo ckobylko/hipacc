@@ -200,8 +200,8 @@ void BackendConfigurationManager::ConsoleOutput::PrintVersion()
 
 
 // Implementation of class BackendConfigurationManager
-BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _pCompilerOptions(pCompilerOptions), _spSelectedCodeGenerator(nullptr),
-                                                                                              _ConsoleOutput(static_cast<size_t>(110))
+BackendConfigurationManager::BackendConfigurationManager(CompilerOptions *pCompilerOptions) : _ConsoleOutput( static_cast<size_t>(110) ), _pCompilerOptions(pCompilerOptions),
+                                                                                              _spSelectedCodeGenerator(nullptr)
 {
   _strInputFile   = "";
   _strOutputFile  = "";
