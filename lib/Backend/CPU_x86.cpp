@@ -1238,7 +1238,6 @@ CallExpr* CPU_x86::VASTExportInstructionSet::_BuildScalarFunctionCall(string str
 
 Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTypes eTargetElementType, AST::BaseClasses::ExpressionPtr spSubExpression, const VectorIndex &crVectorIndex)
 {
-  const size_t              cszTargetElementCount = _spInstructionSet->GetVectorElementCount( eTargetElementType );
   const VectorElementTypes  ceSourceElementType   = spSubExpression->GetResultType().GetType();
 
   if (ceSourceElementType == VectorElementTypes::Bool)   // Mask conversions
@@ -1252,6 +1251,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTyp
     {
       // This is a conversion of a mask into a numeric type => Blend zeros and ones
       const size_t cszMaskElementCount    = _spInstructionSet->GetVectorElementCount( _GetMaskElementType() );
+      const size_t cszTargetElementCount  = _spInstructionSet->GetVectorElementCount( eTargetElementType );
 
       // Convert the mask expression into the target type
       Expr *pConvertedMask = nullptr;
@@ -1275,9 +1275,30 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorConversion(VectorElementTyp
       return _spInstructionSet->BlendVectors( eTargetElementType, pConvertedMask, _spInstructionSet->CreateOnesVector(eTargetElementType), _spInstructionSet->CreateZeroVector(eTargetElementType) );
     }
   }
+  else if (eTargetElementType == VectorElementTypes::Bool)  // Numeric to boolean decay => Check vector elements for equality to zero
+  {
+    const size_t cszSourceElementCount  = _spInstructionSet->GetVectorElementCount( ceSourceElementType );
+    const size_t cszTargetElementCount  = _spInstructionSet->GetVectorElementCount( _GetMaskElementType() );
+    const size_t cszGroupOffset         = static_cast< size_t >(crVectorIndex.GetElementIndex()) / cszSourceElementCount;
+
+    ClangASTHelper::ExpressionVectorType vecComparisons;
+
+    for (size_t szGroup = static_cast<size_t>(0); szGroup < (cszTargetElementCount / cszSourceElementCount); ++szGroup)
+    {
+      const VectorIndex cSourceIndex = _CreateVectorIndex( ceSourceElementType, cszGroupOffset + szGroup );
+
+      Expr *pSubExpr = _CreateParenthesis( _BuildVectorExpression( spSubExpression, cSourceIndex ) );
+
+      vecComparisons.push_back( _spInstructionSet->RelationalOperator( ceSourceElementType, AST::Expressions::RelationalOperator::RelationalOperatorType::NotEqual,
+                                                                       pSubExpr, _spInstructionSet->CreateZeroVector( ceSourceElementType ) ) );
+    }
+
+    return _ConvertMaskDown( ceSourceElementType, vecComparisons );
+  }
   else    // Numeric conversion
   {
     const size_t cszSourceElementCount = _spInstructionSet->GetVectorElementCount( ceSourceElementType );
+    const size_t cszTargetElementCount = _spInstructionSet->GetVectorElementCount( eTargetElementType );
 
     if (cszSourceElementCount == cszTargetElementCount)       // Same size conversion
     {
