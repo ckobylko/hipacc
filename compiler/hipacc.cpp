@@ -33,7 +33,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "hipacc.h"
-#include "hipacc\Backend\BackendConfigurationManager.h"
+#include "hipacc/Backend/BackendConfigurationManager.h"
 
 using namespace clang;
 using namespace hipacc;
