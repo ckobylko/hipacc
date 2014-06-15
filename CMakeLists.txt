@@ -115,6 +115,11 @@ ELSE()
     SET(CUDA_LINK "-lcuda -lcudart")
     SET(CUDA_COMP "")
     SET(TIME_LINK "-lrt -lm -lstdc++")
+
+    OPTION(USE_NCURSES "Use NCurses library instead of Curses library" OFF)
+    IF(USE_NCURSES)
+        STRING(REPLACE " -lcurses" " -lncurses" LLVM_LFLAGS "${LLVM_LFLAGS}")
+    ENDIF()
 ENDIF()
 
 
