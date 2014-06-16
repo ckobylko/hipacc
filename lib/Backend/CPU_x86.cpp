@@ -44,6 +44,11 @@ using namespace clang;
 using namespace std;
 
 
+//#define DUMP_INSTRUCTION_SETS 1   // Uncomment this for a complete dump of the available instruction set contents
+//#define DUMP_VAST_CONTENTS    1   // Uncomment this for an incremental dump of the vectorized kernel sub-function AST during the vectorization process
+
+
+// Implementation of class CPU_x86::DumpInstructionSet
 ArraySubscriptExpr* CPU_x86::DumpInstructionSet::_CreateArraySubscript(DeclRefExpr *pArrayRef, int32_t iIndex)
 {
   return _ASTHelper.CreateArraySubscriptExpression( pArrayRef, _ASTHelper.CreateLiteral(iIndex), pArrayRef->getType()->getAsArrayTypeUnsafe()->getElementType() );
@@ -71,7 +76,6 @@ QualType CPU_x86::DumpInstructionSet::_GetClangType(VectorElementTypes eElementT
   default:                          throw InternalErrorException( "CPU_x86::DumpInstructionSet::_GetClangType() -> Unsupported vector element type detected!" );
   }
 }
-
 
 FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::InstructionSetBasePtr spInstructionSet, string strFunctionName)
 {
@@ -2591,11 +2595,7 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     if (_szVectorWidth == static_cast<size_t>(0))
     {
       llvm::errs() << "\nNOTE: No vector width for array export selected => Set default value \"4\"\n\n";
-      return static_cast< size_t >( 4 );
-    }
-    else
-    {
-      return _szVectorWidth;
+      _szVectorWidth = static_cast< size_t >(4);
     }
   }
   else
@@ -2605,61 +2605,70 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     if (_szVectorWidth > cszMaxVecWidth)
     {
       llvm::errs() << "\nWARNING: Selected vector width exceeds the maximum width for the SSE instruction set => Clipping vector width to \"" << cszMaxVecWidth << "\"\n\n";
-      return cszMaxVecWidth;
-    }
-
-    // Compute the minimum width dependend on the size of the image element types
-    size_t szMinVecWidth = static_cast<size_t>(1);
-    {
-      size_t szMinTypeSize = cszMaxVecWidth;
-
-      for (Vectorization::AST::IndexType iParamIdx = static_cast<Vectorization::AST::IndexType>(0); iParamIdx < spVecFunction->GetParameterCount(); ++iParamIdx)
-      {
-        Vectorization::AST::BaseClasses::VariableInfoPtr spParamInfo = spVecFunction->GetParameter(iParamIdx)->LookupVariableInfo();
-
-        if (spParamInfo->GetVectorize() && spParamInfo->GetTypeInfo().IsDereferencable())
-        {
-          size_t szCurrentTypeSize  = Vectorization::AST::BaseClasses::TypeInfo::GetTypeSize( spParamInfo->GetTypeInfo().GetType() );
-          szMinTypeSize             = std::min( szMinTypeSize, szCurrentTypeSize );
-        }
-      }
-
-      szMinVecWidth = cszMaxVecWidth / szMinTypeSize;
-    }
-
-    if (_szVectorWidth == static_cast<size_t>(0))
-    {
-      llvm::errs() << "\nNOTE: No vector width for SSE instruction set selected => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
-      return szMinVecWidth;
-    }
-    else if (_szVectorWidth < szMinVecWidth)
-    {
-      llvm::errs() << "\nWARNING: Selected vector width is below the minimum width for the SSE instruction set => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
-      return szMinVecWidth;
+      _szVectorWidth = cszMaxVecWidth;
     }
     else
     {
-      for (size_t szCurWidth = szMinVecWidth; szCurWidth <= cszMaxVecWidth; szCurWidth <<= 1)
+      // Compute the minimum width dependend on the size of the image element types
+      size_t szMinVecWidth = static_cast<size_t>(1);
       {
-        if (_szVectorWidth == szCurWidth)
+        size_t szMinTypeSize = cszMaxVecWidth;
+
+        for (Vectorization::AST::IndexType iParamIdx = static_cast<Vectorization::AST::IndexType>(0); iParamIdx < spVecFunction->GetParameterCount(); ++iParamIdx)
         {
-          break;
+          Vectorization::AST::BaseClasses::VariableInfoPtr spParamInfo = spVecFunction->GetParameter(iParamIdx)->LookupVariableInfo();
+
+          if (spParamInfo->GetVectorize() && spParamInfo->GetTypeInfo().IsDereferencable())
+          {
+            size_t szCurrentTypeSize  = Vectorization::AST::BaseClasses::TypeInfo::GetTypeSize( spParamInfo->GetTypeInfo().GetType() );
+            szMinTypeSize             = std::min( szMinTypeSize, szCurrentTypeSize );
+          }
         }
-        else if (_szVectorWidth < szCurWidth)
-        {
-          llvm::errs() << "\nWARNING: The selected vector width for the SSE instruction set must be a power of 2 => Promote width \"" << _szVectorWidth << "\" to \"" << szCurWidth << "\"\n\n";
-          _szVectorWidth = szCurWidth;
-          break;
-        }
+
+        szMinVecWidth = cszMaxVecWidth / szMinTypeSize;
       }
 
-      return _szVectorWidth;
+      if (_szVectorWidth == static_cast<size_t>(0))
+      {
+        llvm::errs() << "\nNOTE: No vector width for SSE instruction set selected => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+        _szVectorWidth = szMinVecWidth;
+      }
+      else if (_szVectorWidth < szMinVecWidth)
+      {
+        llvm::errs() << "\nWARNING: Selected vector width is below the minimum width for the SSE instruction set => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+        _szVectorWidth = szMinVecWidth;
+      }
+      else
+      {
+        for (size_t szCurWidth = szMinVecWidth; szCurWidth <= cszMaxVecWidth; szCurWidth <<= 1)
+        {
+          if (_szVectorWidth == szCurWidth)
+          {
+            break;
+          }
+          else if (_szVectorWidth < szCurWidth)
+          {
+            llvm::errs() << "\nWARNING: The selected vector width for the SSE instruction set must be a power of 2 => Promote width \"" << _szVectorWidth << "\" to \"" << szCurWidth << "\"\n\n";
+            _szVectorWidth = szCurWidth;
+            break;
+          }
+        }
+      }
     }
   }
+
+  return _szVectorWidth;
 }
 
 ::clang::FunctionDecl* CPU_x86::CodeGenerator::_VectorizeKernelSubFunction(FunctionDecl *pSubFunction, HipaccHelper &rHipaccHelper, llvm::raw_ostream &rOutputStream)
 {
+  #ifdef DUMP_VAST_CONTENTS
+  #define DUMP_VAST(__RootNode, __Filename)   Vectorizer::DumpVASTNodeToXML( __RootNode, __Filename )
+  #else
+  #define DUMP_VAST(__RootNode, __Filename)
+  #endif
+
+
   try
   {
     Vectorization::Vectorizer Vectorizer;
@@ -2668,15 +2677,15 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
 
     spVecFunction->SetName( rHipaccHelper.GetKernelFunction()->getNameAsString() + string("_Vectorized") );
 
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_1.xml");
+    DUMP_VAST( spVecFunction, "Dump_1.xml" );
 
 
     Vectorizer.RemoveUnnecessaryConversions(spVecFunction);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_2.xml");
+    DUMP_VAST( spVecFunction, "Dump_2.xml" );
 
 
     Vectorizer.FlattenScopeTrees(spVecFunction);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_3.xml");
+    DUMP_VAST( spVecFunction, "Dump_3.xml" );
 
 
     // Vectorize the kernel sub-function
@@ -2707,15 +2716,15 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     }
 
     Vectorizer.VectorizeFunction(spVecFunction);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_4.xml");
+    DUMP_VAST( spVecFunction, "Dump_4.xml" );
 
 
     Vectorizer.RebuildControlFlow(spVecFunction);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_5.xml");
+    DUMP_VAST( spVecFunction, "Dump_5.xml" );
 
 
     Vectorizer.FlattenMemoryAccesses(spVecFunction);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_6.xml");
+    DUMP_VAST( spVecFunction, "Dump_6.xml" );
 
 
     // Convert vectorized function parameters
@@ -2765,10 +2774,10 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
         }
       }
     }
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_7.xml");
+    DUMP_VAST( spVecFunction, "Dump_7.xml" );
 
     Vectorizer.RebuildDataFlow(spVecFunction, _eInstructionSet != InstructionSetEnum::Array);
-    Vectorizer.DumpVASTNodeToXML(spVecFunction, "Dump_8.xml");
+    DUMP_VAST( spVecFunction, "Dump_8.xml" );
 
 
     ::clang::ASTContext &rAstContext    = pSubFunction->getASTContext();
@@ -2780,7 +2789,9 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     }
     else
     {
+      #ifdef DUMP_INSTRUCTION_SETS
       DumpInstructionSet( rAstContext, "Dump_IS.cpp", _eInstructionSet );
+      #endif
 
       VASTExportInstructionSet Exporter( cszVectorWidth, rAstContext, _CreateInstructionSet(rAstContext) );
 
@@ -2803,6 +2814,8 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
     llvm::errs() << "\n\nERROR: " << e.what() << "\n\n";
     exit(EXIT_FAILURE);
   }
+
+  #undef DUMP_VAST
 }
 
 
@@ -3001,6 +3014,15 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
   return true;
 }
+
+
+#ifdef DUMP_INSTRUCTION_SETS
+#undef DUMP_INSTRUCTION_SETS
+#endif
+
+#ifdef DUMP_VAST_CONTENTS
+#undef DUMP_VAST_CONTENTS
+#endif
 
 
 // vim: set ts=2 sw=2 sts=2 et ai:
