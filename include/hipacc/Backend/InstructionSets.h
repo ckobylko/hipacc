@@ -64,6 +64,31 @@ namespace Vectorization
   typedef AST::VectorSupport::CheckActiveElements::CheckType              ActiveElementsCheckType;
 
 
+  enum class BuiltinFunctionsEnum
+  {
+    Abs,
+    Ceil,
+    Floor,
+    Max,
+    Min,
+    Sqrt
+  };
+
+  inline std::string GetBuiltinFunctionTypeString(BuiltinFunctionsEnum eFunctionType)
+  {
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:     return "Abs";
+    case BuiltinFunctionsEnum::Ceil:    return "Ceil";
+    case BuiltinFunctionsEnum::Floor:   return "Floor";
+    case BuiltinFunctionsEnum::Max:     return "Max";
+    case BuiltinFunctionsEnum::Min:     return "Min";
+    case BuiltinFunctionsEnum::Sqrt:    return "Sqrt";
+    default:                            throw InternalErrorException("Unknown built-in function type!");
+    }
+  }
+
+
   class InstructionSetExceptions final
   {
   public:
@@ -103,6 +128,18 @@ namespace Vectorization
       inline InsertIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)   : BaseType("insertion", eElementType, uiUpperLimit)  {}
     };
 
+    class UnsupportedBuiltinFunctionType final : public RuntimeErrorException
+    {
+    private:
+
+      typedef RuntimeErrorException   BaseType;
+
+      static std::string _ConvertParamCount(std::uint32_t uiParamCount);
+
+    public:
+
+      UnsupportedBuiltinFunctionType(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount, std::string strInstructionSetName);
+    };
 
     class UnsupportedConversion final : public RuntimeErrorException
     {
@@ -274,6 +311,8 @@ namespace Vectorization
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ClangASTHelper::QualTypeVectorType &crvecArgTypes,
                                       const ClangASTHelper::StringVectorType &crvecArgNames );
 
+    void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1 );
+
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1,
                                       const ::clang::QualType &crArgType2, std::string strArgName2 );
 
@@ -397,12 +436,14 @@ namespace Vectorization
     virtual size_t            GetVectorWidthBytes() const = 0;
 
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const = 0;
     virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const = 0;
 
 
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) = 0;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) = 0;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) = 0;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
@@ -435,6 +476,7 @@ namespace Vectorization
       AndFloat,
       AndNotFloat,
       BroadCastFloat,
+      CeilFloat,
       CompareEqualFloat,
       CompareGreaterEqualFloat,
       CompareGreaterThanFloat,
@@ -447,6 +489,7 @@ namespace Vectorization
       CompareNotLessThanFloat,
       DivideFloat,
       ExtractLowestFloat,
+      FloorFloat,
       InsertLowestFloat,
       LoadFloat,
       MaxFloat,
@@ -601,11 +644,13 @@ namespace Vectorization
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) override;
     virtual size_t            GetVectorWidthBytes() const final override   { return static_cast< size_t >(16); }
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const override;
     virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const override;
 
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) override;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) override;
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) override;
@@ -637,6 +682,7 @@ namespace Vectorization
       AndDouble,                    AndInteger,             AndNotDouble,            AndNotInteger,
       BroadCastDouble,              BroadCastInt8,          BroadCastInt16,          BroadCastInt32,          BroadCastInt64,
       CastDoubleToFloat,            CastDoubleToInteger,    CastFloatToDouble,       CastFloatToInteger,      CastIntegerToDouble, CastIntegerToFloat,
+      CeilDouble,
       CompareEqualDouble,           CompareEqualInt8,       CompareEqualInt16,       CompareEqualInt32,
       CompareGreaterEqualDouble,
       CompareGreaterThanDouble,     CompareGreaterThanInt8, CompareGreaterThanInt16, CompareGreaterThanInt32,
@@ -651,6 +697,7 @@ namespace Vectorization
       ConvertSingleDoubleInt64,
       DivideDouble,
       ExtractInt16,                 ExtractLowestDouble,    ExtractLowestInt32,      ExtractLowestInt64,
+      FloorDouble,
       InsertInt16,                  InsertLowestDouble,
       LoadDouble,                   LoadInteger,
       MaxDouble,                    MaxUInt8,               MaxInt16,
@@ -791,11 +838,13 @@ namespace Vectorization
 
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) final override;
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const override;
     virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const final override;
 
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) override;
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) override;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) final override;
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) final override;
@@ -893,8 +942,11 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const override;
+
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) final override;
@@ -930,6 +982,15 @@ namespace Vectorization
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSSE3, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
@@ -982,8 +1043,11 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const override;
+
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;
@@ -1105,8 +1169,11 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const final override;
+
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) final override;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) final override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) final override;
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) final override;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) final override;
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) override;

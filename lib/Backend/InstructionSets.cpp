@@ -56,6 +56,23 @@ InstructionSetExceptions::IndexOutOfRange::IndexOutOfRange(string strMethodType,
 {
 }
 
+string InstructionSetExceptions::UnsupportedBuiltinFunctionType::_ConvertParamCount(uint32_t uiParamCount)
+{
+  stringstream streamOutput;
+
+  streamOutput << uiParamCount;
+
+  return streamOutput.str();
+}
+
+InstructionSetExceptions::UnsupportedBuiltinFunctionType::UnsupportedBuiltinFunctionType( VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType,
+                                                                                          uint32_t uiParamCount, string strInstructionSetName ) :
+      BaseType( string("The built-in function \"") + GetBuiltinFunctionTypeString(eFunctionType) + string("(") + _ConvertParamCount(uiParamCount) +
+                string(")\" is not supported for element type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eElementType) + string("\" in the instruction set \"") +
+                strInstructionSetName + string("\" !") )
+{
+}
+
 InstructionSetExceptions::UnsupportedConversion::UnsupportedConversion(VectorElementTypes eSourceType, VectorElementTypes eTargetType, string strInstructionSetName) :
       BaseType( string("A conversion from type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eSourceType) + string("\" to type \"") +
                 AST::BaseClasses::TypeInfo::GetTypeString(eTargetType) + string("\" is not supported in the instruction set \"") + 
@@ -158,6 +175,17 @@ void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, con
   }
 }
 
+void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const QualType &crArgType1, string strArgName1)
+{
+  ClangASTHelper::QualTypeVectorType  vecArgTypes;
+  ClangASTHelper::StringVectorType    vecArgNames;
+
+  vecArgTypes.push_back( crArgType1 );
+  vecArgNames.push_back( strArgName1 );
+
+  _CreateIntrinsicDeclaration(strFunctionName, crReturnType, vecArgTypes, vecArgNames);
+}
+
 void InstructionSetBase::_CreateIntrinsicDeclaration(string strFunctionName, const QualType &crReturnType, const QualType &crArgType1, string strArgName1, const QualType &crArgType2, string strArgName2)
 {
   ClangASTHelper::QualTypeVectorType  vecArgTypes;
@@ -195,7 +223,9 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE()
   QualType  qtFloatVector = _GetFunctionReturnType("_mm_setzero_ps");
 
   // Create missing SSE intrinsic functions
-  _CreateIntrinsicDeclaration( "_mm_shuffle_ps", qtFloatVector, qtFloatVector, "a", qtFloatVector, "b", _GetClangType(VectorElementTypes::UInt32), "imm" );
+  _CreateIntrinsicDeclaration( "_mm_ceil_ps",     qtFloatVector, qtFloatVector, "a" );
+  _CreateIntrinsicDeclaration( "_mm_floor_ps",    qtFloatVector, qtFloatVector, "a" );
+  _CreateIntrinsicDeclaration( "_mm_shuffle_ps",  qtFloatVector, qtFloatVector, "a", qtFloatVector, "b", _GetClangType(VectorElementTypes::UInt32), "imm" );
 }
 
 void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
@@ -206,6 +236,8 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE2()
   QualType  qtInt           = _GetClangType(VectorElementTypes::Int32);
 
   // Create missing SSE2 intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm_ceil_pd",         qtDoubleVector,  qtDoubleVector,  "a" );
+  _CreateIntrinsicDeclaration( "_mm_floor_pd",        qtDoubleVector,  qtDoubleVector,  "a" );
   _CreateIntrinsicDeclaration( "_mm_slli_si128",      qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
   _CreateIntrinsicDeclaration( "_mm_srli_si128",      qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
   _CreateIntrinsicDeclaration( "_mm_shufflehi_epi16", qtIntegerVector, qtIntegerVector, "a", qtInt,          "imm" );
@@ -343,6 +375,7 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::AndFloat,                    "and_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::AndNotFloat,                 "andnot_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::BroadCastFloat,              "set1_ps"     );
+  _InitIntrinsic( IntrinsicsSSEEnum::CeilFloat,                   "ceil_ps"     );
   _InitIntrinsic( IntrinsicsSSEEnum::CompareEqualFloat,           "cmpeq_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::CompareGreaterEqualFloat,    "cmpge_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::CompareGreaterThanFloat,     "cmpgt_ps"    );
@@ -355,6 +388,7 @@ void InstructionSetSSE::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSEEnum::CompareNotLessThanFloat,     "cmpnlt_ps"   );
   _InitIntrinsic( IntrinsicsSSEEnum::DivideFloat,                 "div_ps"      );
   _InitIntrinsic( IntrinsicsSSEEnum::ExtractLowestFloat,          "cvtss_f32"   );
+  _InitIntrinsic( IntrinsicsSSEEnum::FloorFloat,                  "floor_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::InsertLowestFloat,           "move_ss"     );
   _InitIntrinsic( IntrinsicsSSEEnum::LoadFloat,                   "loadu_ps"    );
   _InitIntrinsic( IntrinsicsSSEEnum::MaxFloat,                    "max_ps"      );
@@ -433,6 +467,36 @@ Expr* InstructionSetSSE::BroadCast(VectorElementTypes eElementType, Expr *pBroad
   _CheckElementType(eElementType);
 
   return _CreateFunctionCall(IntrinsicsSSEEnum::BroadCastFloat, pBroadCastValue);
+}
+
+Expr* InstructionSetSSE::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  _CheckElementType(eElementType);
+
+  const uint32_t cuiParamCount = static_cast< uint32_t >( crvecArguments.size() );
+
+  if (! IsBuiltinFunctionSupported(eElementType, eFunctionType, cuiParamCount))
+  {
+    throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "SSE");
+  }
+
+  switch (eFunctionType)
+  {
+  case BuiltinFunctionsEnum::Abs:
+    {
+      // No intrinsic for this => multiply with 1 or -1
+      Expr *pMultiplier = RelationalOperator( eElementType, RelationalOperatorType::Less, crvecArguments[0], CreateZeroVector(eElementType) );
+      pMultiplier       = BlendVectors( eElementType, pMultiplier, CreateOnesVector(eElementType, true), CreateOnesVector(eElementType, false) );
+
+      return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, crvecArguments[0], pMultiplier );
+    }
+  case BuiltinFunctionsEnum::Ceil:    return _CreateFunctionCall( IntrinsicsSSEEnum::CeilFloat,  crvecArguments[0] );
+  case BuiltinFunctionsEnum::Floor:   return _CreateFunctionCall( IntrinsicsSSEEnum::FloorFloat, crvecArguments[0] );
+  case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSEEnum::MaxFloat,   crvecArguments[0], crvecArguments[1] );
+  case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSEEnum::MinFloat,   crvecArguments[0], crvecArguments[1] );
+  case BuiltinFunctionsEnum::Sqrt:    return _CreateFunctionCall( IntrinsicsSSEEnum::SqrtFloat,  crvecArguments[0] );
+  default:                            throw InternalErrorException("Unknown built-in function type detected!");
+  }
 }
 
 Expr* InstructionSetSSE::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
@@ -558,6 +622,26 @@ Expr* InstructionSetSSE::InsertElement(VectorElementTypes eElementType, Expr *pV
 
     return pInsertExpr;
   }
+}
+
+bool InstructionSetSSE::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  if (eElementType != VectorElementTypes::Float)
+  {
+    return false;
+  }
+
+  switch (eFunctionType)
+  {
+  case BuiltinFunctionsEnum::Abs:     return (uiParamCount == 1);
+  case BuiltinFunctionsEnum::Ceil:    return (uiParamCount == 1);
+  case BuiltinFunctionsEnum::Floor:   return (uiParamCount == 1);
+  case BuiltinFunctionsEnum::Max:     return (uiParamCount == 2);
+  case BuiltinFunctionsEnum::Min:     return (uiParamCount == 2);
+  case BuiltinFunctionsEnum::Sqrt:    return (uiParamCount == 1);
+  }
+
+  return false;
 }
 
 bool InstructionSetSSE::IsElementTypeSupported(VectorElementTypes eElementType) const
@@ -1406,7 +1490,10 @@ void InstructionSetSSE2::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Double,       "cvtepi32_pd"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::ConvertInt32Float,        "cvtepi32_ps"  );
   _InitIntrinsic( IntrinsicsSSE2Enum::ConvertSingleDoubleInt64, "cvttsd_si64"  );   // Use truncation
-  
+
+  // Rounding functions
+  _InitIntrinsic( IntrinsicsSSE2Enum::CeilDouble,  "ceil_pd"  );
+  _InitIntrinsic( IntrinsicsSSE2Enum::FloorDouble, "floor_pd" );
 
   // Division functions
   _InitIntrinsic( IntrinsicsSSE2Enum::DivideDouble, "div_pd" );
@@ -1712,6 +1799,87 @@ Expr* InstructionSetSSE2::BroadCast(VectorElementTypes eElementType, Expr *pBroa
   }
 }
 
+Expr* InstructionSetSSE2::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  const uint32_t cuiParamCount = static_cast< uint32_t >( crvecArguments.size() );
+
+  if (! IsBuiltinFunctionSupported(eElementType, eFunctionType, cuiParamCount))
+  {
+    throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "SSE2");
+  }
+
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:
+      {
+        // No intrinsic for this => multiply with 1 or -1
+        Expr *pMultiplier = RelationalOperator( eElementType, RelationalOperatorType::Less, crvecArguments[0], CreateZeroVector(eElementType) );
+        pMultiplier       = BlendVectors( eElementType, pMultiplier, CreateOnesVector(eElementType, true), CreateOnesVector(eElementType, false) );
+
+        return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, crvecArguments[0], pMultiplier );
+      }
+    case BuiltinFunctionsEnum::Ceil:    return _CreateFunctionCall( IntrinsicsSSE2Enum::CeilDouble,  crvecArguments[0] );
+    case BuiltinFunctionsEnum::Floor:   return _CreateFunctionCall( IntrinsicsSSE2Enum::FloorDouble, crvecArguments[0] );
+    case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxDouble,   crvecArguments[0], crvecArguments[1] );
+    case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinDouble,   crvecArguments[0], crvecArguments[1] );
+    case BuiltinFunctionsEnum::Sqrt:    return _CreateFunctionCall( IntrinsicsSSE2Enum::SqrtDouble,  crvecArguments[0] );
+    }
+
+    break;
+
+  case VectorElementTypes::UInt8:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:
+    case BuiltinFunctionsEnum::Ceil:
+    case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
+    case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxUInt8, crvecArguments[0], crvecArguments[1] );
+    case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinUInt8, crvecArguments[0], crvecArguments[1] );
+    }
+
+    break;
+
+  case VectorElementTypes::Int16:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Ceil:
+    case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
+    case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxInt16, crvecArguments[0], crvecArguments[1] );
+    case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinInt16, crvecArguments[0], crvecArguments[1] );
+    }
+
+    break;
+
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:
+      if (! AST::BaseClasses::TypeInfo::IsSigned(eElementType))
+      {
+        return crvecArguments.front();  // Unsigned types already represent absolute values
+      }
+    case BuiltinFunctionsEnum::Ceil:
+    case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
+    }
+
+    break;
+
+  default:    return BaseType::BuiltinFunction(eElementType, eFunctionType, crvecArguments);
+  }
+
+  throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "SSE2");
+}
+
 Expr* InstructionSetSSE2::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
 {
   int32_t             iTestValue      = 0;
@@ -2011,6 +2179,62 @@ Expr* InstructionSetSSE2::InsertElement(VectorElementTypes eElementType, Expr *p
       }
     }
   default:  return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
+  }
+}
+
+bool InstructionSetSSE2::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:     return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Ceil:    return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Floor:   return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Max:     return (uiParamCount == 2);
+    case BuiltinFunctionsEnum::Min:     return (uiParamCount == 2);
+    case BuiltinFunctionsEnum::Sqrt:    return (uiParamCount == 1);
+    default:                            return false;
+    }
+
+  case VectorElementTypes::UInt8:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:     return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Ceil:    return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Floor:   return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Max:     return (uiParamCount == 2);
+    case BuiltinFunctionsEnum::Min:     return (uiParamCount == 2);
+    default:                            return false;
+    }
+
+  case VectorElementTypes::Int16:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Ceil:    return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Floor:   return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Max:     return (uiParamCount == 2);
+    case BuiltinFunctionsEnum::Min:     return (uiParamCount == 2);
+    default:                            return false;
+    }
+
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+
+    switch (eFunctionType)
+    {
+    case BuiltinFunctionsEnum::Abs:     return ( (uiParamCount == 1) && (! AST::BaseClasses::TypeInfo::IsSigned(eElementType)) );
+    case BuiltinFunctionsEnum::Ceil:    return (uiParamCount == 1);
+    case BuiltinFunctionsEnum::Floor:   return (uiParamCount == 1);
+    default:                            return false;
+    }
+
+  default:  return BaseType::IsBuiltinFunctionSupported( eElementType, eFunctionType, uiParamCount );
   }
 }
 
@@ -2379,6 +2603,11 @@ Expr* InstructionSetSSE3::BlendVectors(VectorElementTypes eElementType, Expr *pM
   return BaseType::BlendVectors(eElementType, pMaskRef, pVectorTrue, pVectorFalse);
 }
 
+Expr* InstructionSetSSE3::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  return BaseType::BuiltinFunction(eElementType, eFunctionType, crvecArguments);
+}
+
 Expr* InstructionSetSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
@@ -2404,6 +2633,11 @@ Expr* InstructionSetSSE3::LoadVector(VectorElementTypes eElementType, Expr *pPoi
 Expr* InstructionSetSSE3::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
 {
   return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
+}
+
+bool InstructionSetSSE3::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  return BaseType::IsBuiltinFunctionSupported(eElementType, eFunctionType, uiParamCount);
 }
 
 Expr* InstructionSetSSE3::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -2551,6 +2785,30 @@ Expr* InstructionSetSSSE3::BlendVectors(VectorElementTypes eElementType, Expr *p
   return BaseType::BlendVectors(eElementType, pMaskRef, pVectorTrue, pVectorFalse);
 }
 
+Expr* InstructionSetSSSE3::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  const uint32_t cuiParamCount = static_cast< uint32_t >(crvecArguments.size());
+
+  if (! IsBuiltinFunctionSupported(eElementType, eFunctionType, cuiParamCount))
+  {
+    throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "SSSE3");
+  }
+
+
+  if (eFunctionType == BuiltinFunctionsEnum::Abs)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt8,  crvecArguments[0] );
+    case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt16, crvecArguments[0] );
+    case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt32, crvecArguments[0] );
+    }
+  }
+
+  // If the function has not returned earlier, call the base implementation
+  return BaseType::BuiltinFunction(eElementType, eFunctionType, crvecArguments);
+}
+
 Expr* InstructionSetSSSE3::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   return BaseType::ExtractElement(eElementType, pVectorRef, uiIndex);
@@ -2559,6 +2817,22 @@ Expr* InstructionSetSSSE3::ExtractElement(VectorElementTypes eElementType, Expr 
 Expr* InstructionSetSSSE3::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
 {
   return BaseType::InsertElement(eElementType, pVectorRef, pElementValue, uiIndex);
+}
+
+bool InstructionSetSSSE3::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  if (eFunctionType == BuiltinFunctionsEnum::Abs)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:
+    case VectorElementTypes::Int16:
+    case VectorElementTypes::Int32:   return (uiParamCount == 1);
+    }
+  }
+
+  // If the function has not returned earlier, call the base implementation
+  return BaseType::IsBuiltinFunctionSupported(eElementType, eFunctionType, uiParamCount);
 }
 
 Expr* InstructionSetSSSE3::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -2818,6 +3092,53 @@ Expr* InstructionSetSSE4_1::BlendVectors(VectorElementTypes eElementType, Expr *
   }
 }
 
+Expr* InstructionSetSSE4_1::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  const uint32_t cuiParamCount = static_cast< uint32_t >(crvecArguments.size());
+
+  if (!IsBuiltinFunctionSupported(eElementType, eFunctionType, cuiParamCount))
+  {
+    throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "SSSE3");
+  }
+
+
+  if (eFunctionType == BuiltinFunctionsEnum::Max)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MaxInt8,   crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MaxUInt16, crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MaxInt32,  crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MaxUInt32, crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::Int64:   case VectorElementTypes::UInt64:
+      {
+        Expr *pMask = RelationalOperator( eElementType, RelationalOperatorType::Greater, crvecArguments[0], crvecArguments[1] );
+
+        return BlendVectors( eElementType, pMask, crvecArguments[0], crvecArguments[1] );
+      }
+    }
+  }
+  else if (eFunctionType == BuiltinFunctionsEnum::Min)
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MinInt8,   crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MinUInt16, crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MinInt32,  crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSE4_1Enum::MinUInt32, crvecArguments[0], crvecArguments[1] );
+    case VectorElementTypes::Int64:   case VectorElementTypes::UInt64:
+      {
+        Expr *pMask = RelationalOperator( eElementType, RelationalOperatorType::Greater, crvecArguments[0], crvecArguments[1] );
+
+        return BlendVectors( eElementType, pMask, crvecArguments[1], crvecArguments[0] );
+      }
+    }
+  }
+
+  // If the function has not returned earlier, call the base implementation
+  return BaseType::BuiltinFunction(eElementType, eFunctionType, crvecArguments);
+}
+
 Expr* InstructionSetSSE4_1::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
   switch (eElementType)
@@ -2839,6 +3160,22 @@ Expr* InstructionSetSSE4_1::InsertElement(VectorElementTypes eElementType, Expr 
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt64, pVectorRef, pElementValue, uiIndex );
   default:                                                          return BaseType::InsertElement( eElementType, pVectorRef, pElementValue, uiIndex );
   }
+}
+
+bool InstructionSetSSE4_1::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  if ( (eFunctionType == BuiltinFunctionsEnum::Max) || (eFunctionType == BuiltinFunctionsEnum::Min) )
+  {
+    switch (eElementType)
+    {
+    case VectorElementTypes::Int8:  case VectorElementTypes::UInt16:
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return (uiParamCount == 2);
+    }
+  }
+
+  // If the function has not returned earlier, call the base implementation
+  return BaseType::IsBuiltinFunctionSupported(eElementType, eFunctionType, uiParamCount);
 }
 
 Expr* InstructionSetSSE4_1::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
