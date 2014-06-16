@@ -1074,6 +1074,36 @@ CompoundStmt* CPU_x86::VASTExportInstructionSet::_BuildCompoundStatement(AST::Sc
                 vecInitExpressions.push_back( _BuildVectorExpression( spRHS, _CreateVectorIndex(eElementType, szGroupIndex) ) );
               }
 
+              // If the init expression is masked, initialize the invalid vector elements with zero
+              if ( spAssignment->IsMasked() )
+              {
+                bool bAddMasking = true;
+
+                // If the initializer is equal to zero, no masking is required
+                if (spRHS->IsType< AST::VectorSupport::BroadCast >())
+                {
+                  AST::BaseClasses::ExpressionPtr spInitValue = spRHS->CastToType< AST::VectorSupport::BroadCast >()->GetSubExpression();
+
+                  if ( spInitValue->IsType<AST::Expressions::Constant>() && (spInitValue->CastToType<AST::Expressions::Constant>()->GetValue<double>() == 0.) )
+                  {
+                    bAddMasking = false;
+                  }
+                }
+
+                if (bAddMasking)
+                {
+                  Expr *pMask = _BuildVectorExpression( spAssignment->GetMask(), _CreateVectorIndex(_GetMaskElementType(), 0) );
+
+                  for (size_t szIdx = 0; szIdx < vecInitExpressions.size(); ++szIdx)
+                  {
+                    Expr *pMaskGroup = _ConvertMaskUp( eElementType, pMask, _CreateVectorIndex(eElementType, szIdx) );
+
+                    vecInitExpressions[szIdx] = _spInstructionSet->BlendVectors( eElementType, pMaskGroup, vecInitExpressions[szIdx], _spInstructionSet->CreateZeroVector(eElementType) );
+                  }
+                }
+              }
+
+              // Build the actual initializer expression
               if ( vecInitExpressions.size() == 1 )
               {
                 pInitExpression = vecInitExpressions.front();
