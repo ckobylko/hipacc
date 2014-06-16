@@ -1453,7 +1453,6 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
 
     if (spBinaryOp->IsType< AST::Expressions::AssignmentOperator >())
     {
-      // TODO: Add masking support
       AST::Expressions::AssignmentOperatorPtr spAssignment  = spBinaryOp->CastToType< AST::Expressions::AssignmentOperator >();
       AST::BaseClasses::ExpressionPtr         spAssignee    = spLHS;
 
@@ -1462,6 +1461,19 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
         throw InternalErrorException("Expected a VAST value node as assignee!");
       }
 
+      // Check for a masked assignment
+      Expr *pAssignmentMask = nullptr;
+      if (spAssignment->IsMasked())
+      {
+        AST::Expressions::IdentifierPtr spMask = spAssignment->GetMask();
+        if (! spMask->IsVectorized())
+        {
+          throw RuntimeErrorException("Vector assignment masks cannot be scalar values!");
+        }
+
+        pAssignmentMask = _BuildVectorExpression( spMask, _CreateVectorIndex( _GetMaskElementType(), 0 ) );
+        pAssignmentMask = _ConvertMaskUp( eElementType, pAssignmentMask, crVectorIndex );
+      }
 
       Expr *pExprRHS      = _BuildVectorExpression( spRHS, crVectorIndex );
       bool bHandled       = false;
@@ -1473,15 +1485,28 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
         if (! spMemoryAccess->GetMemoryReference()->GetResultType().IsArray())
         {
           Expr *pPointerRef = _TranslateMemoryAccessToPointerRef( spMemoryAccess, crVectorIndex );
-          pReturnExpr       = _spInstructionSet->StoreVector( eElementType, pPointerRef, pExprRHS );
           bHandled          = true;
+
+          if (pAssignmentMask)
+          {
+            pReturnExpr = _spInstructionSet->StoreVectorMasked( eElementType, pPointerRef, pExprRHS, pAssignmentMask );
+          }
+          else
+          {
+            pReturnExpr = _spInstructionSet->StoreVector( eElementType, pPointerRef, pExprRHS );
+          }
         }
       }
 
       if (! bHandled)
       {
         Expr *pAssigneeExpr = _BuildVectorExpression( spAssignee, crVectorIndex );
-        pReturnExpr         = _GetASTHelper().CreateBinaryOperator( pAssigneeExpr, pExprRHS, BO_Assign, pAssigneeExpr->getType() );
+        if (pAssignmentMask)
+        {
+          pExprRHS = _spInstructionSet->BlendVectors( eElementType, pAssignmentMask, pExprRHS, pAssigneeExpr );
+        }
+
+        pReturnExpr = _GetASTHelper().CreateBinaryOperator( pAssigneeExpr, pExprRHS, BO_Assign, pAssigneeExpr->getType() );
       }
     }
     else
@@ -1689,7 +1714,6 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
 
     if      (spVectorExpression->IsType< AST::VectorSupport::BroadCast           >())
     {
-      // TODO: Speed up broadcasts of -1, 0 and 1
       AST::VectorSupport::BroadCastPtr  spBroadCast     = spVectorExpression->CastToType< AST::VectorSupport::BroadCast >();
       AST::BaseClasses::ExpressionPtr   spSubExpression = spBroadCast->GetSubExpression();
 
@@ -1702,15 +1726,23 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
         throw RuntimeErrorException("Broad casts are only allowed for single values!");
       }
 
+      const VectorElementTypes ceElementType = _GetExpressionElementType( spBroadCast );
 
-      Expr *pBroadCastValue = _BuildScalarExpression(spSubExpression);
-
-      if (spSubExpression->GetResultType().GetType() == VectorElementTypes::Bool)
+      if ( spSubExpression->IsType<AST::Expressions::Constant>() && (spSubExpression->CastToType<AST::Expressions::Constant>()->GetValue<double>() == 0.) )
       {
-        pBroadCastValue = _GetASTHelper().CreateConditionalOperator( pBroadCastValue, _GetASTHelper().CreateLiteral(-1), _GetASTHelper().CreateLiteral(0), _GetASTContext().IntTy );
+        pReturnExpr = _spInstructionSet->CreateZeroVector( ceElementType );
       }
+      else
+      {
+        Expr *pBroadCastValue = _BuildScalarExpression(spSubExpression);
 
-      pReturnExpr = _spInstructionSet->BroadCast( _GetExpressionElementType(spBroadCast), pBroadCastValue );
+        if (spSubExpression->GetResultType().GetType() == VectorElementTypes::Bool)
+        {
+          pBroadCastValue = _GetASTHelper().CreateConditionalOperator( pBroadCastValue, _GetASTHelper().CreateLiteral(-1), _GetASTHelper().CreateLiteral(0), _GetASTContext().IntTy );
+        }
+
+        pReturnExpr = _spInstructionSet->BroadCast( ceElementType, pBroadCastValue );
+      }
     }
     else if (spVectorExpression->IsType< AST::VectorSupport::CheckActiveElements >())
     {
@@ -1748,6 +1780,25 @@ Expr* CPU_x86::VASTExportInstructionSet::_ConvertMaskDown(VectorElementTypes eSo
   case 0:   throw InternalErrorException("The source expression vector for a mask conversion cannot be empty!");
   case 1:   return _spInstructionSet->ConvertMaskSameSize( eSourceElementType, _GetMaskElementType(), crvecSubExpressions.front() );
   default:  return _spInstructionSet->ConvertMaskDown( eSourceElementType, _GetMaskElementType(), crvecSubExpressions );
+  }
+}
+
+Expr* CPU_x86::VASTExportInstructionSet::_ConvertMaskUp(Vectorization::VectorElementTypes eTargetElementType, Expr *pMaskExpr, const VectorIndex &crVectorIndex)
+{
+  const size_t cszMaskElementCount    = _spInstructionSet->GetVectorElementCount( _GetMaskElementType() );
+  const size_t cszTargetElementCount  = _spInstructionSet->GetVectorElementCount( eTargetElementType );
+
+  if (cszMaskElementCount == cszTargetElementCount)
+  {
+    return _spInstructionSet->ConvertMaskSameSize( _GetMaskElementType(), eTargetElementType, pMaskExpr );
+  }
+  else if (cszMaskElementCount > cszTargetElementCount)
+  {
+    return _spInstructionSet->ConvertMaskUp( _GetMaskElementType(), eTargetElementType, pMaskExpr, crVectorIndex.GetGroupIndex() );
+  }
+  else
+  {
+    throw InternalErrorException("The mask element type is expected to be the smallest element type used inside a function!");
   }
 }
 

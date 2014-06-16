@@ -416,6 +416,7 @@ namespace Backend
 
 
       ::clang::Expr*          _ConvertMaskDown(Vectorization::VectorElementTypes eSourceElementType, const ClangASTHelper::ExpressionVectorType &crvecSubExpressions);
+      ::clang::Expr*          _ConvertMaskUp(Vectorization::VectorElementTypes eTargetElementType, ::clang::Expr *pMaskExpr, const VectorIndex &crVectorIndex);
 
       VectorIndex _CreateVectorIndex(Vectorization::VectorElementTypes eElementType, size_t szGroupIndex);
 
