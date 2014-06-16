@@ -670,6 +670,52 @@ FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::In
     vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
   }
 
+  // Dump special built-in functions
+  if (_uiDumpFlags & DF_BuiltinFunctions)
+  {
+    typedef Vectorization::BuiltinFunctionsEnum   FunctionType;
+
+    FunctionType aeFunctions[] = { FunctionType::Abs, FunctionType::Ceil, FunctionType::Floor, FunctionType::Max, FunctionType::Min, FunctionType::Sqrt };
+
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("BuiltinFunction") );
+
+    ClangASTHelper::StatementVectorType vecBuiltinFunctions;
+
+    for (auto eCurFunc : aeFunctions)
+    {
+      vecBuiltinFunctions.push_back( _ASTHelper.CreateStringLiteral( GetBuiltinFunctionTypeString(eCurFunc) ) );
+
+      ClangASTHelper::StatementVectorType vecCurrentFunc;
+
+      for (auto itElementType : lstSupportedElementTypes)
+      {
+        auto itArrayDecl = mapVectorArrayDecls[itElementType];
+
+        for (uint32_t uiArgCount = 0; uiArgCount <= 2; ++uiArgCount)
+        {
+          if (spInstructionSet->IsBuiltinFunctionSupported(itElementType, eCurFunc, uiArgCount))
+          {
+            vecCurrentFunc.push_back( _CreateElementTypeString(itElementType) );
+
+            ClangASTHelper::ExpressionVectorType vecArguments;
+            for (uint32_t uiArg = 0; uiArg < uiArgCount; ++uiArg)
+            {
+              vecArguments.push_back( _CreateArraySubscript(itArrayDecl, uiArg) );
+            }
+
+            DUMP_INSTR( vecCurrentFunc, spInstructionSet->BuiltinFunction( itElementType, eCurFunc, vecArguments ) );
+          }
+        }
+      }
+
+      vecBuiltinFunctions.push_back( _ASTHelper.CreateCompoundStatement(vecCurrentFunc) );
+      vecBuiltinFunctions.push_back( _ASTHelper.CreateStringLiteral("") );
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecBuiltinFunctions) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
   pFunctionDecl->setBody( _ASTHelper.CreateCompoundStatement(vecBody) );
   return pFunctionDecl;
 
@@ -706,6 +752,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   _uiDumpFlags |= DF_ShiftElements;
   _uiDumpFlags |= DF_Unary;
   _uiDumpFlags |= DF_VecMemTransfers;
+  _uiDumpFlags |= DF_BuiltinFunctions;
 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;
