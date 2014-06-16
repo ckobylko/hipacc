@@ -1676,7 +1676,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
   }
 
 
-  Expr *pReturnExpr = _GetASTHelper().CreateLiteral( 0 );  // TODO: Replace by nullptr
+  Expr *pReturnExpr = nullptr;
 
   if      (spExpression->IsType< AST::Expressions::BinaryOperator     >())
   {
@@ -1783,7 +1783,32 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
   }
   else if (spExpression->IsType< AST::Expressions::FunctionCall       >())
   {
-    // TODO: Implement
+    AST::Expressions::FunctionCallPtr spFunctionCall = spExpression->CastToType< AST::Expressions::FunctionCall >();
+
+    if (! _SupportsVectorFunctionCall(spFunctionCall))
+    {
+      throw InternalErrorException("Unsupported vector function call detected => The parent expression should have been unrolled!");
+    }
+
+
+    const VectorElementTypes ceFunctionElementType = _GetExpressionElementType( spFunctionCall );
+    ClangASTHelper::ExpressionVectorType vecArguments;
+
+    for (AST::IndexType iParamIdx = static_cast<AST::IndexType>(0); iParamIdx < spFunctionCall->GetCallParameterCount(); ++iParamIdx)
+    {
+      AST::BaseClasses::ExpressionPtr spCallParam = spFunctionCall->GetCallParameter( iParamIdx );
+
+      if (spCallParam->IsVectorized())
+      {
+        vecArguments.push_back( _BuildVectorExpression( spCallParam, crVectorIndex ) );
+      }
+      else
+      {
+        vecArguments.push_back( _spInstructionSet->BroadCast( ceFunctionElementType, _BuildScalarExpression(spCallParam) ) );
+      }
+    }
+
+    pReturnExpr = _spInstructionSet->BuiltinFunction( _GetExpressionElementType( spFunctionCall ), _GetBuiltinVectorFunctionType( spFunctionCall->GetName() ), vecArguments );
   }
   else if (spExpression->IsType< AST::Expressions::UnaryExpression    >())
   {
@@ -2049,6 +2074,28 @@ CPU_x86::VASTExportInstructionSet::VectorIndex CPU_x86::VASTExportInstructionSet
   return VectorIndex( VectorIndex::IndexTypeEnum::VectorStart, static_cast<uint32_t>(szGroupIndex) * uiElementCount, uiElementCount );
 }
 
+BuiltinFunctionsEnum CPU_x86::VASTExportInstructionSet::_GetBuiltinVectorFunctionType(string strFunctionName)
+{
+  if      (strFunctionName == "abs")                return BuiltinFunctionsEnum::Abs;
+  else if (strFunctionName == "ceil")               return BuiltinFunctionsEnum::Ceil;
+  else if (strFunctionName == "floor")              return BuiltinFunctionsEnum::Floor;
+  else if (strFunctionName == "max")                return BuiltinFunctionsEnum::Max;
+  else if (strFunctionName == "min")                return BuiltinFunctionsEnum::Min;
+  else if (strFunctionName == "sqrt")               return BuiltinFunctionsEnum::Sqrt;
+
+  else if (strFunctionName == "std::abs")           return BuiltinFunctionsEnum::Abs;
+  else if (strFunctionName == "std::ceil")          return BuiltinFunctionsEnum::Ceil;
+  else if (strFunctionName == "std::floor")         return BuiltinFunctionsEnum::Floor;
+  else if (strFunctionName == "std::max")           return BuiltinFunctionsEnum::Max;
+  else if (strFunctionName == "std::min")           return BuiltinFunctionsEnum::Min;
+  else if (strFunctionName == "std::sqrt")          return BuiltinFunctionsEnum::Sqrt;
+
+  else if (strFunctionName == "hipacc::math::max")  return BuiltinFunctionsEnum::Max;
+  else if (strFunctionName == "hipacc::math::min")  return BuiltinFunctionsEnum::Min;
+
+  else                                              return BuiltinFunctionsEnum::UnknownFunction;
+}
+
 VectorElementTypes CPU_x86::VASTExportInstructionSet::_GetExpressionElementType(AST::BaseClasses::ExpressionPtr spExpression)
 {
   VectorElementTypes eElementType = spExpression->GetResultType().GetType();
@@ -2150,9 +2197,12 @@ bool CPU_x86::VASTExportInstructionSet::_NeedsUnwrap(AST::BaseClasses::Expressio
   {
     AST::BaseClasses::ExpressionPtr spSubExpr = spExpression->GetSubExpression( iSubExprIdx );
 
-    if (spSubExpr->IsType<AST::Expressions::FunctionCall>())
+    if (spSubExpr->IsVectorized() && spSubExpr->IsType<AST::Expressions::FunctionCall>())
     {
-      return true;
+      if ( ! _SupportsVectorFunctionCall(spSubExpr->CastToType<AST::Expressions::FunctionCall>()) )
+      {
+        return true;
+      }
     }
     else if ( _NeedsUnwrap(spSubExpr) )
     {
@@ -2161,6 +2211,35 @@ bool CPU_x86::VASTExportInstructionSet::_NeedsUnwrap(AST::BaseClasses::Expressio
   }
 
   return false;
+}
+
+bool CPU_x86::VASTExportInstructionSet::_SupportsVectorFunctionCall(AST::Expressions::FunctionCallPtr spFunctionCall)
+{
+  BuiltinFunctionsEnum eFunctionType = _GetBuiltinVectorFunctionType( spFunctionCall->GetName() );
+
+  if (! spFunctionCall->GetReturnType().IsSingleValue())
+  {
+    return false;
+  }
+
+  const VectorElementTypes  ceElementType = _GetExpressionElementType( spFunctionCall );
+  const AST::IndexType      ciParamCount  = spFunctionCall->GetCallParameterCount();
+
+  for (AST::IndexType iParamIdx = static_cast<AST::IndexType>(0); iParamIdx < ciParamCount; ++iParamIdx)
+  {
+    AST::BaseClasses::ExpressionPtr spCallParam = spFunctionCall->GetCallParameter( iParamIdx );
+
+    if (! spCallParam->GetResultType().IsSingleValue())
+    {
+      return false;
+    }
+    else if (_GetExpressionElementType(spCallParam) != ceElementType)
+    {
+      return false;
+    }
+  }
+
+  return _spInstructionSet->IsBuiltinFunctionSupported( ceElementType, eFunctionType, static_cast< uint32_t >( ciParamCount ) );
 }
 
 Expr* CPU_x86::VASTExportInstructionSet::_TranslateMemoryAccessToPointerRef(AST::Expressions::MemoryAccessPtr spMemoryAccess, const VectorIndex &crVectorIndex)

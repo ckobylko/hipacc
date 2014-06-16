@@ -422,12 +422,16 @@ namespace Backend
 
       VectorIndex _CreateVectorIndex(Vectorization::VectorElementTypes eElementType, size_t szGroupIndex);
 
+      static Vectorization::BuiltinFunctionsEnum _GetBuiltinVectorFunctionType(std::string strFunctionName);
+
       Vectorization::VectorElementTypes _GetExpressionElementType(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
 
       static VectorElementTypesSetType _GetUsedVectorElementTypes(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
 
-      static bool _NeedsUnwrap(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+      bool _NeedsUnwrap(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
+
+      bool _SupportsVectorFunctionCall(Vectorization::AST::Expressions::FunctionCallPtr spFunctionCall);
 
       ::clang::Expr*          _TranslateMemoryAccessToPointerRef(Vectorization::AST::Expressions::MemoryAccessPtr spMemoryAccess, const VectorIndex &crVectorIndex);
 
