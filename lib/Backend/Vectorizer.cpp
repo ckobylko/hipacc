@@ -2135,8 +2135,6 @@ void Vectorizer::_CreateVectorizedConditionalBranch(AST::ScopePtr spParentScope,
     spBranchingStatement->AddConditionalBranch(spNewBranch);
 
     spNewBranch->GetBody()->ImportScope(spBranchScope);
-
-    // TODO: Mask all assignments inside the vectorized branch
   }
 }
 
@@ -2259,10 +2257,24 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
         string strFunctionMaskName = VASTBuilder::GetNextFreeVariableName(spFunction, "_mask_function");
 
         spFunction->GetBody()->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create( strFunctionMaskName, MaskTypeInfo, true ) );
+        mapControlMasks[spFunction].push_front(strFunctionMaskName);
+
+
+        // Declare ALL vectorized assignments as masked assignments
+        Transformations::FindAssignments  AssignmentFinder;
+        Transformations::Run( spFunction, AssignmentFinder );
+
+        for (auto itAssignment : AssignmentFinder.lstFoundNodes)
+        {
+          if (itAssignment->IsVectorized())
+          {
+            itAssignment->SetMask( AST::Expressions::Identifier::Create( strFunctionMaskName ) );
+          }
+        }
+
+        // Initialize the function control mask with as fully active
         spFunction->GetBody()->InsertChild( 0, AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create( strFunctionMaskName ),
                                                                                              AST::VectorSupport::BroadCast::Create( AST::Expressions::Constant::Create( true ) ) ) );
-
-        mapControlMasks[spFunction].push_front(strFunctionMaskName);
 
         break;
       }
