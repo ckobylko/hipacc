@@ -410,6 +410,8 @@ namespace Backend
 
       ::clang::Expr*          _BuildVectorConversion(Vectorization::VectorElementTypes eTargetElementType, Vectorization::AST::BaseClasses::ExpressionPtr spSubExpression, const VectorIndex &crVectorIndex);
 
+      ::clang::Expr*          _BuildUnrolledVectorExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression, const uint32_t cuiElementIndex);
+
       ::clang::Expr*          _BuildVectorExpression(Vectorization::AST::BaseClasses::ExpressionPtr spExpression, const VectorIndex &crVectorIndex);
 
       ::clang::Stmt*          _BuildExpressionStatement(Vectorization::AST::BaseClasses::ExpressionPtr spExpression);
