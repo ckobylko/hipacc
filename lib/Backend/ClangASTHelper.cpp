@@ -328,7 +328,7 @@ string ClangASTHelper::GetFullyQualifiedFunctionName(FunctionDecl *pFunctionDecl
     strFunctionName = pNameSpace->getNameAsString() + string("::") + strFunctionName;
 
     // Get the parent namespace
-    DeclContext *pParentNameSpaceDeclContext = pNameSpaceDeclContext->getEnclosingNamespaceContext();
+    DeclContext *pParentNameSpaceDeclContext = pNameSpaceDeclContext->getParent();
     if (pParentNameSpaceDeclContext == pNameSpaceDeclContext)
     {
       // The global namespace is encapsulating itself (weird) => break as soon as a namespace is its own parent
