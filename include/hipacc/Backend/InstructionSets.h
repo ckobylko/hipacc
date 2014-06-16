@@ -71,7 +71,8 @@ namespace Vectorization
     Floor,
     Max,
     Min,
-    Sqrt
+    Sqrt,
+    UnknownFunction
   };
 
   inline std::string GetBuiltinFunctionTypeString(BuiltinFunctionsEnum eFunctionType)
