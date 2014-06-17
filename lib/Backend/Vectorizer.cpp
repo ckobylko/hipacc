@@ -1945,6 +1945,25 @@ void Vectorizer::Transformations::InsertRequiredConversions::Execute(AST::Expres
     return; // Nothing to do for incomplete binary operator expressions
   }
 
+  // Perform constant conversion to avoid unnecessary conversion expressions
+  if (spCurrentBinOp->IsType<AST::Expressions::ArithmeticOperator>() || spCurrentBinOp->IsType<AST::Expressions::RelationalOperator>())
+  {
+    if (spCurrentBinOp->GetResultType().GetType() == AST::BaseClasses::TypeInfo::KnownTypes::Int32)
+    {
+      // Remove constant promotions to 32-bit integer type (clang-specific) beacuse they leed to undesired, expensive vector conversions
+      if (spLHS->IsType< AST::Expressions::Constant >())
+      {
+        spLHS->CastToType< AST::Expressions::Constant >()->ChangeType( spRHS->GetResultType().GetType() );
+      }
+      else if (spRHS->IsType< AST::Expressions::Constant >())
+      {
+        spRHS->CastToType< AST::Expressions::Constant >()->ChangeType( spLHS->GetResultType().GetType() );
+      }
+    }
+  }
+
+
+  // Convert the sub-expressions to the corresponding type
   if (spCurrentBinOp->IsType<AST::Expressions::ArithmeticOperator>())
   {
     AST::BaseClasses::TypeInfo ResultType = spCurrentBinOp->CastToType< AST::Expressions::ArithmeticOperator >()->GetResultType();
@@ -2024,24 +2043,22 @@ Vectorizer::IndexType Vectorizer::Transformations::RemoveUnnecessaryConversions:
 
     if (bRemoveConversion)
     {
-      if (spParentExpression->IsType<AST::Expressions::Conversion>())
+      AST::BaseClasses::ExpressionPtr spSubExpr = spConversion->GetSubExpression();
+
+      if (spSubExpr && spSubExpr->IsType<AST::Expressions::Conversion>())
+      {
+        AST::Expressions::ConversionPtr spChildConversion = spSubExpr->CastToType<AST::Expressions::Conversion>();
+
+        spChildConversion->SetExplicit( spChildConversion->GetExplicit() || spConversion->GetExplicit() );
+      }
+      else if (spParentExpression->IsType<AST::Expressions::Conversion>())
       {
         AST::Expressions::ConversionPtr spParentConversion = spParentExpression->CastToType<AST::Expressions::Conversion>();
 
         spParentConversion->SetExplicit( spParentConversion->GetExplicit() || spConversion->GetExplicit() );
       }
-      else
-      {
-        AST::BaseClasses::ExpressionPtr spSubExpr = spConversion->GetSubExpression();
-        if (spSubExpr && spSubExpr->IsType<AST::Expressions::Conversion>())
-        {
-          AST::Expressions::ConversionPtr spChildConversion = spSubExpr->CastToType<AST::Expressions::Conversion>();
 
-          spChildConversion->SetExplicit( spChildConversion->GetExplicit() || spConversion->GetExplicit() );
-        }
-      }
-
-      spParentExpression->SetSubExpression(iChildIndex, spConversion->GetSubExpression());
+      spParentExpression->SetSubExpression(iChildIndex, spSubExpr);
     }
   }
 
@@ -2682,10 +2699,13 @@ void Vectorizer::RebuildDataFlow(AST::FunctionDeclarationPtr spFunction, bool bE
 
       for each (auto itConversion in ConversionFinder.lstFoundNodes)
       {
-        if ( itConversion->IsVectorized() && (! itConversion->GetParent()->IsType<AST::Expressions::AssignmentOperator>()) )
+        if (itConversion->IsVectorized())
         {
-          // Extract conversion into an own assignment to a temporary variable
-          _FlattenSubExpression( VASTBuilder::GetTemporaryNamePrefix() + string("_conv"), itConversion );
+          // Extract conversion into an own assignment to a temporary variable if it not already an assignment value
+          if (! itConversion->GetParent()->IsType<AST::Expressions::AssignmentOperator>())
+          {
+            _FlattenSubExpression( VASTBuilder::GetTemporaryNamePrefix() + string("_conv"), itConversion );
+          }
 
           // If the sub-expression of the conversion is not a leaf expression (i.e. identifier, constant etc.) extract it too
           AST::BaseClasses::ExpressionPtr spSubExpression = itConversion->GetSubExpression();
