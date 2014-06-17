@@ -2984,13 +2984,16 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
       {
         size_t szMinTypeSize = cszMaxVecWidth;
 
-        for (Vectorization::AST::IndexType iParamIdx = static_cast<Vectorization::AST::IndexType>(0); iParamIdx < spVecFunction->GetParameterCount(); ++iParamIdx)
-        {
-          Vectorization::AST::BaseClasses::VariableInfoPtr spParamInfo = spVecFunction->GetParameter(iParamIdx)->LookupVariableInfo();
+        vector< string > vecVariableNames = spVecFunction->GetKnownVariableNames();
 
-          if (spParamInfo->GetVectorize() && spParamInfo->GetTypeInfo().IsDereferencable())
+        for (auto itVarName : vecVariableNames)
+        {
+          Vectorization::AST::BaseClasses::VariableInfoPtr  spParamInfo   = spVecFunction->GetVariableInfo( itVarName );
+          AST::BaseClasses::TypeInfo::KnownTypes            eElementType  = spParamInfo->GetTypeInfo().GetType();
+
+          if ( spParamInfo->GetVectorize() && (eElementType != AST::BaseClasses::TypeInfo::KnownTypes::Bool) )
           {
-            size_t szCurrentTypeSize  = Vectorization::AST::BaseClasses::TypeInfo::GetTypeSize( spParamInfo->GetTypeInfo().GetType() );
+            size_t szCurrentTypeSize  = Vectorization::AST::BaseClasses::TypeInfo::GetTypeSize( eElementType );
             szMinTypeSize             = std::min( szMinTypeSize, szCurrentTypeSize );
           }
         }
