@@ -1667,6 +1667,8 @@ namespace Vectorization
       virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
       virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const final override;
 
+      std::vector< std::string >  GetKnownVariableNames() const;
+
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;
       virtual IndexType     GetChildCount() const final override  { return static_cast< IndexType >(1); }

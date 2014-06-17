@@ -2012,6 +2012,18 @@ AST::BaseClasses::NodePtr AST::FunctionDeclaration::GetChild(IndexType ChildInde
   }
 }
 
+vector< string > AST::FunctionDeclaration::GetKnownVariableNames() const
+{
+  vector< string > vecVariableNames;
+
+  for (auto itKnownVariable : _mapKnownVariables)
+  {
+    vecVariableNames.push_back( itKnownVariable.first );
+  }
+
+  return move( vecVariableNames );
+}
+
 AST::Expressions::IdentifierPtr AST::FunctionDeclaration::GetParameter(IndexType iParamIndex)
 {
   if (iParamIndex >= GetParameterCount())
