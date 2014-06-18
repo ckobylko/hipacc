@@ -3412,6 +3412,10 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::MergeFloat,   "set_m128"  );
   _InitIntrinsic( IntrinsicsAVXEnum::MergeInteger, "set_m128i" );
 
+  // Mask conversion functions
+  _InitIntrinsic( IntrinsicsAVXEnum::MoveMaskDouble, "movemask_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MoveMaskFloat,  "movemask_ps" );
+
   // Multiplication functions
   _InitIntrinsic( IntrinsicsAVXEnum::MultiplyDouble, "mul_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::MultiplyFloat,  "mul_ps" );
@@ -3821,14 +3825,62 @@ Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, Builti
 
 Expr* InstructionSetAVX::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  const QualType cqtBool = _GetClangType( VectorElementTypes::Bool );
+
+  switch (eMaskElementType)
+  {
+  case VectorElementTypes::Double: case VectorElementTypes::Float:
+    {
+      int32_t iTestConstant = (eMaskElementType == VectorElementTypes::Double)    ? 0x0F          : 0xFF;
+      iTestConstant         = (eCheckType       == ActiveElementsCheckType::All)  ? iTestConstant :    0;
+
+      const IntrinsicsAVXEnum   ceFunctionID  = (eMaskElementType == VectorElementTypes::Double)    ? IntrinsicsAVXEnum::MoveMaskDouble : IntrinsicsAVXEnum::MoveMaskFloat;
+      const BinaryOperatorKind  ceCompareOp   = (eCheckType       == ActiveElementsCheckType::Any)  ? BO_NE : BO_EQ;
+
+      return _GetASTHelper().CreateBinaryOperator( _CreateFunctionCall( ceFunctionID, pMaskExpr ), _GetASTHelper().CreateLiteral( iTestConstant ), ceCompareOp, cqtBool );
+    }
+  default:
+    {
+      ClangASTHelper::ExpressionVectorType  vecSSEChecks;
+
+      for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+      {
+        Expr *pMaskRefSSE = _ExtractSSEVector( eMaskElementType, pMaskExpr, (uiIdx == 0) );
+
+        vecSSEChecks.push_back( _GetASTHelper().CreateParenthesisExpression( _GetFallback()->CheckActiveElements(eMaskElementType, eCheckType, pMaskRefSSE) ) );
+      }
+
+      return _GetASTHelper().CreateBinaryOperator( vecSSEChecks[0], vecSSEChecks[1], ((eCheckType == ActiveElementsCheckType::Any) ? BO_LOr : BO_LAnd), cqtBool );
+    }
+  }
 }
 
 Expr* InstructionSetAVX::CheckSingleMaskElement(VectorElementTypes eMaskElementType, Expr *pMaskExpr, uint32_t uiIndex)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  if ( uiIndex >= static_cast<uint32_t>(GetVectorElementCount(eMaskElementType)) )
+  {
+    throw InternalErrorException("The index cannot exceed the vector element count!");
+  }
+
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::MoveMaskDouble;
+
+  switch (eMaskElementType)
+  {
+  case VectorElementTypes::Double:  eFunctionID = IntrinsicsAVXEnum::MoveMaskDouble;  break;
+  case VectorElementTypes::Float:   eFunctionID = IntrinsicsAVXEnum::MoveMaskFloat;   break;
+  default:
+    {
+      const uint32_t cuiElementCountSSE = _GetFallback()->GetVectorElementCount( eMaskElementType );
+
+      Expr *pMaskSSE = _ExtractSSEVector( eMaskElementType, pMaskExpr, (uiIndex < cuiElementCountSSE) );
+
+      return _GetFallback()->CheckSingleMaskElement( eMaskElementType, pMaskSSE, uiIndex % cuiElementCountSSE );
+    }
+  }
+
+  Expr *pMoveMask = _CreateFunctionCall( eFunctionID, pMaskExpr );
+
+  return _GetASTHelper().CreateBinaryOperator( pMoveMask, _GetASTHelper().CreateLiteral( static_cast<int32_t>(1 << uiIndex) ), BO_And, pMoveMask->getType() );
 }
 
 Expr* InstructionSetAVX::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)

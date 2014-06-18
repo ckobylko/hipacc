@@ -1284,6 +1284,7 @@ namespace Vectorization
       MaxDouble,          MaxFloat,
       MergeDouble,        MergeFloat,           MergeInteger,
       MinDouble,          MinFloat,
+      MoveMaskDouble,     MoveMaskFloat,
       MultiplyDouble,     MultiplyFloat,
       OrDouble,           OrFloat,
       SetDouble,          SetFloat,             SetInt8,            SetInt16,           SetInt32,             SetInt64,
