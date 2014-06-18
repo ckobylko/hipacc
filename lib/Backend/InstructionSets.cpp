@@ -282,11 +282,15 @@ void InstructionSetBase::_CreateMissingIntrinsicsAVX()
   qtConstInt.addConst();
 
   // Create missing AVX intrinsic functions
-  _CreateIntrinsicDeclaration( "_mm256_cmp_pd",            qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorAVX,  "b",  qtConstInt, "imm"  );
-  _CreateIntrinsicDeclaration( "_mm256_cmp_ps",            qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorAVX,   "b",  qtConstInt, "imm"  );
+  _CreateIntrinsicDeclaration( "_mm256_ceil_pd",           qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a" );
+  _CreateIntrinsicDeclaration( "_mm256_ceil_ps",           qtFloatVectorAVX,   qtFloatVectorAVX,   "a" );
+  _CreateIntrinsicDeclaration( "_mm256_cmp_pd",            qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorAVX,  "b",  qtConstInt, "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_cmp_ps",            qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorAVX,   "b",  qtConstInt, "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_pd",    qtDoubleVectorSSE,  qtDoubleVectorAVX,  "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_ps",    qtFloatVectorSSE,   qtFloatVectorAVX,   "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_si256", qtIntegerVectorSSE, qtIntegerVectorAVX, "a",  qtConstInt,         "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_floor_pd",          qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a" );
+  _CreateIntrinsicDeclaration( "_mm256_floor_ps",          qtFloatVectorAVX,   qtFloatVectorAVX,   "a" );
   _CreateIntrinsicDeclaration( "_mm256_insertf128_pd",     qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorSSE,  "b",  qtInt,      "imm" );
   _CreateIntrinsicDeclaration( "_mm256_insertf128_ps",     qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorSSE,   "b",  qtInt,      "imm" );
   _CreateIntrinsicDeclaration( "_mm256_insertf128_si256",  qtIntegerVectorAVX, qtIntegerVectorAVX, "a",  qtIntegerVectorSSE, "b",  qtInt,      "imm" );
@@ -3368,6 +3372,12 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::CastIntegerToDouble, "castsi256_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::CastIntegerToFloat,  "castsi256_ps" );
 
+  // Rounding functions
+  _InitIntrinsic( IntrinsicsAVXEnum::CeilDouble,  "ceil_pd"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::CeilFloat,   "ceil_ps"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::FloorDouble, "floor_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::FloorFloat,  "floor_ps" );
+
   // Comparison functions
   _InitIntrinsic( IntrinsicsAVXEnum::CompareDouble, "cmp_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::CompareFloat,  "cmp_ps" );
@@ -3390,6 +3400,12 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::LoadDouble,  "loadu_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::LoadFloat,   "loadu_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::LoadInteger, "lddqu_si256" );
+
+  // Maximum / Minimum functions
+  _InitIntrinsic( IntrinsicsAVXEnum::MaxDouble, "max_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MaxFloat,  "max_ps" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MinDouble, "min_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MinFloat,  "min_ps" );
 
   // Merge SSE vectors functions
   _InitIntrinsic( IntrinsicsAVXEnum::MergeDouble,  "set_m128d" );
@@ -3421,6 +3437,10 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::StoreDouble,  "storeu_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::StoreFloat,   "storeu_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::StoreInteger, "storeu_si256" );
+
+  // Square root functions
+  _InitIntrinsic( IntrinsicsAVXEnum::SqrtDouble, "sqrt_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::SqrtFloat,  "sqrt_ps" );
 
   // Subtraction functions
   _InitIntrinsic( IntrinsicsAVXEnum::SubtractDouble, "sub_pd" );
@@ -3715,8 +3735,88 @@ Expr* InstructionSetAVX::BroadCast(VectorElementTypes eElementType, Expr *pBroad
 
 Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  const uint32_t cuiParamCount = static_cast< uint32_t >( crvecArguments.size() );
+
+  if (! IsBuiltinFunctionSupported(eElementType, eFunctionType, cuiParamCount))
+  {
+    throw InstructionSetExceptions::UnsupportedBuiltinFunctionType(eElementType, eFunctionType, cuiParamCount, "AVX");
+  }
+
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double: case VectorElementTypes::Float:
+    {
+      const bool cbIsDouble = (eElementType == VectorElementTypes::Double);
+
+      if (cuiParamCount == 2)
+      {
+        switch (eFunctionType)
+        {
+        case BuiltinFunctionsEnum::Max:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::MaxDouble : IntrinsicsAVXEnum::MaxFloat, crvecArguments[0], crvecArguments[1] );
+        case BuiltinFunctionsEnum::Min:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::MinDouble : IntrinsicsAVXEnum::MinFloat, crvecArguments[0], crvecArguments[1] );
+        }
+      }
+      else if (cuiParamCount == 1)
+      {
+        switch (eFunctionType)
+        {
+        case BuiltinFunctionsEnum::Abs:
+          {
+            Expr *pSubZeroMask  = RelationalOperator( eElementType, RelationalOperatorType::Less, crvecArguments.front(), CreateZeroVector(eElementType) );
+            Expr *pMultiplier   = BlendVectors( eElementType, pSubZeroMask, CreateOnesVector(eElementType, true), CreateOnesVector(eElementType, false) );
+
+            return ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, crvecArguments.front(), pMultiplier );
+          }
+        case BuiltinFunctionsEnum::Ceil:    return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::CeilDouble  : IntrinsicsAVXEnum::CeilFloat,  crvecArguments.front() );
+        case BuiltinFunctionsEnum::Floor:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::FloorDouble : IntrinsicsAVXEnum::FloorFloat, crvecArguments.front() );
+        case BuiltinFunctionsEnum::Sqrt:    return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::SqrtDouble  : IntrinsicsAVXEnum::SqrtFloat,  crvecArguments.front() );
+        }
+      }
+
+      break;
+    }
+  case VectorElementTypes::Int8:   case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16:  case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32:  case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
+    {
+      switch (eFunctionType)
+      {
+      case BuiltinFunctionsEnum::Abs:
+        {
+          if (! AST::BaseClasses::TypeInfo::IsSigned( eElementType ))
+          {
+            return crvecArguments.front();
+          }
+
+          break;
+        }
+      case BuiltinFunctionsEnum::Ceil:    return crvecArguments.front();
+      case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();
+      }
+      
+      break;
+    }
+  }
+
+
+  // If the function has not returned earlier, use the SSE fallback
+  ClangASTHelper::ExpressionVectorType  vecSSEBuiltinFuncs;
+
+  for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+  {
+    ClangASTHelper::ExpressionVectorType vecSSEArgs;
+
+    for (auto itArg : crvecArguments)
+    {
+      vecSSEArgs.push_back( _ExtractSSEVector( eElementType, itArg, (uiIdx == 0) ) );
+    }
+
+    vecSSEBuiltinFuncs.push_back( _GetFallback()->BuiltinFunction( eElementType, eFunctionType, vecSSEArgs ) );
+  }
+
+  return _MergeSSEVectors( eElementType, vecSSEBuiltinFuncs[0], vecSSEBuiltinFuncs[1] );
 }
 
 Expr* InstructionSetAVX::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
@@ -3850,8 +3950,50 @@ Expr* InstructionSetAVX::InsertElement(VectorElementTypes eElementType, Expr *pV
 
 bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  bool bSupported = false;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double: case VectorElementTypes::Float:
+    {
+      switch (eFunctionType)
+      {
+      case BuiltinFunctionsEnum::Abs:     bSupported = (uiParamCount == 1);   break;
+      case BuiltinFunctionsEnum::Ceil:    bSupported = (uiParamCount == 1);   break;
+      case BuiltinFunctionsEnum::Floor:   bSupported = (uiParamCount == 1);   break;
+      case BuiltinFunctionsEnum::Max:     bSupported = (uiParamCount == 2);   break;
+      case BuiltinFunctionsEnum::Min:     bSupported = (uiParamCount == 2);   break;
+      case BuiltinFunctionsEnum::Sqrt:    bSupported = (uiParamCount == 1);   break;
+      }
+
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+    const bool cbIsUnsigned = ( ! AST::BaseClasses::TypeInfo::IsSigned( eElementType ) );
+
+      switch (eFunctionType)
+      {
+      case BuiltinFunctionsEnum::Abs:     bSupported = ( (uiParamCount == 1) && cbIsUnsigned );   break;
+      case BuiltinFunctionsEnum::Ceil:    bSupported =   (uiParamCount == 1);                     break;
+      case BuiltinFunctionsEnum::Floor:   bSupported =   (uiParamCount == 1);                     break;
+      }
+
+      break;
+    }
+  }
+
+  if (bSupported)
+  {
+    return true;
+  }
+  else
+  {
+    return _spFallbackInstructionSet->IsBuiltinFunctionSupported( eElementType, eFunctionType, uiParamCount );
+  }
 }
 
 bool InstructionSetAVX::IsElementTypeSupported(VectorElementTypes eElementType) const
