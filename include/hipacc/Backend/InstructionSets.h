@@ -1269,14 +1269,23 @@ namespace Vectorization
 
     enum class IntrinsicsAVXEnum
     {
-      BlendDouble,      BlendFloat,
-      BroadCastDouble,  BroadCastFloat,   BroadCastInt8,      BroadCastInt16, BroadCastInt32, BroadCastInt64,
-      ExtractSSEDouble, ExtractSSEFloat,  ExtractSSEInteger,
-      LoadDouble,       LoadFloat,        LoadInteger,
-      MergeDouble,      MergeFloat,       MergeInteger,
-      SetDouble,        SetFloat,         SetInt8,            SetInt16,       SetInt32,       SetInt64,
-      SetZeroDouble,    SetZeroFloat,     SetZeroInteger,
-      StoreDouble,      StoreFloat,       StoreInteger
+      AddDouble,          AddFloat,
+      AndDouble,          AndFloat,
+      BlendDouble,        BlendFloat,
+      BroadCastDouble,    BroadCastFloat,       BroadCastInt8,      BroadCastInt16,     BroadCastInt32,       BroadCastInt64,
+      CastDoubleToFloat,  CastDoubleToInteger,  CastFloatToDouble,  CastFloatToInteger, CastIntegerToDouble,  CastIntegerToFloat,
+      CompareDouble,      CompareFloat,
+      DivideDouble,       DivideFloat,
+      ExtractSSEDouble,   ExtractSSEFloat,      ExtractSSEInteger,
+      LoadDouble,         LoadFloat,            LoadInteger,
+      MergeDouble,        MergeFloat,           MergeInteger,
+      MultiplyDouble,     MultiplyFloat,
+      OrDouble,           OrFloat,
+      SetDouble,          SetFloat,             SetInt8,            SetInt16,           SetInt32,             SetInt64,
+      SetZeroDouble,      SetZeroFloat,         SetZeroInteger,
+      StoreDouble,        StoreFloat,           StoreInteger,
+      SubtractDouble,     SubtractFloat,
+      XorDouble,          XorFloat
     };
 
 
@@ -1364,6 +1373,8 @@ namespace Vectorization
 
     static inline std::string _GetIntrinsicPrefix() { return "_mm256_"; }
 
+
+    ::clang::Expr*  _CastVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef);
 
     ::clang::Expr*  _ExtractSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, bool bLowHalf);
 

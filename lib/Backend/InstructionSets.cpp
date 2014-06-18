@@ -282,6 +282,8 @@ void InstructionSetBase::_CreateMissingIntrinsicsAVX()
   qtConstInt.addConst();
 
   // Create missing AVX intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm256_cmp_pd",            qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorAVX,  "b",  qtConstInt, "imm"  );
+  _CreateIntrinsicDeclaration( "_mm256_cmp_ps",            qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorAVX,   "b",  qtConstInt, "imm"  );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_pd",    qtDoubleVectorSSE,  qtDoubleVectorAVX,  "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_ps",    qtFloatVectorSSE,   qtFloatVectorAVX,   "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_si256", qtIntegerVectorSSE, qtIntegerVectorAVX, "a",  qtConstInt,         "imm" );
@@ -3335,6 +3337,14 @@ void InstructionSetAVX::_InitIntrinsicsMap()
 {
   // TODO: Add all required AVX intrinsics here
 
+  // Addition functions
+  _InitIntrinsic( IntrinsicsAVXEnum::AddDouble, "add_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::AddFloat,  "add_ps" );
+
+  // Bitwise "and" functions
+  _InitIntrinsic( IntrinsicsAVXEnum::AndDouble, "and_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::AndFloat,  "and_ps" );
+
   // Blending functions
   _InitIntrinsic( IntrinsicsAVXEnum::BlendDouble, "blendv_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::BlendFloat,  "blendv_ps" );
@@ -3346,6 +3356,22 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt16,  "set1_epi16"  );
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt32,  "set1_epi32"  );
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt64,  "set1_epi64x" );
+
+  // Vector cast functions (change bit-representation, no conversion)
+  _InitIntrinsic( IntrinsicsAVXEnum::CastDoubleToFloat,   "castpd_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::CastDoubleToInteger, "castpd_si256" );
+  _InitIntrinsic( IntrinsicsAVXEnum::CastFloatToDouble,   "castps_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::CastFloatToInteger,  "castps_si256" );
+  _InitIntrinsic( IntrinsicsAVXEnum::CastIntegerToDouble, "castsi256_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::CastIntegerToFloat,  "castsi256_ps" );
+
+  // Comparison functions
+  _InitIntrinsic( IntrinsicsAVXEnum::CompareDouble, "cmp_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::CompareFloat,  "cmp_ps" );
+
+  // Division functions
+  _InitIntrinsic( IntrinsicsAVXEnum::DivideDouble, "div_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::DivideFloat,  "div_ps" );
 
   // Extract SSE vectors functions
   _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEDouble,  "extractf128_pd"    );
@@ -3361,6 +3387,14 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::MergeDouble,  "set_m128d" );
   _InitIntrinsic( IntrinsicsAVXEnum::MergeFloat,   "set_m128"  );
   _InitIntrinsic( IntrinsicsAVXEnum::MergeInteger, "set_m128i" );
+
+  // Multiplication functions
+  _InitIntrinsic( IntrinsicsAVXEnum::MultiplyDouble, "mul_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MultiplyFloat,  "mul_ps" );
+
+  // Bitwise "or" functions
+  _InitIntrinsic( IntrinsicsAVXEnum::OrDouble, "or_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::OrFloat,  "or_ps" );
 
   // Set methods
   _InitIntrinsic( IntrinsicsAVXEnum::SetDouble, "set_pd"     );
@@ -3379,6 +3413,74 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::StoreDouble,  "storeu_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::StoreFloat,   "storeu_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::StoreInteger, "storeu_si256" );
+
+  // Subtraction functions
+  _InitIntrinsic( IntrinsicsAVXEnum::SubtractDouble, "sub_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::SubtractFloat,  "sub_ps" );
+  
+  // Bitwise "xor" functions
+  _InitIntrinsic( IntrinsicsAVXEnum::XorDouble, "xor_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::XorFloat,  "xor_ps" );
+}
+
+Expr* InstructionSetAVX::_CastVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, Expr *pVectorRef)
+{
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::CastDoubleToFloat;
+
+  switch (eSourceType)
+  {
+  case VectorElementTypes::Double:
+    {
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:                                  return pVectorRef;
+      case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::CastDoubleToFloat;     break;
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::CastDoubleToInteger;   break;
+      default:                                                          _ThrowUnsupportedType(eSourceType);
+      }
+
+      break;
+    }
+  case VectorElementTypes::Float:
+    {
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::CastFloatToDouble;   break;
+      case VectorElementTypes::Float:                                   return pVectorRef;
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::CastFloatToInteger;  break;
+      default:                                                          _ThrowUnsupportedType(eSourceType);
+      }
+
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      switch (eTargetType)
+      {
+      case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::CastIntegerToDouble;   break;
+      case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::CastIntegerToFloat;    break;
+      case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return pVectorRef;
+      default:                                                          _ThrowUnsupportedType(eSourceType);
+      }
+
+      break;
+    }
+  default:  _ThrowUnsupportedType( eSourceType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pVectorRef );
 }
 
 Expr* InstructionSetAVX::_ExtractSSEVector(VectorElementTypes eElementType, Expr *pAVXVector, bool bLowHalf)
@@ -3419,18 +3521,94 @@ Expr* InstructionSetAVX::_MergeSSEVectors(VectorElementTypes eElementType, Expr 
 
 Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::AddDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      switch (eOpType)
+      {
+      case ArithmeticOperatorType::Add:           eFunctionID = IntrinsicsAVXEnum::AddDouble;       break;
+      case ArithmeticOperatorType::BitwiseAnd:    eFunctionID = IntrinsicsAVXEnum::AndDouble;       break;
+      case ArithmeticOperatorType::BitwiseOr:     eFunctionID = IntrinsicsAVXEnum::OrDouble;        break;
+      case ArithmeticOperatorType::BitwiseXOr:    eFunctionID = IntrinsicsAVXEnum::XorDouble;       break;
+      case ArithmeticOperatorType::Divide:        eFunctionID = IntrinsicsAVXEnum::DivideDouble;    break;
+      case ArithmeticOperatorType::Multiply:      eFunctionID = IntrinsicsAVXEnum::MultiplyDouble;  break;
+      case ArithmeticOperatorType::Subtract:      eFunctionID = IntrinsicsAVXEnum::SubtractDouble;  break;
+      case ArithmeticOperatorType::Modulo:        throw RuntimeErrorException("Modulo operation is undefined for floating point data types!");
+      case ArithmeticOperatorType::ShiftLeft:
+      case ArithmeticOperatorType::ShiftRight:    throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+      default:                                    throw InternalErrorException("Unsupported arithmetic operation detected!");
+      }
+
+      break;
+    }
+  case VectorElementTypes::Float:
+    {
+      switch (eOpType)
+      {
+      case ArithmeticOperatorType::Add:           eFunctionID = IntrinsicsAVXEnum::AddFloat;        break;
+      case ArithmeticOperatorType::BitwiseAnd:    eFunctionID = IntrinsicsAVXEnum::AndFloat;        break;
+      case ArithmeticOperatorType::BitwiseOr:     eFunctionID = IntrinsicsAVXEnum::OrFloat;         break;
+      case ArithmeticOperatorType::BitwiseXOr:    eFunctionID = IntrinsicsAVXEnum::XorFloat;        break;
+      case ArithmeticOperatorType::Divide:        eFunctionID = IntrinsicsAVXEnum::DivideFloat;     break;
+      case ArithmeticOperatorType::Multiply:      eFunctionID = IntrinsicsAVXEnum::MultiplyFloat;   break;
+      case ArithmeticOperatorType::Subtract:      eFunctionID = IntrinsicsAVXEnum::SubtractFloat;   break;
+      case ArithmeticOperatorType::Modulo:        throw RuntimeErrorException("Modulo operation is undefined for floating point data types!");
+      case ArithmeticOperatorType::ShiftLeft:
+      case ArithmeticOperatorType::ShiftRight:    throw RuntimeErrorException("Shift operations are undefined for floating point data types!");
+      default:                                    throw InternalErrorException("Unsupported arithmetic operation detected!");
+      }
+
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      // Only bit-wise operation can be sped up => All other operations fall through to the default case
+      switch (eOpType)
+      {
+      case ArithmeticOperatorType::BitwiseAnd:
+      case ArithmeticOperatorType::BitwiseOr:
+      case ArithmeticOperatorType::BitwiseXOr:
+        {
+          Expr *pCastedLHS = _CastVector( eElementType, VectorElementTypes::Float, pExprLHS );
+          Expr *pCastedRHS = _CastVector( eElementType, VectorElementTypes::Float, pExprRHS );
+
+          return _CastVector( VectorElementTypes::Float, eElementType, ArithmeticOperator( VectorElementTypes::Float, eOpType, pCastedLHS, pCastedRHS ) );
+        }
+      }
+    }
+  default:
+    {
+      ClangASTHelper::ExpressionVectorType  vecSSEArithOps;
+
+      for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+      {
+        const bool cbLowHalf = (uiIdx == 0);
+
+        Expr *pExprLHS_SSE = _ExtractSSEVector( eElementType, pExprLHS, cbLowHalf );
+        Expr *pExprRHS_SSE = _ExtractSSEVector( eElementType, pExprRHS, cbLowHalf );
+
+        vecSSEArithOps.push_back( _GetFallback()->ArithmeticOperator( eElementType, eOpType, pExprLHS_SSE, pExprRHS_SSE ) );
+      }
+
+      return _MergeSSEVectors( eElementType, vecSSEArithOps[0], vecSSEArithOps[1] );
+    }
+  }
+
+  return _CreateFunctionCall( eFunctionID, pExprLHS, pExprRHS );
 }
 
 Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
 {
-  Expr *pReturnExpr = nullptr;
-
   switch (eElementType)
   {
-  case VectorElementTypes::Double:    pReturnExpr = _CreateFunctionCall( IntrinsicsAVXEnum::BlendDouble, pVectorFalse, pVectorTrue, pMaskRef );   break;
-  case VectorElementTypes::Float:     pReturnExpr = _CreateFunctionCall( IntrinsicsAVXEnum::BlendFloat,  pVectorFalse, pVectorTrue, pMaskRef );   break;
+  case VectorElementTypes::Double:    return _CreateFunctionCall( IntrinsicsAVXEnum::BlendDouble, pVectorFalse, pVectorTrue, pMaskRef );
+  case VectorElementTypes::Float:     return _CreateFunctionCall( IntrinsicsAVXEnum::BlendFloat,  pVectorFalse, pVectorTrue, pMaskRef );
   default:
     {
       ClangASTHelper::ExpressionVectorType  vecSSEBlends;
@@ -3446,12 +3624,9 @@ Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMa
         vecSSEBlends.push_back( _GetFallback()->BlendVectors( eElementType, pMaskRefSSE, pVectorTrueSSE, pVectorFalseSSE ) );
       }
 
-      pReturnExpr = _MergeSSEVectors( eElementType, vecSSEBlends[0], vecSSEBlends[1] );
-      break;
+      return _MergeSSEVectors( eElementType, vecSSEBlends[0], vecSSEBlends[1] );
     }
   }
-
-  return pReturnExpr;
 }
 
 Expr* InstructionSetAVX::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
@@ -3633,8 +3808,52 @@ Expr* InstructionSetAVX::LoadVectorGathered(VectorElementTypes eElementType, Vec
 
 Expr* InstructionSetAVX::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  if (eOpType == RelationalOperatorType::LogicalAnd)
+  {
+    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseAnd, pExprLHS, pExprRHS );
+  }
+  else if (eOpType == RelationalOperatorType::LogicalOr)
+  {
+    return ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseOr, pExprLHS, pExprRHS );
+  }
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double: case VectorElementTypes::Float:
+    {
+      const IntrinsicsAVXEnum ceFunctionID  = (eElementType == VectorElementTypes::Double) ? IntrinsicsAVXEnum::CompareDouble : IntrinsicsAVXEnum::CompareFloat;
+      int32_t                 iOpCode       = 0;
+
+      switch (eOpType)
+      {
+      case RelationalOperatorType::Equal:         iOpCode = 0x00;   break;  // _CMP_EQ_OQ
+      case RelationalOperatorType::Greater:       iOpCode = 0x1E;   break;  // _CMP_GT_OQ
+      case RelationalOperatorType::GreaterEqual:  iOpCode = 0x1D;   break;  // _CMP_GE_OQ
+      case RelationalOperatorType::Less:          iOpCode = 0x11;   break;  // _CMP_LT_OQ
+      case RelationalOperatorType::LessEqual:     iOpCode = 0x12;   break;  // _CMP_LE_OQ
+      case RelationalOperatorType::NotEqual:      iOpCode = 0x0C;   break;  // _CMP_NEQ_OQ
+      default:                                    throw InternalErrorException("Unsupported relational operation detected!");
+      }
+
+      return _CreateFunctionCall( ceFunctionID, pExprLHS, pExprRHS, _GetASTHelper().CreateIntegerLiteral( iOpCode ) );
+    }
+  default:
+    {
+      ClangASTHelper::ExpressionVectorType  vecSSERelOps;
+
+      for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+      {
+        const bool cbLowHalf = (uiIdx == 0);
+
+        Expr *pExprLHS_SSE = _ExtractSSEVector( eElementType, pExprLHS, cbLowHalf );
+        Expr *pExprRHS_SSE = _ExtractSSEVector( eElementType, pExprRHS, cbLowHalf );
+
+        vecSSERelOps.push_back( _GetFallback()->RelationalOperator( eElementType, eOpType, pExprLHS_SSE, pExprRHS_SSE ) );
+      }
+
+      return _MergeSSEVectors( eElementType, vecSSERelOps[0], vecSSERelOps[1] );
+    }
+  }
 }
 
 Expr* InstructionSetAVX::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
