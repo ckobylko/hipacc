@@ -466,6 +466,7 @@ namespace Vectorization
   typedef std::shared_ptr< InstructionSetBase >   InstructionSetBasePtr;
 
 
+  // SSE instrcution sets
   class InstructionSetSSE : public InstructionSetBase
   {
   private:
@@ -1253,6 +1254,146 @@ namespace Vectorization
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) final override;
 
     //@}
+  };
+
+
+  // AVX instruction sets
+  class InstructionSetAVX : public InstructionSetBase
+  {
+  private:
+
+    friend class InstructionSetBase;
+
+    enum class IntrinsicsAVXEnum
+    {
+    };
+
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVXEnum >   IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType        _mapIntrinsicsAVX;
+    InstructionSetBasePtr   _spFallbackInstructionSet;
+
+
+    inline void _InitIntrinsic(IntrinsicsAVXEnum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsAVX, "AVX");
+    }
+
+
+  protected:
+
+    InstructionSetAVX(::clang::ASTContext &rAstContext);
+
+    inline InstructionSetBasePtr _GetFallback()   { return _spFallbackInstructionSet; }
+
+    static inline std::string _GetIntrinsicPrefix() { return "_mm256_"; }
+
+
+  public:
+
+    virtual ~InstructionSetAVX()
+    {
+      _mapIntrinsicsAVX.clear();
+    }
+
+
+  protected:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) final override;
+
+    //@}
+
+  public:
+
+    /** \name Instruction set abstraction methods */
+    //@{
+
+    virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) final override;
+    virtual size_t            GetVectorWidthBytes() const final override   { return static_cast< size_t >(32); }
+
+    virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const final override;
+    virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const final override;
+
+    virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) final override;
+    virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) final override;
+    virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) final override;
+    virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) final override;
+    virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) final override;
+    virtual ::clang::Expr* CheckSingleMaskElement(VectorElementTypes eMaskElementType, ::clang::Expr *pMaskExpr, std::uint32_t uiIndex) final override;
+    virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) final override;
+    virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) final override;
+    virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) final override;
+    virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) final override;
+    virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) final override;
+    virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) final override;
+    virtual ::clang::Expr* LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, ::clang::Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex) final override;
+    virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) final override;
+    virtual ::clang::Expr* ShiftElements(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount) final override;
+    virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) final override;
+    virtual ::clang::Expr* StoreVectorMasked(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue, ::clang::Expr *pMaskRef) final override;
+    virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) final override;
+
+    //@}
+  };
+
+  class InstructionSetAVX2 final : public InstructionSetAVX
+  {
+  private:
+
+    friend class InstructionSetBase;
+    typedef InstructionSetAVX     BaseType;
+
+
+    enum class IntrinsicsAVX2Enum
+    {
+    };
+
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVX2Enum >  IntrinsicMapType;
+
+
+  private:
+
+    IntrinsicMapType    _mapIntrinsicsAVX2;
+
+
+    inline void _InitIntrinsic(IntrinsicsAVX2Enum eIntrinType, std::string strIntrinName)
+    {
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX2, eIntrinType, strIntrinName);
+    }
+
+    void _InitIntrinsicsMap();
+
+    inline void _LookupIntrinsics()
+    {
+      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsAVX2, "AVX2");
+    }
+
+
+  protected:
+
+    InstructionSetAVX2(::clang::ASTContext &rAstContext);
+
+  public:
+
+    virtual ~InstructionSetAVX2()
+    {
+      _mapIntrinsicsAVX2.clear();
+    }
+
   };
 } // end namespace Vectorization
 } // end namespace Backend

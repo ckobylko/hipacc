@@ -3290,5 +3290,171 @@ Expr* InstructionSetSSE4_2::RelationalOperator(VectorElementTypes eElementType, 
 
 
 
+
+// Implementation of class InstructionSetAVX
+InstructionSetAVX::InstructionSetAVX(ASTContext &rAstContext) : InstructionSetBase(rAstContext, _GetIntrinsicPrefix())
+{
+  _spFallbackInstructionSet = InstructionSetBase::Create< InstructionSetSSE4_2 >( rAstContext );
+
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+void InstructionSetAVX::_InitIntrinsicsMap()
+{
+  // TODO: Add all required AVX intrinsics here
+}
+
+Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, Expr *pMaskExpr)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::CheckSingleMaskElement(VectorElementTypes eMaskElementType, Expr *pMaskExpr, uint32_t uiIndex)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::CreateZeroVector(VectorElementTypes eElementType)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+QualType InstructionSetAVX::GetVectorType(VectorElementTypes eElementType)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+bool InstructionSetAVX::IsElementTypeSupported(VectorElementTypes eElementType) const
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::StoreVectorMasked(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue, Expr *pMaskRef)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+Expr* InstructionSetAVX::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
+{
+  // TODO: Implement
+  throw RuntimeErrorException("Not implemented!");
+}
+
+
+
+
+// Implementation of class InstructionSetAVX2
+InstructionSetAVX2::InstructionSetAVX2(ASTContext &rAstContext) : BaseType(rAstContext)
+{
+  _InitIntrinsicsMap();
+
+  _LookupIntrinsics();
+}
+
+void InstructionSetAVX2::_InitIntrinsicsMap()
+{
+  // TODO: Add all required AVX2 intrinsics here
+}
+
+
+
 // vim: set ts=2 sw=2 sts=2 et ai:
 
