@@ -3310,6 +3310,27 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
 void InstructionSetAVX::_InitIntrinsicsMap()
 {
   // TODO: Add all required AVX intrinsics here
+
+  // Broadcast functions
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastDouble, "set1_pd"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastFloat,  "set1_ps"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt8,   "set1_epi8"   );
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt16,  "set1_epi16"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt32,  "set1_epi32"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt64,  "set1_epi64x" );
+
+  // Set methods
+  _InitIntrinsic( IntrinsicsAVXEnum::SetDouble, "set_pd"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetFloat,  "set_ps"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetInt8,   "set_epi8"   );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetInt16,  "set_epi16"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetInt32,  "set_epi32"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetInt64,  "set_epi64x" );
+
+  // Zero vector creation functions
+  _InitIntrinsic( IntrinsicsAVXEnum::SetZeroDouble,  "setzero_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetZeroFloat,   "setzero_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::SetZeroInteger, "setzero_si256" );
 }
 
 Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -3326,8 +3347,20 @@ Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMa
 
 Expr* InstructionSetAVX::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::BroadCastDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::BroadCastDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::BroadCastFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eFunctionID = IntrinsicsAVXEnum::BroadCastInt8;     break;
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eFunctionID = IntrinsicsAVXEnum::BroadCastInt16;    break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eFunctionID = IntrinsicsAVXEnum::BroadCastInt32;    break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::BroadCastInt64;    break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pBroadCastValue );
 }
 
 Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments)
@@ -3350,20 +3383,68 @@ Expr* InstructionSetAVX::CheckSingleMaskElement(VectorElementTypes eMaskElementT
 
 Expr* InstructionSetAVX::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  Expr *pBroadCastValue = nullptr;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  pBroadCastValue = _GetASTHelper().CreateLiteral( bNegative ? -1.0  : 1.0  );  break;
+  case VectorElementTypes::Float:                                   pBroadCastValue = _GetASTHelper().CreateLiteral( bNegative ? -1.0f : 1.0f );  break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  pBroadCastValue = _GetASTHelper().CreateLiteral( bNegative ? -1    : 1    );  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return BroadCast( eElementType, pBroadCastValue );
 }
 
 Expr* InstructionSetAVX::CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  if (crvecElements.size() != GetVectorElementCount(eElementType))
+  {
+    throw RuntimeErrorException("The number of init expressions must be equal to the vector element count!");
+  }
+
+  if (! bReversedOrder)
+  {
+    // AVX vector creation methods expect the arguments in reversed order
+    return CreateVector( eElementType, _SwapExpressionOrder( crvecElements ), true );
+  }
+
+
+  IntrinsicsAVXEnum eIntrinID = IntrinsicsAVXEnum::SetDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eIntrinID = IntrinsicsAVXEnum::SetDouble;   break;
+  case VectorElementTypes::Float:                                   eIntrinID = IntrinsicsAVXEnum::SetFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsAVXEnum::SetInt8;     break;
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:  eIntrinID = IntrinsicsAVXEnum::SetInt16;    break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsAVXEnum::SetInt32;    break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsAVXEnum::SetInt64;    break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eIntrinID, crvecElements );
 }
 
 Expr* InstructionSetAVX::CreateZeroVector(VectorElementTypes eElementType)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::SetZeroDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::SetZeroDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::SetZeroFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::SetZeroInteger;  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID );
 }
 
 Expr* InstructionSetAVX::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
@@ -3374,8 +3455,20 @@ Expr* InstructionSetAVX::ExtractElement(VectorElementTypes eElementType, Expr *p
 
 QualType InstructionSetAVX::GetVectorType(VectorElementTypes eElementType)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::SetZeroDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::SetZeroDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::SetZeroFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::SetZeroInteger;  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _GetFunctionReturnType( eFunctionID );
 }
 
 Expr* InstructionSetAVX::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
@@ -3392,8 +3485,12 @@ bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementTy
 
 bool InstructionSetAVX::IsElementTypeSupported(VectorElementTypes eElementType) const
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:
+  case VectorElementTypes::Float:   return true;
+  default:                          return _spFallbackInstructionSet->IsElementTypeSupported( eElementType );
+  }
 }
 
 Expr* InstructionSetAVX::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)

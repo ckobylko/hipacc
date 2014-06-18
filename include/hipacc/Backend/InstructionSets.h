@@ -466,7 +466,7 @@ namespace Vectorization
   typedef std::shared_ptr< InstructionSetBase >   InstructionSetBasePtr;
 
 
-  // SSE instrcution sets
+  // SSE instruction sets
   class InstructionSetSSE : public InstructionSetBase
   {
   private:
@@ -1266,6 +1266,9 @@ namespace Vectorization
 
     enum class IntrinsicsAVXEnum
     {
+      BroadCastDouble,  BroadCastFloat, BroadCastInt8,  BroadCastInt16, BroadCastInt32, BroadCastInt64,
+      SetDouble,        SetFloat,       SetInt8,        SetInt16,       SetInt32,       SetInt64,
+      SetZeroDouble,    SetZeroFloat,   SetZeroInteger
     };
 
 
@@ -1278,6 +1281,32 @@ namespace Vectorization
     InstructionSetBasePtr   _spFallbackInstructionSet;
 
 
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
+    {
+      return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsAVX, eIntrinID, crvecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID)
+    {
+      return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+
+    inline ::clang::QualType _GetFunctionReturnType(IntrinsicsAVXEnum eIntrinID)
+    {
+      return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsAVX, eIntrinID);
+    }
+
+
     inline void _InitIntrinsic(IntrinsicsAVXEnum eIntrinType, std::string strIntrinName)
     {
       InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX, eIntrinType, strIntrinName);
@@ -1288,6 +1317,13 @@ namespace Vectorization
     inline void _LookupIntrinsics()
     {
       InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsAVX, "AVX");
+    }
+
+
+    inline void _ThrowUnsupportedType(VectorElementTypes eType)
+    {
+      throw RuntimeErrorException( std::string("The element type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eType) +
+                                   std::string("\" is not supported in instruction set AVX!") );
     }
 
 
