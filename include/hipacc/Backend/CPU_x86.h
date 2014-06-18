@@ -74,7 +74,9 @@ namespace Backend
       SSE_3,    //!< ID of the "Streaming SIMD Extensions 3" instruction set.
       SSSE_3,   //!< ID of the "Supplemental SIMD Extensions 3" instruction set.
       SSE_4_1,  //!< ID of the "Streaming SIMD Extensions 4.1" instruction set.
-      SSE_4_2   //!< ID of the "Streaming SIMD Extensions 4.2" instruction set.
+      SSE_4_2,  //!< ID of the "Streaming SIMD Extensions 4.2" instruction set.
+      AVX,      //!< ID of the "Advanced vector extensions" instruction set.
+      AVX_2     //!< ID of the "Advanced vector extensions 2" instruction set.
     };
 
 
@@ -153,7 +155,9 @@ namespace Backend
           strDescription += "  sse3    -  Uses the intrinsic functions of the SSE 3 vector instruction set.\n";
           strDescription += "  ssse3   -  Uses the intrinsic functions of the SSSE 3 vector instruction set.\n";
           strDescription += "  sse4.1  -  Uses the intrinsic functions of the SSE 4.1 vector instruction set.\n";
-          strDescription += "  sse4.2  -  Uses the intrinsic functions of the SSE 4.2 vector instruction set.";
+          strDescription += "  sse4.2  -  Uses the intrinsic functions of the SSE 4.2 vector instruction set.\n";
+          strDescription += "  avx     -  Uses the intrinsic functions of the AVX vector instruction set.\n";
+          strDescription += "  avx2    -  Uses the intrinsic functions of the AVX 2 vector instruction set.";
 
           return strDescription;
         }
@@ -176,6 +180,8 @@ namespace Backend
             else if (strOption == "ssse3")    return InstructionSetEnum::SSSE_3;
             else if (strOption == "sse4.1")   return InstructionSetEnum::SSE_4_1;
             else if (strOption == "sse4.2")   return InstructionSetEnum::SSE_4_2;
+            else if (strOption == "avx")      return InstructionSetEnum::AVX;
+            else if (strOption == "avx2")     return InstructionSetEnum::AVX_2;
             else
             {
               throw RuntimeErrors::InvalidOptionException(Key(), strOption);

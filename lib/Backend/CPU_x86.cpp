@@ -2977,6 +2977,8 @@ InstructionSetBasePtr CPU_x86::CodeGenerator::_CreateInstructionSet(::clang::AST
   case InstructionSetEnum::SSSE_3:    return InstructionSetBase::Create< InstructionSetSSSE3  >( rAstContext );
   case InstructionSetEnum::SSE_4_1:   return InstructionSetBase::Create< InstructionSetSSE4_1 >( rAstContext );
   case InstructionSetEnum::SSE_4_2:   return InstructionSetBase::Create< InstructionSetSSE4_2 >( rAstContext );
+  case InstructionSetEnum::AVX:       return InstructionSetBase::Create< InstructionSetAVX    >( rAstContext );
+  case InstructionSetEnum::AVX_2:     return InstructionSetBase::Create< InstructionSetAVX2   >( rAstContext );
   default:                            throw InternalErrorException( "Unexpected instruction set selected!" );
   }
 }
@@ -3073,6 +3075,8 @@ string CPU_x86::CodeGenerator::_GetInstructionSetIncludeFile()
   case InstructionSetEnum::SSSE_3:    return "tmmintrin.h";
   case InstructionSetEnum::SSE_4_1:   return "smmintrin.h";
   case InstructionSetEnum::SSE_4_2:   return "nmmintrin.h";
+  case InstructionSetEnum::AVX:       return "immintrin.h";
+  case InstructionSetEnum::AVX_2:     return "immintrin.h";
   default:  return "";
   }
 }
@@ -3089,11 +3093,23 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
   }
   else
   {
-    const size_t cszMaxVecWidth = static_cast< size_t >( 16 );
+    size_t cszMaxVecWidth = static_cast< size_t >( 0 );
+    switch (_eInstructionSet)
+    {
+    case InstructionSetEnum::SSE:
+    case InstructionSetEnum::SSE_2:
+    case InstructionSetEnum::SSE_3:
+    case InstructionSetEnum::SSSE_3:
+    case InstructionSetEnum::SSE_4_1:
+    case InstructionSetEnum::SSE_4_2:   cszMaxVecWidth = static_cast< size_t >(16);   break;
+    case InstructionSetEnum::AVX:
+    case InstructionSetEnum::AVX_2:     cszMaxVecWidth = static_cast< size_t >(32);   break;
+    default:                            throw InternalErrorException("Unexpected instruction set ID!");
+    }
 
     if (_szVectorWidth > cszMaxVecWidth)
     {
-      llvm::errs() << "\nWARNING: Selected vector width exceeds the maximum width for the SSE instruction set => Clipping vector width to \"" << cszMaxVecWidth << "\"\n\n";
+      llvm::errs() << "\nWARNING: Selected vector width exceeds the maximum width for the instruction set => Clipping vector width to \"" << cszMaxVecWidth << "\"\n\n";
       _szVectorWidth = cszMaxVecWidth;
     }
     else
@@ -3122,12 +3138,12 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
 
       if (_szVectorWidth == static_cast<size_t>(0))
       {
-        llvm::errs() << "\nNOTE: No vector width for SSE instruction set selected => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+        llvm::errs() << "\nNOTE: No vector width for the instruction set selected => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
         _szVectorWidth = szMinVecWidth;
       }
       else if (_szVectorWidth < szMinVecWidth)
       {
-        llvm::errs() << "\nWARNING: Selected vector width is below the minimum width for the SSE instruction set => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
+        llvm::errs() << "\nWARNING: Selected vector width is below the minimum width for the instruction set => Set kernel-based minimum value \"" << szMinVecWidth << "\"\n\n";
         _szVectorWidth = szMinVecWidth;
       }
       else
@@ -3140,7 +3156,7 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
           }
           else if (_szVectorWidth < szCurWidth)
           {
-            llvm::errs() << "\nWARNING: The selected vector width for the SSE instruction set must be a power of 2 => Promote width \"" << _szVectorWidth << "\" to \"" << szCurWidth << "\"\n\n";
+            llvm::errs() << "\nWARNING: The selected vector width for the instruction set must be a power of 2 => Promote width \"" << _szVectorWidth << "\" to \"" << szCurWidth << "\"\n\n";
             _szVectorWidth = szCurWidth;
             break;
           }
@@ -3318,6 +3334,8 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
   // Add required macro definition which toggle the correct include files
   switch (_eInstructionSet)   // The case-fall-through is intenden here
   {
+  case InstructionSetEnum::AVX_2:     vecArguments.push_back("-D __AVX2__");
+  case InstructionSetEnum::AVX:       vecArguments.push_back("-D __AVX__");
   case InstructionSetEnum::SSE_4_2:   vecArguments.push_back("-D __SSE4_2__");
   case InstructionSetEnum::SSE_4_1:   vecArguments.push_back("-D __SSE4_1__");
   case InstructionSetEnum::SSSE_3:    vecArguments.push_back("-D __SSSE3__");
