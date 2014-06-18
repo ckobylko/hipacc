@@ -1712,7 +1712,6 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
         }
 
         pAssignmentMask = _BuildVectorExpression( spMask, _CreateVectorIndex( _GetMaskElementType(), 0 ) );
-        pAssignmentMask = _ConvertMaskUp( eElementType, pAssignmentMask, crVectorIndex );
       }
 
       Expr *pExprRHS      = _BuildVectorExpression( spRHS, crVectorIndex );
@@ -1724,17 +1723,66 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
 
         if (! spMemoryAccess->GetMemoryReference()->GetResultType().IsArray())
         {
-          Expr *pPointerRef = _TranslateMemoryAccessToPointerRef( spMemoryAccess, crVectorIndex );
-          bHandled          = true;
-
-          if (pAssignmentMask)
+          if (spMemoryAccess->GetIndexExpression()->IsVectorized())
           {
-            pReturnExpr = _spInstructionSet->StoreVectorMasked( eElementType, pPointerRef, pExprRHS, pAssignmentMask );
+            // Scatter write => must be unrolled
+            AST::BaseClasses::ExpressionPtr spMemoryReference = spMemoryAccess->GetMemoryReference();
+            AST::BaseClasses::ExpressionPtr spIndexExpression = spMemoryAccess->GetIndexExpression();
+
+            // Build the pointer reference expression
+            Expr *pPointerRef = nullptr;
+            if (spMemoryReference->IsVectorized())
+            {
+              pPointerRef = _BuildUnrolledVectorExpression( spMemoryReference, crVectorIndex.GetElementIndex() );
+            }
+            else
+            {
+              pPointerRef = _BuildScalarExpression( spMemoryReference );
+            }
+
+            // Build a store expression for each vector element
+            ClangASTHelper::ExpressionVectorType vecElementStores;
+            for (uint32_t uiElemIdx = 0; uiElemIdx < crVectorIndex.GetElementCount(); ++uiElemIdx)
+            {
+              Expr *pAssignmentVal  = _spInstructionSet->ExtractElement( eElementType, pExprRHS, uiElemIdx );
+              Expr *pIndexExpr      = _BuildUnrolledVectorExpression( spIndexExpression, uiElemIdx + crVectorIndex.GetElementIndex() );
+              Expr *pMemAccess      = _GetASTHelper().CreateArraySubscriptExpression(pPointerRef, pIndexExpr, pPointerRef->getType()->getPointeeType(), true );
+
+              if (pAssignmentMask)
+              {
+                Expr *pMaskCheck  = _spInstructionSet->CheckSingleMaskElement( _GetMaskElementType(), pAssignmentMask, uiElemIdx + crVectorIndex.GetElementIndex() );
+                pAssignmentVal    = _GetASTHelper().CreateConditionalOperator( _CreateParenthesis(pMaskCheck), pAssignmentVal, pMemAccess, pMemAccess->getType() );
+              }
+
+              vecElementStores.push_back( _GetASTHelper().CreateBinaryOperator(pMemAccess, pAssignmentVal, BO_Assign, pMemAccess->getType() ) );
+              vecElementStores.back() = _CreateParenthesis( vecElementStores.back() );
+            }
+
+            // Wrap all single-value stores into a comma operator chain
+            for (size_t szIdx = static_cast<size_t>(1); szIdx < vecElementStores.size(); ++szIdx)
+            {
+              vecElementStores[0] = _GetASTHelper().CreateBinaryOperatorComma( vecElementStores[0], vecElementStores[szIdx] );
+            }
+
+            pReturnExpr = _CreateParenthesis( vecElementStores.front() );
           }
           else
           {
-            pReturnExpr = _spInstructionSet->StoreVector( eElementType, pPointerRef, pExprRHS );
+            // Normal vector store
+            Expr *pPointerRef = _TranslateMemoryAccessToPointerRef( spMemoryAccess, crVectorIndex );
+
+            if (pAssignmentMask)
+            {
+              pAssignmentMask = _ConvertMaskUp( eElementType, pAssignmentMask, crVectorIndex );
+              pReturnExpr     = _spInstructionSet->StoreVectorMasked( eElementType, pPointerRef, pExprRHS, pAssignmentMask );
+            }
+            else
+            {
+              pReturnExpr = _spInstructionSet->StoreVector( eElementType, pPointerRef, pExprRHS );
+            }
           }
+
+          bHandled = true;
         }
       }
 
@@ -2044,7 +2092,53 @@ Expr* CPU_x86::VASTExportInstructionSet::_ConvertMaskDown(VectorElementTypes eSo
   {
   case 0:   throw InternalErrorException("The source expression vector for a mask conversion cannot be empty!");
   case 1:   return _spInstructionSet->ConvertMaskSameSize( eSourceElementType, _GetMaskElementType(), crvecSubExpressions.front() );
-  default:  return _spInstructionSet->ConvertMaskDown( eSourceElementType, _GetMaskElementType(), crvecSubExpressions );
+  default:
+    {
+      // Generate a conversion helper function if required (just for cleaning up the source code a bit)
+      const string cstrConversionHelperName = string("_PackMask") + AST::BaseClasses::TypeInfo::GetTypeString(eSourceElementType);
+      {
+        ClangASTHelper::QualTypeVectorType vecArgumentTypes;
+        for (auto itSubExpr : crvecSubExpressions)
+        {
+          vecArgumentTypes.push_back( itSubExpr->getType() );
+        }
+
+        FunctionDecl *pConversionHelper = _GetFirstMatchingFunctionDeclaration( cstrConversionHelperName, vecArgumentTypes );
+        if (! pConversionHelper)
+        {
+          // Create the argument names
+          ClangASTHelper::StringVectorType vecArgumentNames;
+          for (size_t szParamIdx = static_cast<size_t>(0); szParamIdx < vecArgumentTypes.size(); ++szParamIdx)
+          {
+            stringstream ssParamName;
+            ssParamName << "mask" << szParamIdx;
+            vecArgumentNames.push_back( ssParamName.str() );
+          }
+
+          // Create the function declaration
+          pConversionHelper = _GetASTHelper().CreateFunctionDeclaration( cstrConversionHelperName, _spInstructionSet->GetVectorType( _GetMaskElementType() ), vecArgumentNames, vecArgumentTypes );
+
+          // Create the function body (i.e. the actual downward conversion)
+          {
+            ClangASTHelper::ExpressionVectorType vecHelperFuncParams;
+            for (unsigned int uiParamIdx = 0; uiParamIdx < pConversionHelper->getNumParams(); ++uiParamIdx)
+            {
+              vecHelperFuncParams.push_back( _GetASTHelper().CreateDeclarationReferenceExpression( pConversionHelper->getParamDecl( uiParamIdx ) ) );
+            }
+
+            Stmt *pBody = _GetASTHelper().CreateReturnStatement( _spInstructionSet->ConvertMaskDown( eSourceElementType, _GetMaskElementType(), vecHelperFuncParams ) );
+
+            pConversionHelper->setBody( _GetASTHelper().CreateCompoundStatement( pBody ) );
+          }
+
+          // Add the generated helper function to the known functions
+          _AddKnownFunctionDeclaration( pConversionHelper );
+          _vecHelperFunctions.push_back( pConversionHelper );
+        }
+      }
+
+      return _BuildScalarFunctionCall( cstrConversionHelperName, crvecSubExpressions );
+    }
   }
 }
 
