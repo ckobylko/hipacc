@@ -1377,11 +1377,16 @@ namespace Vectorization
 
     ::clang::Expr*  _CastVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef);
 
+    ::clang::Expr*  _CreateFullBitMask(VectorElementTypes eElementType);
+
     ::clang::Expr*  _ExtractSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, bool bLowHalf);
 
     ::clang::Expr*  _InsertSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, ::clang::Expr *pSSEVector, bool bLowHalf);
 
     ::clang::Expr*  _MergeSSEVectors(VectorElementTypes eElementType, ::clang::Expr *pSSEVectorLow, ::clang::Expr *pSSEVectorHigh);
+
+
+    virtual ::clang::Expr*  _CreatePrePostFixedUnaryOp(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bPrefixed, bool bIncrement);
 
 
   public:

@@ -3491,6 +3491,46 @@ Expr* InstructionSetAVX::_CastVector(VectorElementTypes eSourceType, VectorEleme
   return _CreateFunctionCall( eFunctionID, pVectorRef );
 }
 
+Expr* InstructionSetAVX::_CreateFullBitMask(VectorElementTypes eElementType)
+{
+  return _CastVector( VectorElementTypes::Int32, eElementType, CreateOnesVector( VectorElementTypes::Int32, true ) );
+}
+
+Expr* InstructionSetAVX::_CreatePrePostFixedUnaryOp(VectorElementTypes eElementType, Expr *pVectorRef, bool bPrefixed, bool bIncrement)
+{
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::AddDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:  eFunctionID = bIncrement ? IntrinsicsAVXEnum::AddDouble : IntrinsicsAVXEnum::SubtractDouble;  break;
+  case VectorElementTypes::Float:   eFunctionID = bIncrement ? IntrinsicsAVXEnum::AddFloat  : IntrinsicsAVXEnum::SubtractFloat;   break;
+  default:
+    {
+      const ArithmeticOperatorType ceOpCode = bIncrement ? ArithmeticOperatorType::Add : ArithmeticOperatorType::Subtract;
+
+      Expr *pReturnExpr = ArithmeticOperator( eElementType, ceOpCode, pVectorRef, CreateOnesVector( eElementType, false ) );
+      pReturnExpr       = _GetASTHelper().CreateBinaryOperator( pVectorRef, pReturnExpr, BO_Assign, pVectorRef->getType() );
+
+      if (! bPrefixed)
+      {
+        Expr *pRevertExpr = ArithmeticOperator( eElementType, ceOpCode, pVectorRef, CreateOnesVector( eElementType, true ) );
+        pReturnExpr       = _GetASTHelper().CreateBinaryOperatorComma( _GetASTHelper().CreateParenthesisExpression( pReturnExpr ), pRevertExpr );
+      }
+
+      return _GetASTHelper().CreateParenthesisExpression( pReturnExpr );
+    }
+  }
+
+  if (bPrefixed)
+  {
+    return _CreatePrefixedUnaryOp( _mapIntrinsicsAVX, eFunctionID, eElementType, pVectorRef );
+  }
+  else
+  {
+    return _CreatePostfixedUnaryOp( _mapIntrinsicsAVX, eFunctionID, eElementType, pVectorRef );
+  }
+}
+
 Expr* InstructionSetAVX::_ExtractSSEVector(VectorElementTypes eElementType, Expr *pAVXVector, bool bLowHalf)
 {
   IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::ExtractSSEDouble;
@@ -3905,8 +3945,21 @@ Expr* InstructionSetAVX::RelationalOperator(VectorElementTypes eElementType, Rel
 
 Expr* InstructionSetAVX::ShiftElements(VectorElementTypes eElementType, Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  if (uiCount == 0)
+  {
+    return pVectorRef;  // Nothing to do
+  }
+
+  ClangASTHelper::ExpressionVectorType  vecSSEShifts;
+
+  for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+  {
+    Expr *pVectorSSE = _ExtractSSEVector( eElementType, pVectorRef, (uiIdx == 0) );
+
+    vecSSEShifts.push_back( _GetFallback()->ShiftElements( eElementType, pVectorSSE, bShiftLeft, uiCount ) );
+  }
+
+  return _MergeSSEVectors( eElementType, vecSSEShifts[0], vecSSEShifts[1] );
 }
 
 Expr* InstructionSetAVX::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
@@ -3975,8 +4028,61 @@ Expr* InstructionSetAVX::StoreVectorMasked(VectorElementTypes eElementType, Expr
 
 Expr* InstructionSetAVX::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  Expr *pReturnExpr = nullptr;
+
+  switch (eOpType)
+  {
+  case UnaryOperatorType::AddressOf:
+    {
+      pReturnExpr = _GetASTHelper().CreateUnaryOperator( pSubExpr, UO_AddrOf, _GetASTHelper().GetASTContext().getPointerType(pSubExpr->getType()) );
+      break;
+    }
+  case UnaryOperatorType::BitwiseNot: case UnaryOperatorType::LogicalNot:
+    {
+      pReturnExpr = ArithmeticOperator( eElementType, ArithmeticOperatorType::BitwiseXOr, pSubExpr, _CreateFullBitMask(eElementType) );
+      break;
+    }
+  case UnaryOperatorType::Minus:
+    {
+      switch (eElementType)
+      {
+      case VectorElementTypes::Double: case VectorElementTypes::Float:
+        {
+          pReturnExpr = ArithmeticOperator( eElementType, ArithmeticOperatorType::Multiply, pSubExpr, CreateOnesVector(eElementType, true) );
+          break;
+        }
+      case VectorElementTypes::Int8:   case VectorElementTypes::UInt8:
+      case VectorElementTypes::Int16:  case VectorElementTypes::UInt16:
+      case VectorElementTypes::Int32:  case VectorElementTypes::UInt32:
+      case VectorElementTypes::Int64:  case VectorElementTypes::UInt64:
+        {
+          pReturnExpr = ArithmeticOperator( eElementType, ArithmeticOperatorType::Subtract, CreateZeroVector(eElementType), pSubExpr );
+          break;
+        }
+      default:  _ThrowUnsupportedType( eElementType );
+      }
+
+      break;
+    }
+  case UnaryOperatorType::Plus:
+    {
+      // Nothing to do
+      pReturnExpr = pSubExpr;
+      break;
+    }
+  case UnaryOperatorType::PostDecrement: case UnaryOperatorType::PostIncrement:
+  case UnaryOperatorType::PreDecrement:  case UnaryOperatorType::PreIncrement:
+    {
+      const bool cbPrefixed   = ( (eOpType == UnaryOperatorType::PreDecrement)  || (eOpType == UnaryOperatorType::PreIncrement) );
+      const bool cbIncrement  = ( (eOpType == UnaryOperatorType::PostIncrement) || (eOpType == UnaryOperatorType::PreIncrement) );
+
+      pReturnExpr = _CreatePrePostFixedUnaryOp( eElementType, pSubExpr, cbPrefixed, cbIncrement );
+      break;
+    }
+  default:  throw InternalErrorException("Unsupported unary operation detected!");
+  }
+
+  return pReturnExpr;
 }
 
 
