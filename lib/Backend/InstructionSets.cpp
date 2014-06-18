@@ -512,6 +512,21 @@ Expr* InstructionSetSSE::CheckActiveElements(VectorElementTypes eMaskElementType
   return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
 }
 
+Expr* InstructionSetSSE::CheckSingleMaskElement(VectorElementTypes eMaskElementType, Expr *pMaskExpr, uint32_t uiIndex)
+{
+  _CheckElementType(eMaskElementType);
+
+  if ( uiIndex >= static_cast<uint32_t>(GetVectorElementCount(eMaskElementType)) )
+  {
+    throw InternalErrorException("The index cannot exceed the vector element count!");
+  }
+
+  CallExpr        *pMoveMask      = _CreateFunctionCall(IntrinsicsSSEEnum::MoveMaskFloat, pMaskExpr);
+  IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral( static_cast< int32_t >( 1 << uiIndex ) );
+
+  return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, BO_And, pMoveMask->getType() );
+}
+
 Expr* InstructionSetSSE::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
 {
   _CheckElementType(eElementType);
@@ -1910,6 +1925,47 @@ Expr* InstructionSetSSE2::CheckActiveElements(VectorElementTypes eMaskElementTyp
   BinaryOperatorKind  eCompareOpType = (eCheckType == ActiveElementsCheckType::Any) ? BO_NE : BO_EQ;
 
   return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, eCompareOpType, _GetClangType(VectorElementTypes::Bool) );
+}
+
+Expr* InstructionSetSSE2::CheckSingleMaskElement(VectorElementTypes eMaskElementType, Expr *pMaskExpr, uint32_t uiIndex)
+{
+  if ( uiIndex >= static_cast<uint32_t>(GetVectorElementCount(eMaskElementType)) )
+  {
+    throw InternalErrorException("The index cannot exceed the vector element count!");
+  }
+
+  IntrinsicsSSE2Enum  eMoveMaskType = IntrinsicsSSE2Enum::MoveMaskInt8;
+  int32_t             iTestValue    = 1;
+  int32_t             iShiftValue   = 0;
+
+  switch (eMaskElementType)
+  {
+  case VectorElementTypes::Double:
+    {
+      eMoveMaskType = IntrinsicsSSE2Enum::MoveMaskDouble;
+      iTestValue    = 1;
+      iShiftValue   = static_cast< int32_t >( uiIndex );
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      const uint32_t cuiTypeSize = static_cast< uint32_t >( AST::BaseClasses::TypeInfo::GetTypeSize( eMaskElementType ) );
+
+      eMoveMaskType = IntrinsicsSSE2Enum::MoveMaskInt8;
+      iTestValue    = static_cast< int32_t >( 0xFF % (1 << cuiTypeSize) );
+      iShiftValue   = static_cast< int32_t >( uiIndex * cuiTypeSize );
+      break;
+    }
+  default:                                                          return BaseType::CheckSingleMaskElement( eMaskElementType, pMaskExpr, uiIndex );
+  }
+
+  CallExpr        *pMoveMask      = _CreateFunctionCall(eMoveMaskType, pMaskExpr);
+  IntegerLiteral  *pTestConstant  = _GetASTHelper().CreateIntegerLiteral( iTestValue << iShiftValue );
+
+  return _GetASTHelper().CreateBinaryOperator( pMoveMask, pTestConstant, BO_And, pMoveMask->getType() );
 }
 
 Expr* InstructionSetSSE2::CreateOnesVector(VectorElementTypes eElementType, bool bNegative)
