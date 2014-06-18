@@ -758,6 +758,8 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
 
   switch (eIntrSet)
   {
+  case InstructionSetEnum::AVX_2:     lstInstructionSets.push_front( InstructionSetInfoPair("DumpAVX_2",    Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetAVX2  >(rASTContext)) );
+  case InstructionSetEnum::AVX:       lstInstructionSets.push_front( InstructionSetInfoPair("DumpAVX",      Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetAVX   >(rASTContext)) );
   case InstructionSetEnum::SSE_4_2:   lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSE_4_2",  Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSE4_2>(rASTContext)) );
   case InstructionSetEnum::SSE_4_1:   lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSE_4_1",  Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSE4_1>(rASTContext)) );
   case InstructionSetEnum::SSSE_3:    lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSSE_3",   Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSSE3 >(rASTContext)) );
