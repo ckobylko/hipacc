@@ -720,6 +720,30 @@ FunctionDecl* CPU_x86::DumpInstructionSet::_DumpInstructionSet(Vectorization::In
     vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
   }
 
+  // Dump check of single mask element
+  if (_uiDumpFlags & DF_CheckMaskElement)
+  {
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("CheckSingleMaskElement") );
+
+    ClangASTHelper::StatementVectorType vecCheckMaskElement;
+
+    for (auto itElementType : lstSupportedElementTypes)
+    {
+      vecCheckMaskElement.push_back( _CreateElementTypeString(itElementType) );
+
+      Expr *pVectorRef = _CreateArraySubscript( mapVectorArrayDecls[ itElementType ], 0 );
+
+      for (uint32_t uiIndex = 0; uiIndex < spInstructionSet->GetVectorElementCount(itElementType); ++uiIndex)
+      {
+        DUMP_INSTR( vecCheckMaskElement, spInstructionSet->CheckSingleMaskElement( itElementType, pVectorRef, uiIndex ) );
+      }
+    }
+
+    vecBody.push_back( _ASTHelper.CreateCompoundStatement(vecCheckMaskElement) );
+    vecBody.push_back( _ASTHelper.CreateStringLiteral("") );
+  }
+
+
   pFunctionDecl->setBody( _ASTHelper.CreateCompoundStatement(vecBody) );
   return pFunctionDecl;
 
@@ -757,6 +781,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   _uiDumpFlags |= DF_Unary;
   _uiDumpFlags |= DF_VecMemTransfers;
   _uiDumpFlags |= DF_BuiltinFunctions;
+  _uiDumpFlags |= DF_CheckMaskElement;
 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;

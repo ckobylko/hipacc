@@ -100,7 +100,8 @@ namespace Backend
         DF_ShiftElements    = 0x00000400,
         DF_Unary            = 0x00000800,
         DF_VecMemTransfers  = 0x00001000,
-        DF_BuiltinFunctions = 0x00002000
+        DF_BuiltinFunctions = 0x00002000,
+        DF_CheckMaskElement = 0x00004000
       };
 
     private:
