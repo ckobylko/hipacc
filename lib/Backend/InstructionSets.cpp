@@ -268,6 +268,28 @@ void InstructionSetBase::_CreateMissingIntrinsicsSSE4_1()
   _CreateIntrinsicDeclaration( "_mm_insert_epi64", qtIntegerVector, qtIntegerVector, "a", qtInt64,       "i", qtConstInt, "imm");
 }
 
+void InstructionSetBase::_CreateMissingIntrinsicsAVX()
+{
+  // Get required types
+  QualType  qtDoubleVectorAVX   = _GetFunctionReturnType( "_mm256_setzero_pd"      );
+  QualType  qtDoubleVectorSSE   = _GetFunctionReturnType( "_mm256_castpd256_pd128" );
+  QualType  qtFloatVectorAVX    = _GetFunctionReturnType( "_mm256_setzero_ps"      );
+  QualType  qtFloatVectorSSE    = _GetFunctionReturnType( "_mm256_castps256_ps128" );
+  QualType  qtIntegerVectorAVX  = _GetFunctionReturnType( "_mm256_setzero_si256"   );
+  QualType  qtIntegerVectorSSE  = _GetFunctionReturnType( "_mm256_castsi256_si128" );
+  QualType  qtInt               = _GetClangType( VectorElementTypes::Int32 );
+  QualType  qtConstInt          = qtInt;
+  qtConstInt.addConst();
+
+  // Create missing AVX intrinsic functions
+  _CreateIntrinsicDeclaration( "_mm256_extractf128_pd",    qtDoubleVectorSSE,  qtDoubleVectorAVX,  "a",  qtConstInt,         "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_extractf128_ps",    qtFloatVectorSSE,   qtFloatVectorAVX,   "a",  qtConstInt,         "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_extractf128_si256", qtIntegerVectorSSE, qtIntegerVectorAVX, "a",  qtConstInt,         "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_set_m128d",         qtDoubleVectorAVX,  qtDoubleVectorSSE,  "hi", qtDoubleVectorSSE,  "lo"  );
+  _CreateIntrinsicDeclaration( "_mm256_set_m128",          qtFloatVectorAVX,   qtFloatVectorSSE,   "hi", qtFloatVectorSSE,   "lo"  );
+  _CreateIntrinsicDeclaration( "_mm256_set_m128i",         qtIntegerVectorAVX, qtIntegerVectorSSE, "hi", qtIntegerVectorSSE, "lo"  );
+}
+
 CastExpr* InstructionSetBase::_CreatePointerCast(Expr *pPointerRef, const QualType &crNewPointerType)
 {
   return _GetASTHelper().CreateReinterpretCast(pPointerRef, crNewPointerType, CK_ReinterpretMemberPointer);
@@ -3298,6 +3320,8 @@ InstructionSetAVX::InstructionSetAVX(ASTContext &rAstContext) : InstructionSetBa
 
   _InitIntrinsicsMap();
 
+  _CreateMissingIntrinsicsAVX();
+
   _LookupIntrinsics();
 }
 
@@ -3311,6 +3335,10 @@ void InstructionSetAVX::_InitIntrinsicsMap()
 {
   // TODO: Add all required AVX intrinsics here
 
+  // Blending functions
+  _InitIntrinsic( IntrinsicsAVXEnum::BlendDouble, "blendv_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::BlendFloat,  "blendv_ps" );
+
   // Broadcast functions
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastDouble, "set1_pd"     );
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastFloat,  "set1_ps"     );
@@ -3318,6 +3346,21 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt16,  "set1_epi16"  );
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt32,  "set1_epi32"  );
   _InitIntrinsic( IntrinsicsAVXEnum::BroadCastInt64,  "set1_epi64x" );
+
+  // Extract SSE vectors functions
+  _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEDouble,  "extractf128_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEFloat,   "extractf128_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEInteger, "extractf128_si256" );
+
+  // Load functions
+  _InitIntrinsic( IntrinsicsAVXEnum::LoadDouble,  "loadu_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::LoadFloat,   "loadu_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::LoadInteger, "lddqu_si256" );
+
+  // Merge SSE vectors functions
+  _InitIntrinsic( IntrinsicsAVXEnum::MergeDouble,  "set_m128d" );
+  _InitIntrinsic( IntrinsicsAVXEnum::MergeFloat,   "set_m128"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::MergeInteger, "set_m128i" );
 
   // Set methods
   _InitIntrinsic( IntrinsicsAVXEnum::SetDouble, "set_pd"     );
@@ -3331,6 +3374,47 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroDouble,  "setzero_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroFloat,   "setzero_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroInteger, "setzero_si256" );
+
+  // Store functions
+  _InitIntrinsic( IntrinsicsAVXEnum::StoreDouble,  "storeu_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::StoreFloat,   "storeu_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::StoreInteger, "storeu_si256" );
+}
+
+Expr* InstructionSetAVX::_ExtractSSEVector(VectorElementTypes eElementType, Expr *pAVXVector, bool bLowHalf)
+{
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::ExtractSSEDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::ExtractSSEDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::ExtractSSEFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::ExtractSSEInteger;  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pAVXVector, _GetASTHelper().CreateIntegerLiteral( bLowHalf ? 0 : 1 ) );
+}
+
+Expr* InstructionSetAVX::_MergeSSEVectors(VectorElementTypes eElementType, Expr *pSSEVectorLow, Expr *pSSEVectorHigh)
+{
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::MergeDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::MergeDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::MergeFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::MergeInteger;  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pSSEVectorHigh, pSSEVectorLow );
 }
 
 Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -3341,8 +3425,33 @@ Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, Ari
 
 Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMaskRef, Expr *pVectorTrue, Expr *pVectorFalse)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  Expr *pReturnExpr = nullptr;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:    pReturnExpr = _CreateFunctionCall( IntrinsicsAVXEnum::BlendDouble, pVectorFalse, pVectorTrue, pMaskRef );   break;
+  case VectorElementTypes::Float:     pReturnExpr = _CreateFunctionCall( IntrinsicsAVXEnum::BlendFloat,  pVectorFalse, pVectorTrue, pMaskRef );   break;
+  default:
+    {
+      ClangASTHelper::ExpressionVectorType  vecSSEBlends;
+
+      for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+      {
+        const bool cbLowHalf = (uiIdx == 0);
+
+        Expr *pMaskRefSSE     = _ExtractSSEVector( eElementType, pMaskRef,     cbLowHalf );
+        Expr *pVectorTrueSSE  = _ExtractSSEVector( eElementType, pVectorTrue,  cbLowHalf );
+        Expr *pVectorFalseSSE = _ExtractSSEVector( eElementType, pVectorFalse, cbLowHalf );
+
+        vecSSEBlends.push_back( _GetFallback()->BlendVectors( eElementType, pMaskRefSSE, pVectorTrueSSE, pVectorFalseSSE ) );
+      }
+
+      pReturnExpr = _MergeSSEVectors( eElementType, vecSSEBlends[0], vecSSEBlends[1] );
+      break;
+    }
+  }
+
+  return pReturnExpr;
 }
 
 Expr* InstructionSetAVX::BroadCast(VectorElementTypes eElementType, Expr *pBroadCastValue)
@@ -3495,8 +3604,25 @@ bool InstructionSetAVX::IsElementTypeSupported(VectorElementTypes eElementType) 
 
 Expr* InstructionSetAVX::LoadVector(VectorElementTypes eElementType, Expr *pPointerRef)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::LoadDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:    eFunctionID = IntrinsicsAVXEnum::LoadDouble;   break;
+  case VectorElementTypes::Float:     eFunctionID = IntrinsicsAVXEnum::LoadFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      eFunctionID = IntrinsicsAVXEnum::LoadInteger;
+      pPointerRef = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType( eElementType ) ) );
+      break;
+    }
+  default:    _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pPointerRef );
 }
 
 Expr* InstructionSetAVX::LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex)
@@ -3519,14 +3645,66 @@ Expr* InstructionSetAVX::ShiftElements(VectorElementTypes eElementType, Expr *pV
 
 Expr* InstructionSetAVX::StoreVector(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::StoreDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:    eFunctionID = IntrinsicsAVXEnum::StoreDouble;   break;
+  case VectorElementTypes::Float:     eFunctionID = IntrinsicsAVXEnum::StoreFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      eFunctionID = IntrinsicsAVXEnum::StoreInteger;
+      pPointerRef = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType( eElementType ) ) );
+      break;
+    }
+  default:    _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pPointerRef, pVectorValue );
 }
 
 Expr* InstructionSetAVX::StoreVectorMasked(VectorElementTypes eElementType, Expr *pPointerRef, Expr *pVectorValue, Expr *pMaskRef)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  Expr *pReturnExpr = nullptr;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double: case VectorElementTypes::Float:
+    {
+      Expr *pBlendedValue = BlendVectors( eElementType, pMaskRef, pVectorValue, LoadVector( eElementType, pPointerRef ) );
+      pReturnExpr         = StoreVector( eElementType, pPointerRef, pBlendedValue );
+      break;
+    }
+  default:
+    {
+      ClangASTHelper::ExpressionVectorType  vecSSEStores;
+
+      for (uint32_t uiIdx = 0; uiIdx < 2; ++uiIdx)
+      {
+        const bool cbLowHalf = (uiIdx == 0);
+
+        Expr *pVectorValueSSE = _ExtractSSEVector( eElementType, pVectorValue, cbLowHalf );
+        Expr *pMaskRefSSE     = _ExtractSSEVector( eElementType, pMaskRef,     cbLowHalf );
+
+        if (! cbLowHalf)
+        {
+          Expr *pOffset = _GetASTHelper().CreateIntegerLiteral( static_cast<int32_t>( _GetFallback()->GetVectorElementCount(eElementType) ) );
+          pPointerRef   = _GetASTHelper().CreateBinaryOperator( pPointerRef, pOffset, BO_Add, pPointerRef->getType() );
+        }
+
+        vecSSEStores.push_back( _GetFallback()->StoreVectorMasked( eElementType, pPointerRef, pVectorValueSSE, pMaskRefSSE ) );
+      }
+
+      vecSSEStores[0] = _GetASTHelper().CreateBinaryOperatorComma( vecSSEStores[0], vecSSEStores[1] );
+      pReturnExpr     = _GetASTHelper().CreateParenthesisExpression( vecSSEStores[0] );
+      break;
+    }
+  }
+
+  return pReturnExpr;
 }
 
 Expr* InstructionSetAVX::UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, Expr *pSubExpr)

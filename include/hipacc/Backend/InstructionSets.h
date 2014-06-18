@@ -340,6 +340,9 @@ namespace Vectorization
     /** \brief  Creates all required missing intrinsic function declarations for the SSE4.1 instruction set (Clang header are incomplete). */
     void _CreateMissingIntrinsicsSSE4_1();
 
+    /** \brief  Creates all required missing intrinsic function declarations for the AVX instruction set (Clang header are incomplete). */
+    void _CreateMissingIntrinsicsAVX();
+
     //@}
 
 
@@ -1266,9 +1269,14 @@ namespace Vectorization
 
     enum class IntrinsicsAVXEnum
     {
-      BroadCastDouble,  BroadCastFloat, BroadCastInt8,  BroadCastInt16, BroadCastInt32, BroadCastInt64,
-      SetDouble,        SetFloat,       SetInt8,        SetInt16,       SetInt32,       SetInt64,
-      SetZeroDouble,    SetZeroFloat,   SetZeroInteger
+      BlendDouble,      BlendFloat,
+      BroadCastDouble,  BroadCastFloat,   BroadCastInt8,      BroadCastInt16, BroadCastInt32, BroadCastInt64,
+      ExtractSSEDouble, ExtractSSEFloat,  ExtractSSEInteger,
+      LoadDouble,       LoadFloat,        LoadInteger,
+      MergeDouble,      MergeFloat,       MergeInteger,
+      SetDouble,        SetFloat,         SetInt8,            SetInt16,       SetInt32,       SetInt64,
+      SetZeroDouble,    SetZeroFloat,     SetZeroInteger,
+      StoreDouble,      StoreFloat,       StoreInteger
     };
 
 
@@ -1296,6 +1304,27 @@ namespace Vectorization
       ClangASTHelper::ExpressionVectorType vecArguments;
 
       vecArguments.push_back(pArg1);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+
+      return _CreateFunctionCall(eIntrinID, vecArguments);
+    }
+
+    inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
+    {
+      ClangASTHelper::ExpressionVectorType vecArguments;
+
+      vecArguments.push_back(pArg1);
+      vecArguments.push_back(pArg2);
+      vecArguments.push_back(pArg3);
 
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
@@ -1334,6 +1363,11 @@ namespace Vectorization
     inline InstructionSetBasePtr _GetFallback()   { return _spFallbackInstructionSet; }
 
     static inline std::string _GetIntrinsicPrefix() { return "_mm256_"; }
+
+
+    ::clang::Expr*  _ExtractSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, bool bLowHalf);
+
+    ::clang::Expr*  _MergeSSEVectors(VectorElementTypes eElementType, ::clang::Expr *pSSEVectorLow, ::clang::Expr *pSSEVectorHigh);
 
 
   public:
