@@ -287,6 +287,9 @@ void InstructionSetBase::_CreateMissingIntrinsicsAVX()
   _CreateIntrinsicDeclaration( "_mm256_extractf128_pd",    qtDoubleVectorSSE,  qtDoubleVectorAVX,  "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_ps",    qtFloatVectorSSE,   qtFloatVectorAVX,   "a",  qtConstInt,         "imm" );
   _CreateIntrinsicDeclaration( "_mm256_extractf128_si256", qtIntegerVectorSSE, qtIntegerVectorAVX, "a",  qtConstInt,         "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_insertf128_pd",     qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorSSE,  "b",  qtInt,      "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_insertf128_ps",     qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorSSE,   "b",  qtInt,      "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_insertf128_si256",  qtIntegerVectorAVX, qtIntegerVectorAVX, "a",  qtIntegerVectorSSE, "b",  qtInt,      "imm" );
   _CreateIntrinsicDeclaration( "_mm256_set_m128d",         qtDoubleVectorAVX,  qtDoubleVectorSSE,  "hi", qtDoubleVectorSSE,  "lo"  );
   _CreateIntrinsicDeclaration( "_mm256_set_m128",          qtFloatVectorAVX,   qtFloatVectorSSE,   "hi", qtFloatVectorSSE,   "lo"  );
   _CreateIntrinsicDeclaration( "_mm256_set_m128i",         qtIntegerVectorAVX, qtIntegerVectorSSE, "hi", qtIntegerVectorSSE, "lo"  );
@@ -3378,6 +3381,11 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEFloat,   "extractf128_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEInteger, "extractf128_si256" );
 
+  // Insert SSE vectors functions
+  _InitIntrinsic( IntrinsicsAVXEnum::InsertSSEDouble,  "insertf128_pd"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::InsertSSEFloat,   "insertf128_ps"    );
+  _InitIntrinsic( IntrinsicsAVXEnum::InsertSSEInteger, "insertf128_si256" );
+
   // Load functions
   _InitIntrinsic( IntrinsicsAVXEnum::LoadDouble,  "loadu_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::LoadFloat,   "loadu_ps"    );
@@ -3499,6 +3507,24 @@ Expr* InstructionSetAVX::_ExtractSSEVector(VectorElementTypes eElementType, Expr
   }
 
   return _CreateFunctionCall( eFunctionID, pAVXVector, _GetASTHelper().CreateIntegerLiteral( bLowHalf ? 0 : 1 ) );
+}
+
+Expr* InstructionSetAVX::_InsertSSEVector(VectorElementTypes eElementType, Expr *pAVXVector, Expr *pSSEVector, bool bLowHalf)
+{
+  IntrinsicsAVXEnum eFunctionID = IntrinsicsAVXEnum::InsertSSEDouble;
+
+  switch (eElementType)
+  {
+  case VectorElementTypes::Double:                                  eFunctionID = IntrinsicsAVXEnum::InsertSSEDouble;   break;
+  case VectorElementTypes::Float:                                   eFunctionID = IntrinsicsAVXEnum::InsertSSEFloat;    break;
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:
+  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eFunctionID = IntrinsicsAVXEnum::InsertSSEInteger;  break;
+  default:                                                          _ThrowUnsupportedType( eElementType );
+  }
+
+  return _CreateFunctionCall( eFunctionID, pAVXVector, pSSEVector, _GetASTHelper().CreateIntegerLiteral( bLowHalf ? 0 : 1 ) );
 }
 
 Expr* InstructionSetAVX::_MergeSSEVectors(VectorElementTypes eElementType, Expr *pSSEVectorLow, Expr *pSSEVectorHigh)
@@ -3733,8 +3759,17 @@ Expr* InstructionSetAVX::CreateZeroVector(VectorElementTypes eElementType)
 
 Expr* InstructionSetAVX::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  const uint32_t cuiElementCountAVX = static_cast< uint32_t >( GetVectorElementCount(eElementType) );
+  const uint32_t cuiElementCountSSE = static_cast< uint32_t >( _GetFallback()->GetVectorElementCount(eElementType) );
+
+  if (uiIndex >= cuiElementCountAVX)
+  {
+    throw InstructionSetExceptions::ExtractIndexOutOfRange( eElementType, cuiElementCountAVX );
+  }
+
+  Expr *pVectorSSE = _ExtractSSEVector( eElementType, pVectorRef, (uiIndex < cuiElementCountSSE) );
+
+  return _GetFallback()->ExtractElement( eElementType, pVectorSSE, uiIndex % cuiElementCountSSE );
 }
 
 QualType InstructionSetAVX::GetVectorType(VectorElementTypes eElementType)
@@ -3757,8 +3792,20 @@ QualType InstructionSetAVX::GetVectorType(VectorElementTypes eElementType)
 
 Expr* InstructionSetAVX::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  const uint32_t cuiElementCountAVX = static_cast< uint32_t >( GetVectorElementCount(eElementType) );
+  const uint32_t cuiElementCountSSE = static_cast< uint32_t >( _GetFallback()->GetVectorElementCount(eElementType) );
+
+  if (uiIndex >= cuiElementCountAVX)
+  {
+    throw InstructionSetExceptions::InsertIndexOutOfRange( eElementType, cuiElementCountAVX );
+  }
+
+  const bool cbLowHalf = (uiIndex < cuiElementCountSSE);
+
+  Expr *pVectorSSE  = _ExtractSSEVector( eElementType, pVectorRef, cbLowHalf );
+  pVectorSSE        = _GetFallback()->InsertElement( eElementType, pVectorSSE, pElementValue, uiIndex % cuiElementCountSSE );
+
+  return _InsertSSEVector( eElementType, pVectorRef, pVectorSSE, cbLowHalf );
 }
 
 bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const

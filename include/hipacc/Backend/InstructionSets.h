@@ -1277,6 +1277,7 @@ namespace Vectorization
       CompareDouble,      CompareFloat,
       DivideDouble,       DivideFloat,
       ExtractSSEDouble,   ExtractSSEFloat,      ExtractSSEInteger,
+      InsertSSEDouble,    InsertSSEFloat,       InsertSSEInteger,
       LoadDouble,         LoadFloat,            LoadInteger,
       MergeDouble,        MergeFloat,           MergeInteger,
       MultiplyDouble,     MultiplyFloat,
@@ -1377,6 +1378,8 @@ namespace Vectorization
     ::clang::Expr*  _CastVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef);
 
     ::clang::Expr*  _ExtractSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, bool bLowHalf);
+
+    ::clang::Expr*  _InsertSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, ::clang::Expr *pSSEVector, bool bLowHalf);
 
     ::clang::Expr*  _MergeSSEVectors(VectorElementTypes eElementType, ::clang::Expr *pSSEVectorLow, ::clang::Expr *pSSEVectorHigh);
 
