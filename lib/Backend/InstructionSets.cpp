@@ -294,6 +294,9 @@ void InstructionSetBase::_CreateMissingIntrinsicsAVX()
   _CreateIntrinsicDeclaration( "_mm256_insertf128_pd",     qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorSSE,  "b",  qtInt,      "imm" );
   _CreateIntrinsicDeclaration( "_mm256_insertf128_ps",     qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorSSE,   "b",  qtInt,      "imm" );
   _CreateIntrinsicDeclaration( "_mm256_insertf128_si256",  qtIntegerVectorAVX, qtIntegerVectorAVX, "a",  qtIntegerVectorSSE, "b",  qtInt,      "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_permute2f128_ps",   qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorAVX,   "b",  qtInt,      "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_shuffle_pd",        qtDoubleVectorAVX,  qtDoubleVectorAVX,  "a",  qtDoubleVectorAVX,  "b",  qtConstInt, "imm" );
+  _CreateIntrinsicDeclaration( "_mm256_shuffle_ps",        qtFloatVectorAVX,   qtFloatVectorAVX,   "a",  qtFloatVectorAVX,   "b",  qtConstInt, "imm" );
   _CreateIntrinsicDeclaration( "_mm256_set_m128d",         qtDoubleVectorAVX,  qtDoubleVectorSSE,  "hi", qtDoubleVectorSSE,  "lo"  );
   _CreateIntrinsicDeclaration( "_mm256_set_m128",          qtFloatVectorAVX,   qtFloatVectorSSE,   "hi", qtFloatVectorSSE,   "lo"  );
   _CreateIntrinsicDeclaration( "_mm256_set_m128i",         qtIntegerVectorAVX, qtIntegerVectorSSE, "hi", qtIntegerVectorSSE, "lo"  );
@@ -3336,14 +3339,260 @@ InstructionSetAVX::InstructionSetAVX(ASTContext &rAstContext) : InstructionSetBa
 
 Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
 {
-  // TODO: Implement
-  throw RuntimeErrorException("Not implemented!");
+  if (bMaskConversion)
+  {
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Double:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:  return crvecVectorRefs.front();   // Same type => nothing to do
+        case VectorElementTypes::Float:
+          {
+            ClangASTHelper::ExpressionVectorType vecMergedLanes;
+
+            for (auto itSourceVec : crvecVectorRefs)
+            {
+              Expr *pLaneSwapConstant = _GetASTHelper().CreateLiteral( static_cast< int32_t >( 0x01 ) );
+              Expr *pShuffleContant   = _GetASTHelper().CreateLiteral( static_cast< int32_t >( 0x88 ) );
+
+              Expr *pCastedVec   = _CreateFunctionCall( IntrinsicsAVXEnum::CastDoubleToFloat, itSourceVec );
+              Expr *pSwappedLane = _CreateFunctionCall( IntrinsicsAVXEnum::PermuteLanesFloat, pCastedVec, CreateZeroVector(eTargetType), pLaneSwapConstant );
+
+              vecMergedLanes.push_back( _CreateFunctionCall( IntrinsicsAVXEnum::ShuffleFloat, pCastedVec, pSwappedLane, pShuffleContant ) );
+            }
+
+            return _CreateFunctionCall( IntrinsicsAVXEnum::PermuteLanesFloat, vecMergedLanes[0], vecMergedLanes[1], _GetASTHelper().CreateLiteral( static_cast<int32_t>(0x20) ) );
+          }
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+          {
+            Expr *pFloatMask = ConvertMaskDown( eSourceType, VectorElementTypes::Float, crvecVectorRefs );
+
+            return ConvertMaskSameSize( VectorElementTypes::Float, eTargetType, pFloatMask );
+          }
+        }
+
+        break;
+      }
+    case VectorElementTypes::Float:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:
+          {
+            Expr *pLaneSelectConstant = _GetASTHelper().CreateLiteral( static_cast< int32_t >( (uiGroupIndex == 0) ? 0x00 : 0x11 ) );
+            Expr *pSelectedLane       = _CreateFunctionCall( IntrinsicsAVXEnum::PermuteLanesFloat, crvecVectorRefs.front(), CreateZeroVector(eSourceType), pLaneSelectConstant );
+
+            Expr *pElementsEven = _CreateFunctionCall( IntrinsicsAVXEnum::CastFloatToDouble, _CreateFunctionCall(IntrinsicsAVXEnum::DuplicateEvenFloat, pSelectedLane) );
+            Expr *pElementsOdd  = _CreateFunctionCall( IntrinsicsAVXEnum::CastFloatToDouble, _CreateFunctionCall(IntrinsicsAVXEnum::DuplicateOddFloat,  pSelectedLane) );
+
+            return _CreateFunctionCall( IntrinsicsAVXEnum::ShuffleDouble, pElementsEven, pElementsOdd, _GetASTHelper().CreateLiteral(static_cast<int32_t>(0x0C)) );
+        }
+        case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsAVXEnum::CastFloatToInteger, crvecVectorRefs.front() );
+        }
+
+        break;
+      }
+    case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:
+          {
+            Expr *pFloatMask = ConvertMaskSameSize( eSourceType, VectorElementTypes::Float, crvecVectorRefs.front() );
+
+            return ConvertMaskUp( VectorElementTypes::Float, eTargetType, pFloatMask, uiGroupIndex );
+          }
+        case VectorElementTypes::Float:                                   return _CreateFunctionCall( IntrinsicsAVXEnum::CastIntegerToFloat, crvecVectorRefs.front() );
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // Same type => nothing to do
+        }
+
+        break;
+      }
+    case VectorElementTypes::Int8:   case VectorElementTypes::UInt8: case VectorElementTypes::Int16:
+    case VectorElementTypes::UInt16: case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+      {
+        switch (eTargetType)
+        {
+          case VectorElementTypes::Int8:   case VectorElementTypes::UInt8: case VectorElementTypes::Int16:
+          case VectorElementTypes::UInt16: case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+            if ( AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) == AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) )
+            {
+              return crvecVectorRefs.front();   // There is no difference between signed and unsigned integer vector types
+            }
+        }
+
+        break;
+       }
+    }
+  }
+  else
+  {
+    switch (eSourceType)
+    {
+    case VectorElementTypes::Double:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:    return crvecVectorRefs.front();   // Same type => nothing to do
+        case VectorElementTypes::Float:
+          {
+            Expr *pLowHalf  = _CreateFunctionCall( IntrinsicsAVXEnum::ConvertDoubleFloat, crvecVectorRefs[0] );
+            Expr *pHighHalf = _CreateFunctionCall( IntrinsicsAVXEnum::ConvertDoubleFloat, crvecVectorRefs[1] );
+
+            return _MergeSSEVectors( eTargetType, pLowHalf, pHighHalf );
+          }
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+          {
+            Expr *pLowHalf  = _CreateFunctionCall( IntrinsicsAVXEnum::ConvertDoubleInt32, crvecVectorRefs[0] );
+            Expr *pHighHalf = _CreateFunctionCall( IntrinsicsAVXEnum::ConvertDoubleInt32, crvecVectorRefs[1] );
+
+            return _MergeSSEVectors( eTargetType, pLowHalf, pHighHalf );
+          }
+        }
+
+        break;
+      }
+    case VectorElementTypes::Float:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:
+          {
+            Expr *pSelectedGroup = _ExtractSSEVector( eSourceType, crvecVectorRefs.front(), (uiGroupIndex == 0) );
+
+            return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertFloatDouble, pSelectedGroup );
+          }
+        case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertFloatInt32, crvecVectorRefs.front() );
+        }
+
+        break;
+      }
+    case VectorElementTypes::Int32:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Double:
+          {
+            Expr *pSelectedGroup = _ExtractSSEVector( eSourceType, crvecVectorRefs.front(), (uiGroupIndex == 0) );
+
+            return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertInt32Double, pSelectedGroup );
+          }
+        case VectorElementTypes::Float:                                   return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertInt32Float, crvecVectorRefs.front() );
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // Same type => nothing to do
+        }
+
+        break;
+      }
+    case VectorElementTypes::Int8:   case VectorElementTypes::UInt8: case VectorElementTypes::Int16:  case VectorElementTypes::UInt16:
+    case VectorElementTypes::UInt32: case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+      {
+        switch (eTargetType)
+        {
+        case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:  case VectorElementTypes::Int16: case VectorElementTypes::UInt16:
+        case VectorElementTypes::Int32: case VectorElementTypes::UInt32: case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+          if ( AST::BaseClasses::TypeInfo::GetTypeSize(eSourceType) == AST::BaseClasses::TypeInfo::GetTypeSize(eTargetType) )
+          {
+            return crvecVectorRefs.front();   // There is no difference between signed and unsigned integer vector types
+          }
+        }
+
+        break;
+       }
+    }
+  }
+
+  // Use SSE fallback for unsupported conversions
+  return _ConvertVectorWithSSE( eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion );
+}
+
+Expr* InstructionSetAVX::_ConvertVectorWithSSE(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
+{
+  const size_t cszElementCountSource = GetVectorElementCount( eSourceType );
+  const size_t cszElementCountTarget = GetVectorElementCount( eTargetType );
+
+  Expr *pResultLow  = nullptr;
+  Expr *pResultHigh = nullptr;
+
+  if (cszElementCountSource == cszElementCountTarget)
+  {
+    // Same size conversion
+    Expr *pVectorAVX = crvecVectorRefs.front();
+
+    // Both SSE vector lane can be converted separately
+    if (bMaskConversion)
+    {
+      pResultLow  = _GetFallback()->ConvertMaskSameSize( eSourceType, eTargetType, _ExtractSSEVector( eSourceType, pVectorAVX, true  ) );
+      pResultHigh = _GetFallback()->ConvertMaskSameSize( eSourceType, eTargetType, _ExtractSSEVector( eSourceType, pVectorAVX, false ) );
+    }
+    else
+    {
+      pResultLow  = _GetFallback()->ConvertVectorSameSize( eSourceType, eTargetType, _ExtractSSEVector( eSourceType, pVectorAVX, true  ) );
+      pResultHigh = _GetFallback()->ConvertVectorSameSize( eSourceType, eTargetType, _ExtractSSEVector( eSourceType, pVectorAVX, false ) );
+    }
+  }
+  else if (cszElementCountSource < cszElementCountTarget)
+  {
+    // Downward conversion
+    ClangASTHelper::ExpressionVectorType vecVectorRefsLow, vecVectorRefsHigh;
+    {
+      // Extract all SSE vectors from the source AVX vectors
+      ClangASTHelper::ExpressionVectorType vecVectorsSSE;
+      for (auto itVectorAVX : crvecVectorRefs)
+      {
+        vecVectorsSSE.push_back( _ExtractSSEVector( eSourceType, itVectorAVX, true  ) );
+        vecVectorsSSE.push_back( _ExtractSSEVector( eSourceType, itVectorAVX, false ) );
+      }
+
+      // Split the SSE vectors into the low and high element-halfs
+      const size_t cszSourceVectorCount = crvecVectorRefs.size();
+      vecVectorRefsLow.insert ( vecVectorRefsLow.end(),  vecVectorsSSE.begin(),                        vecVectorsSSE.begin() + cszSourceVectorCount );
+      vecVectorRefsHigh.insert( vecVectorRefsHigh.end(), vecVectorsSSE.begin() + cszSourceVectorCount, vecVectorsSSE.end()                          );
+    }
+
+    // Perform the downward conversions for both element-halfs
+    if (bMaskConversion)
+    {
+      pResultLow  = _GetFallback()->ConvertMaskDown( eSourceType, eTargetType, vecVectorRefsLow  );
+      pResultHigh = _GetFallback()->ConvertMaskDown( eSourceType, eTargetType, vecVectorRefsHigh );
+    }
+    else
+    {
+      pResultLow  = _GetFallback()->ConvertVectorDown( eSourceType, eTargetType, vecVectorRefsLow  );
+      pResultHigh = _GetFallback()->ConvertVectorDown( eSourceType, eTargetType, vecVectorRefsHigh );
+    }
+  }
+  else
+  {
+    // Upward conversion
+    const uint32_t cuiSwapIndex     = static_cast< uint32_t >( (cszElementCountSource / cszElementCountTarget) >> 1 );
+    const uint32_t cuiGroupIndexSSE = (uiGroupIndex % cuiSwapIndex) << 1;
+
+    // Select the SSE vector lane which contains the requested group
+    Expr *pVectorSSE = _ExtractSSEVector( eSourceType, crvecVectorRefs.front(), (uiGroupIndex < cuiSwapIndex) );
+
+    // Convert two adjacent groups of the requested SSE lane
+    if (bMaskConversion)
+    {
+      pResultLow  = _GetFallback()->ConvertMaskUp( eSourceType, eTargetType, pVectorSSE, cuiGroupIndexSSE );
+      pResultHigh = _GetFallback()->ConvertMaskUp( eSourceType, eTargetType, pVectorSSE, cuiGroupIndexSSE + 1 );
+    }
+    else
+    {
+      pResultLow  = _GetFallback()->ConvertVectorUp( eSourceType, eTargetType, pVectorSSE, cuiGroupIndexSSE );
+      pResultHigh = _GetFallback()->ConvertVectorUp( eSourceType, eTargetType, pVectorSSE, cuiGroupIndexSSE + 1 );
+    }
+  }
+
+  // Merge both converted SSE vectors back into the final AVX vector
+  return _MergeSSEVectors( eTargetType, pResultLow, pResultHigh );
 }
 
 void InstructionSetAVX::_InitIntrinsicsMap()
 {
-  // TODO: Add all required AVX intrinsics here
-
   // Addition functions
   _InitIntrinsic( IntrinsicsAVXEnum::AddDouble, "add_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::AddFloat,  "add_ps" );
@@ -3382,9 +3631,21 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::CompareDouble, "cmp_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::CompareFloat,  "cmp_ps" );
 
+  // Convert functions
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertDoubleFloat, "cvtpd_ps"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertDoubleInt32, "cvttpd_epi32" );    // Use truncation
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertFloatDouble, "cvtps_pd"     );
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertFloatInt32,  "cvttps_epi32" );    // Use truncation
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertInt32Double, "cvtepi32_pd"  );
+  _InitIntrinsic( IntrinsicsAVXEnum::ConvertInt32Float,  "cvtepi32_ps"  );
+
   // Division functions
   _InitIntrinsic( IntrinsicsAVXEnum::DivideDouble, "div_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::DivideFloat,  "div_ps" );
+
+  // Duplication functions
+  _InitIntrinsic( IntrinsicsAVXEnum::DuplicateEvenFloat, "moveldup_ps" );
+  _InitIntrinsic( IntrinsicsAVXEnum::DuplicateOddFloat,  "movehdup_ps" );
 
   // Extract SSE vectors functions
   _InitIntrinsic( IntrinsicsAVXEnum::ExtractSSEDouble,  "extractf128_pd"    );
@@ -3424,6 +3685,9 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::OrDouble, "or_pd" );
   _InitIntrinsic( IntrinsicsAVXEnum::OrFloat,  "or_ps" );
 
+  // Permute functions
+  _InitIntrinsic( IntrinsicsAVXEnum::PermuteLanesFloat, "permute2f128_ps" );
+
   // Set methods
   _InitIntrinsic( IntrinsicsAVXEnum::SetDouble, "set_pd"     );
   _InitIntrinsic( IntrinsicsAVXEnum::SetFloat,  "set_ps"     );
@@ -3436,6 +3700,10 @@ void InstructionSetAVX::_InitIntrinsicsMap()
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroDouble,  "setzero_pd"    );
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroFloat,   "setzero_ps"    );
   _InitIntrinsic( IntrinsicsAVXEnum::SetZeroInteger, "setzero_si256" );
+
+  // Shuffle functions
+  _InitIntrinsic( IntrinsicsAVXEnum::ShuffleDouble, "shuffle_pd" );
+  _InitIntrinsic( IntrinsicsAVXEnum::ShuffleFloat,  "shuffle_ps" );
 
   // Store functions
   _InitIntrinsic( IntrinsicsAVXEnum::StoreDouble,  "storeu_pd"    );

@@ -1276,7 +1276,9 @@ namespace Vectorization
       CastDoubleToFloat,  CastDoubleToInteger,  CastFloatToDouble,  CastFloatToInteger, CastIntegerToDouble,  CastIntegerToFloat,
       CeilDouble,         CeilFloat,
       CompareDouble,      CompareFloat,
+      ConvertDoubleFloat, ConvertDoubleInt32,   ConvertFloatDouble, ConvertFloatInt32,  ConvertInt32Double,   ConvertInt32Float,
       DivideDouble,       DivideFloat,
+      DuplicateEvenFloat, DuplicateOddFloat,
       ExtractSSEDouble,   ExtractSSEFloat,      ExtractSSEInteger,
       FloorDouble,        FloorFloat,
       InsertSSEDouble,    InsertSSEFloat,       InsertSSEInteger,
@@ -1287,8 +1289,10 @@ namespace Vectorization
       MoveMaskDouble,     MoveMaskFloat,
       MultiplyDouble,     MultiplyFloat,
       OrDouble,           OrFloat,
+      PermuteLanesFloat,
       SetDouble,          SetFloat,             SetInt8,            SetInt16,           SetInt32,             SetInt64,
       SetZeroDouble,      SetZeroFloat,         SetZeroInteger,
+      ShuffleDouble,      ShuffleFloat,
       StoreDouble,        StoreFloat,           StoreInteger,
       SqrtDouble,         SqrtFloat,
       SubtractDouble,     SubtractFloat,
@@ -1393,6 +1397,11 @@ namespace Vectorization
 
 
     virtual ::clang::Expr*  _CreatePrePostFixedUnaryOp(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bPrefixed, bool bIncrement);
+
+
+  private:
+
+    ::clang::Expr* _ConvertVectorWithSSE(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion);
 
 
   public:
