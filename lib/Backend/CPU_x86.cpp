@@ -3465,7 +3465,9 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
 
 
           // Replace all references to the HIPAcc image by the "current pixel" pointer
-          ASTHelper.ReplaceDeclarationReferences(pKernelFunction->getBody(), strParamName, LinePosDeclPair.second);
+          ASTHelper.ReplaceDeclarationReferences( pKernelFunction->getBody(), strParamName, LinePosDeclPair.second );
+          ASTHelper.ReplaceDeclarationReferences( pSubFuncCallScalar,         strParamName, LinePosDeclPair.second );
+          ASTHelper.ReplaceDeclarationReferences( pSubFuncCallVectorized,     strParamName, LinePosDeclPair.second );
         }
 
         // Compute the iteration space range, which must be handled by the scalar sub-function
@@ -3502,7 +3504,9 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
           // Add the loop for the vectorized function call
           vecInnerLoopBody.pop_back();
           vecInnerLoopBody.push_back(pSubFuncCallVectorized);
-          vecOuterLoopBody.push_back( _CreateIterationSpaceLoop(ASTHelper, pNewGidXRef, hipaccHelper.GetIterationSpaceLimitX(), ASTHelper.CreateCompoundStatement(vecInnerLoopBody)) );
+          clang::ForStmt *pVectorLoop = _CreateIterationSpaceLoop(ASTHelper, pNewGidXRef, hipaccHelper.GetIterationSpaceLimitX(), ASTHelper.CreateCompoundStatement(vecInnerLoopBody));
+          pVectorLoop->setInc( ASTHelper.CreateBinaryOperator( gid_x_ref, ASTHelper.CreateLiteral(static_cast<int>(_szVectorWidth)), BO_AddAssign, gid_x_ref->getType() ) );
+          vecOuterLoopBody.push_back( pVectorLoop );
         }
       }
       else
