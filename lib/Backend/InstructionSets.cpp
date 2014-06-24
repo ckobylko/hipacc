@@ -2355,7 +2355,10 @@ Expr* InstructionSetSSE2::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType(VectorElementTypes::Int32) ) );
+      QualType qtConstVectorType = GetVectorType( eElementType );
+      qtConstVectorType.addConst();
+
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( qtConstVectorType ) );
 
       return _CreateFunctionCall(IntrinsicsSSE2Enum::LoadInteger, pPointerCast);
     }
@@ -2712,7 +2715,10 @@ Expr* InstructionSetSSE3::LoadVector(VectorElementTypes eElementType, Expr *pPoi
   case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
-      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType(VectorElementTypes::Int32) ) );
+      QualType qtConstVectorType = GetVectorType( eElementType );
+      qtConstVectorType.addConst();
+
+      CastExpr *pPointerCast = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( qtConstVectorType ) );
 
       return _CreateFunctionCall(IntrinsicsSSE3Enum::LoadInteger, pPointerCast);
     }
