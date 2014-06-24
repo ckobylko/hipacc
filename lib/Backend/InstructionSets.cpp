@@ -4340,7 +4340,11 @@ Expr* InstructionSetAVX::LoadVector(VectorElementTypes eElementType, Expr *pPoin
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
       eFunctionID = IntrinsicsAVXEnum::LoadInteger;
-      pPointerRef = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( GetVectorType( eElementType ) ) );
+
+      QualType qtConstVectorType = GetVectorType( eElementType );
+      qtConstVectorType.addConst();
+
+      pPointerRef = _CreatePointerCast( pPointerRef, _GetASTHelper().GetPointerType( qtConstVectorType ) );
       break;
     }
   default:    _ThrowUnsupportedType( eElementType );
