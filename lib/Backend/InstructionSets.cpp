@@ -1680,10 +1680,10 @@ Expr* InstructionSetSSE2::_RelationalOpInteger(VectorElementTypes eElementType, 
 
     switch (eElementType)
     {
-    case VectorElementTypes::UInt8:    pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80                );  break;
-    case VectorElementTypes::UInt16:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000              );  break;
-    case VectorElementTypes::UInt32:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80000000          );  break;
-    case VectorElementTypes::UInt64:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000000000000000L );  break;
+    case VectorElementTypes::UInt8:    pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80U                );  break;
+    case VectorElementTypes::UInt16:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000U              );  break;
+    case VectorElementTypes::UInt32:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x80000000U          );  break;
+    case VectorElementTypes::UInt64:   pSignMask = _GetASTHelper().CreateIntegerLiteral( 0x8000000000000000UL );  break;
     default:                          throw InternalErrorException("Unexpected vector element type detected!");
     }
 
