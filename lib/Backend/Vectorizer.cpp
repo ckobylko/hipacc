@@ -2298,6 +2298,24 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
     }
   }
 
+  // Find vectorized loop control statement which control a scalar loop (which must be forced to a vectorized loop)
+  {
+    Transformations::FindNodes< AST::ControlFlow::LoopControlStatement >  LoopControlFinder;
+    Transformations::Run(spFunction, LoopControlFinder);
+
+    for each (auto itLoopControl in LoopControlFinder.lstFoundNodes)
+    {
+      if (itLoopControl->IsVectorized())
+      {
+        AST::ControlFlow::LoopPtr spControlledLoop = itLoopControl->GetControlledLoop();
+        if (! spControlledLoop->IsVectorized())
+        {
+          spControlledLoop->SetForcedVectorization(true);
+        }
+      }
+    }
+  }
+
 
   // Find all vectorized loops and branching statements in hierarchical order
   list< AST::BaseClasses::ControlFlowStatementPtr >  lstControlFlowStatements;
@@ -2441,6 +2459,19 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
         // Rebuild the loop
         if (spLoop->GetLoopType() == AST::ControlFlow::Loop::LoopType::TopControlled)
         {
+          // Create the loop exit condition
+          AST::ControlFlow::BranchingStatementPtr spLoopExit = AST::ControlFlow::BranchingStatement::Create();
+          {
+            AST::VectorSupport::CheckActiveElementsPtr  spExitCondition = AST::VectorSupport::CheckActiveElements::Create( VectorCheckType::None,
+                                                                                                                           AST::Expressions::Identifier::Create(strGlobalMaskName) );
+
+            AST::ControlFlow::ConditionalBranchPtr spExitBranch = AST::ControlFlow::ConditionalBranch::Create( spExitCondition );
+            spExitBranch->GetBody()->AddChild( AST::ControlFlow::LoopControlStatement::Create( AST::ControlFlow::LoopControlStatement::LoopControlType::Break ) );
+
+            spLoopExit->AddConditionalBranch( spExitBranch );
+          }
+
+          // Rebuild the loop condition
           if (strLocalMaskName.empty())
           {
             // Only global control mask is used
@@ -2449,12 +2480,15 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
                                                                                                                        AST::Expressions::Identifier::Create(strGlobalMaskName) );
 
             spLoopBody->InsertChild(0, spGlobalMaskUpdate);
+            spLoopBody->InsertChild(1, spLoopExit);
           }
           else
           {
             // Local control is used
             AST::ScopePtr spTempScope = AST::Scope::Create();
             _CreateLocalMaskComputation(spTempScope, spLoop->GetCondition(), strLocalMaskName, strGlobalMaskName, false);
+
+            spTempScope->AddChild(spLoopExit);
 
             spLoopBody->ImportVariableDeclarations(spTempScope);
 
@@ -2469,7 +2503,11 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           throw InternalErrorException("Only top controlled VAST loops can be vectorized => please rewrite the kernel code!");
         }
 
-        spLoop->SetCondition( AST::VectorSupport::CheckActiveElements::Create(VectorCheckType::Any, AST::Expressions::Identifier::Create(strGlobalMaskName)) );
+        spLoop->SetCondition( AST::Expressions::Constant::Create( true ) );
+        if (spLoop->GetForcedVectorization())   // Clear the forced vectorization setting
+        {
+          spLoop->SetForcedVectorization(false);
+        }
       }
       else if (itControlFlow->IsType<AST::ControlFlow::BranchingStatement>())
       {
@@ -2489,6 +2527,9 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           }
         }
 
+        // Check for single branch statements (whose don't need a local mask)
+        bool bSingleBranchStatement = ( (spBranchingStatement->GetConditionalBranchesCount() == 1) && spBranchingStatement->GetDefaultBranch()->IsEmpty() );
+
         // Create the control masks
         string strGlobalMaskName, strLocalMaskName;
         AST::ScopePtr spBranchingScope = AST::Scope::Create();
@@ -2497,36 +2538,67 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           BranchingScopePos.GetScope()->SetChild( BranchingScopePos.GetChildIndex(), spBranchingScope );
 
           strGlobalMaskName = VASTBuilder::GetNextFreeVariableName(spBranchingScope, "_mask_branch_global");
-          strLocalMaskName  = VASTBuilder::GetNextFreeVariableName(spBranchingScope, "_mask_branch_local");
 
           spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strGlobalMaskName, MaskTypeInfo, true) );
-          spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName,  MaskTypeInfo, true) );
 
           // Create global mask assignment
           spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(strGlobalMaskName), spParentMask) );
 
           // Insert the control masks into the map
           mapControlMasks[ spBranchingScope ].push_front( strGlobalMaskName );
-          mapControlMasks[ spBranchingScope ].push_front( strLocalMaskName );
 
-          strCurrentMaskName = strLocalMaskName;
+          strCurrentMaskName = strGlobalMaskName;
+
+
+          // Create a local mask only for multi-branch statements
+          if (! bSingleBranchStatement)
+          {
+            strLocalMaskName  = VASTBuilder::GetNextFreeVariableName(spBranchingScope, "_mask_branch_local");
+
+            spBranchingScope->AddVariableDeclaration( AST::BaseClasses::VariableInfo::Create(strLocalMaskName,  MaskTypeInfo, true) );
+
+            mapControlMasks[ spBranchingScope ].push_front( strLocalMaskName );
+
+            strCurrentMaskName = strLocalMaskName;
+          }
         }
 
 
-        // Convert all conditional branches
-        for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < spBranchingStatement->GetConditionalBranchesCount(); ++iBranchIdx)
+        if (bSingleBranchStatement)
         {
-          AST::ControlFlow::ConditionalBranchPtr spBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
+          // Only the first is branch is used, thus we don't need local masks
+          AST::ControlFlow::ConditionalBranchPtr spSingleBranch = spBranchingStatement->GetConditionalBranch( 0 );
 
-          // Add local mask assignment
-          _CreateLocalMaskComputation( spBranchingScope, spBranch->GetCondition(), strLocalMaskName, strGlobalMaskName, true );
+          spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strGlobalMaskName), spSingleBranch->GetCondition(),
+                                                                                    AST::Expressions::Identifier::Create(strGlobalMaskName) ) );
 
-          // Add a single branch branching statement
-          _CreateVectorizedConditionalBranch(spBranchingScope, spBranch->GetBody(), strLocalMaskName);
+          _CreateVectorizedConditionalBranch( spBranchingScope, spSingleBranch->GetBody(), strGlobalMaskName );
         }
+        else
+        {
+          // Convert all conditional branches
+          for (IndexType iBranchIdx = static_cast<IndexType>(0); iBranchIdx < spBranchingStatement->GetConditionalBranchesCount(); ++iBranchIdx)
+          {
+            AST::ControlFlow::ConditionalBranchPtr spBranch = spBranchingStatement->GetConditionalBranch(iBranchIdx);
 
-        // Convert default branch
-        _CreateVectorizedConditionalBranch(spBranchingScope, spBranchingStatement->GetDefaultBranch(), strGlobalMaskName);
+            // Add local mask assignment
+            _CreateLocalMaskComputation( spBranchingScope, spBranch->GetCondition(), strLocalMaskName, strGlobalMaskName, true );
+
+            // Add a single branch branching statement
+            _CreateVectorizedConditionalBranch(spBranchingScope, spBranch->GetBody(), strLocalMaskName);
+          }
+
+          // Convert default branch
+          AST::ScopePtr spDefaultBranch = spBranchingStatement->GetDefaultBranch();
+          if (! spDefaultBranch->IsEmpty())
+          {
+            // Set the local mask equal to the global mask since all remaining elements are now active
+            spBranchingScope->AddChild( AST::Expressions::AssignmentOperator::Create( AST::Expressions::Identifier::Create(strLocalMaskName),
+                                                                                      AST::Expressions::Identifier::Create(strGlobalMaskName) ) );
+
+            _CreateVectorizedConditionalBranch( spBranchingScope, spDefaultBranch, strLocalMaskName );
+          }
+        }
       }
 
 
