@@ -1818,7 +1818,8 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
         Expr *pAssigneeExpr = _BuildVectorExpression( spAssignee, crVectorIndex );
         if (pAssignmentMask)
         {
-          pExprRHS = _spInstructionSet->BlendVectors( eElementType, pAssignmentMask, pExprRHS, pAssigneeExpr );
+          pAssignmentMask = _ConvertMaskUp( eElementType, pAssignmentMask, crVectorIndex );
+          pExprRHS        = _spInstructionSet->BlendVectors( eElementType, pAssignmentMask, pExprRHS, pAssigneeExpr );
         }
 
         pReturnExpr = _GetASTHelper().CreateBinaryOperator( pAssigneeExpr, pExprRHS, BO_Assign, pAssigneeExpr->getType() );
