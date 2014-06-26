@@ -1701,7 +1701,7 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     }
   }
 
-  return BaseType::_BuildLoop( spLoop->GetLoopType(), pConditionExpr, pIncrementExpr );
+  return BaseType::_BuildLoop( spLoop->GetLoopType(), pConditionExpr, _BuildCompoundStatement( spLoop->GetBody() ), pIncrementExpr );
 }
 
 
@@ -2253,7 +2253,7 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 {
   typedef map< AST::BaseClasses::NodePtr, list< string > >      ControlMaskMapType;
 
-  const AST::BaseClasses::TypeInfo  MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, true, false);
+  const AST::BaseClasses::TypeInfo  MaskTypeInfo(AST::BaseClasses::TypeInfo::KnownTypes::Bool, false, false);
   ControlMaskMapType                mapControlMasks;
 
 
