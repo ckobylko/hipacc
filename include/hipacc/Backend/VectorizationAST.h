@@ -518,6 +518,7 @@ namespace Vectorization
         BaseClasses::ExpressionPtr  _spConditionExpr;
         BaseClasses::ExpressionPtr  _spIncrementExpr;
         ScopePtr                    _spBody;
+        bool                        _bForceVectorization;
 
 
         static std::string _GetLoopTypeString(LoopType eType);
@@ -527,7 +528,7 @@ namespace Vectorization
 
         static LoopPtr Create(LoopType eType = LoopType::TopControlled, BaseClasses::ExpressionPtr spCondition = nullptr, BaseClasses::ExpressionPtr spIncrement = nullptr);
 
-        inline Loop() : BaseType(BaseType::ControlFlowType::Loop)   {}
+        inline Loop() : BaseType(BaseType::ControlFlowType::Loop), _eLoopType(LoopType::TopControlled), _bForceVectorization(false)   {}
 
         virtual ~Loop() {}
 
@@ -542,6 +543,9 @@ namespace Vectorization
         inline BaseClasses::ExpressionPtr         GetIncrement()                                        { return _spIncrementExpr; }
         inline const BaseClasses::ExpressionPtr   GetIncrement() const                                  { return _spIncrementExpr; }
         inline void                               SetIncrement(BaseClasses::ExpressionPtr spIncrement)  { _SetChildPtr(_spIncrementExpr, spIncrement); }
+
+        inline bool GetForcedVectorization() const          { return _bForceVectorization; }
+        inline void SetForcedVectorization(bool bForceVec)  { _bForceVectorization = bForceVec; }
 
         inline LoopType GetLoopType() const           { return _eLoopType; }
         inline void     SetLoopType(LoopType eType)   { _eLoopType = eType; }

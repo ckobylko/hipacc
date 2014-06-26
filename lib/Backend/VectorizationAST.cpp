@@ -527,6 +527,7 @@ string AST::ControlFlow::Loop::DumpToXML(const size_t cszIntend) const
   mapAttributes["hierarchy_level"]  = XMLSupport::ToString( GetHierarchyLevel() );
   mapAttributes["type"]             = _GetLoopTypeString(GetLoopType());
   mapAttributes["vectorize"]        = XMLSupport::ToString( IsVectorized() );
+  mapAttributes["force_vectorize"]  = XMLSupport::ToString( GetForcedVectorization() );
 
   string strXmlString("");
 
@@ -567,7 +568,11 @@ AST::BaseClasses::NodePtr AST::ControlFlow::Loop::GetChild(IndexType ChildIndex)
 
 bool AST::ControlFlow::Loop::IsVectorized() const
 {
-  if (GetCondition())
+  if (GetForcedVectorization())
+  {
+    return true;
+  }
+  else if (GetCondition())
   {
     return GetCondition()->IsVectorized();
   }
