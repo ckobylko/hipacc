@@ -1993,7 +1993,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_BuildVectorExpression(AST::BaseClasses
       VectorElementTypes  eElementType  = _GetExpressionElementType( spMemoryAccess );
 
 
-      if (spMemoryAccess->GetResultType().IsArray())  // Array access
+      if (spMemoryReference->GetResultType().IsArray())  // Array access
       {
         if (spIndexExpression->IsVectorized())
         {
