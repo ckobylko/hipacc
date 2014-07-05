@@ -4140,18 +4140,14 @@ Expr* InstructionSetAVX::CheckActiveElements(VectorElementTypes eMaskElementType
       // Exploit check routine for "float" element type
       const VectorElementTypes ceIntermediateType = VectorElementTypes::Float;
 
-      Expr *pCastedMaskExpr = _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr );
-
-      return _CastVector( ceIntermediateType, eMaskElementType, CheckActiveElements( ceIntermediateType, eCheckType, pCastedMaskExpr ) );
+      return CheckActiveElements( ceIntermediateType, eCheckType, _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr ) );
     }
   case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
     {
       // Exploit check routine for "double" element type
       const VectorElementTypes ceIntermediateType = VectorElementTypes::Double;
 
-      Expr *pCastedMaskExpr = _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr );
-
-      return _CastVector( ceIntermediateType, eMaskElementType, CheckActiveElements( ceIntermediateType, eCheckType, pCastedMaskExpr ) );
+      return CheckActiveElements( ceIntermediateType, eCheckType, _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr ) );
     }
   default:
     {
