@@ -4135,6 +4135,24 @@ Expr* InstructionSetAVX::CheckActiveElements(VectorElementTypes eMaskElementType
 
       return _GetASTHelper().CreateBinaryOperator( _CreateFunctionCall( ceFunctionID, pMaskExpr ), _GetASTHelper().CreateLiteral( iTestConstant ), ceCompareOp, cqtBool );
     }
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    {
+      // Exploit check routine for "float" element type
+      const VectorElementTypes ceIntermediateType = VectorElementTypes::Float;
+
+      Expr *pCastedMaskExpr = _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr );
+
+      return _CastVector( ceIntermediateType, eMaskElementType, CheckActiveElements( ceIntermediateType, eCheckType, pCastedMaskExpr ) );
+    }
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      // Exploit check routine for "double" element type
+      const VectorElementTypes ceIntermediateType = VectorElementTypes::Double;
+
+      Expr *pCastedMaskExpr = _CastVector( eMaskElementType, ceIntermediateType, pMaskExpr );
+
+      return _CastVector( ceIntermediateType, eMaskElementType, CheckActiveElements( ceIntermediateType, eCheckType, pCastedMaskExpr ) );
+    }
   default:
     {
       ClangASTHelper::ExpressionVectorType  vecSSEChecks;
