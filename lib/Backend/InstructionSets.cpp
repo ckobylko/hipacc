@@ -3973,6 +3973,28 @@ Expr* InstructionSetAVX::BlendVectors(VectorElementTypes eElementType, Expr *pMa
   {
   case VectorElementTypes::Double:    return _CreateFunctionCall( IntrinsicsAVXEnum::BlendDouble, pVectorFalse, pVectorTrue, pMaskRef );
   case VectorElementTypes::Float:     return _CreateFunctionCall( IntrinsicsAVXEnum::BlendFloat,  pVectorFalse, pVectorTrue, pMaskRef );
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
+    {
+      // Exploit blending routine for "float" element type
+      const VectorElementTypes ceIntermediateType = VectorElementTypes::Float;
+
+      Expr *pMaskRefCasted      = _CastVector( eElementType, ceIntermediateType, pMaskRef     );
+      Expr *pVectorTrueCasted   = _CastVector( eElementType, ceIntermediateType, pVectorTrue  );
+      Expr *pVectorFalseCasted  = _CastVector( eElementType, ceIntermediateType, pVectorFalse );
+
+      return _CastVector( ceIntermediateType, eElementType, BlendVectors( ceIntermediateType, pMaskRefCasted, pVectorTrueCasted, pVectorFalseCasted ) );
+    }
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:
+    {
+      // Exploit blending routine for "double" element type
+      const VectorElementTypes ceIntermediateType = VectorElementTypes::Double;
+
+      Expr *pMaskRefCasted      = _CastVector( eElementType, ceIntermediateType, pMaskRef     );
+      Expr *pVectorTrueCasted   = _CastVector( eElementType, ceIntermediateType, pVectorTrue  );
+      Expr *pVectorFalseCasted  = _CastVector( eElementType, ceIntermediateType, pVectorFalse );
+
+      return _CastVector( ceIntermediateType, eElementType, BlendVectors( ceIntermediateType, pMaskRefCasted, pVectorTrueCasted, pVectorFalseCasted ) );
+    }
   default:
     {
       ClangASTHelper::ExpressionVectorType  vecSSEBlends;
