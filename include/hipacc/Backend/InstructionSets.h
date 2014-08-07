@@ -276,7 +276,7 @@ namespace Vectorization
 
         if (vecFunctions.size() != static_cast<size_t>(1))
         {
-          throw InternalErrorException(string("Found ambiguous entry for intrinsic function \"") + rIntrinsicInfo.first + string("\" !"));
+          throw InternalErrorException( std::string("Found ambiguous entry for intrinsic function \"") + rIntrinsicInfo.first + std::string("\" !") );
         }
 
         rIntrinsicInfo.second = vecFunctions.front();

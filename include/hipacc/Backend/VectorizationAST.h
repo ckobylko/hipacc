@@ -857,18 +857,6 @@ namespace Vectorization
           }
         }
 
-        template <>                   inline bool      GetValue<bool>() const
-        {
-          switch (_eType)
-          {
-          case KnownTypes::Float: case KnownTypes::Double:
-            return ( _unionValues.dFloatingPointValue != 0. );
-          default:
-            return ( _unionValues.ui64IntegralValue   != static_cast< std::uint64_t >( 0 ) );
-          }
-        }
-
-
         template <typename ValueType> inline void SetValue(ValueType TValue)
         {
           static_assert(std::is_arithmetic< ValueType >::value, "Expected a numeric value type!");
@@ -894,13 +882,6 @@ namespace Vectorization
             _eType = (sizeof(ValueType) == 4) ? KnownTypes::Float : KnownTypes::Double;
           }
         }
-
-        template<>                    inline void SetValue<bool>(bool TValue)
-        {
-          _unionValues.ui64IntegralValue  = static_cast< std::uint64_t >( TValue ? 1 : 0 );
-          _eType                          = KnownTypes::Bool;
-        }
-
 
 
         std::string GetAsString() const;
@@ -1697,6 +1678,24 @@ namespace Vectorization
         return spNode;
       }
   };
+
+
+  template <> inline bool AST::Expressions::Constant::GetValue<bool>() const
+  {
+    switch (_eType)
+    {
+    case KnownTypes::Float: case KnownTypes::Double:
+      return (_unionValues.dFloatingPointValue != 0.);
+    default:
+      return (_unionValues.ui64IntegralValue != static_cast< std::uint64_t >(0));
+    }
+  }
+
+  template <> inline void AST::Expressions::Constant::SetValue<bool>(bool TValue)
+  {
+    _unionValues.ui64IntegralValue  = static_cast< std::uint64_t >( TValue ? 1 : 0 );
+    _eType                          = KnownTypes::Bool;
+  }
 } // end namespace Vectorization
 } // end namespace Backend
 } // end namespace hipacc
