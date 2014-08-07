@@ -396,8 +396,8 @@ namespace Backend
       };
 
 
-      const Vectorization::InstructionSetBasePtr      _spInstructionSet;
       const size_t                                    _cVectorWidth;
+      const Vectorization::InstructionSetBasePtr      _spInstructionSet;
 
       ClangASTHelper::FunctionDeclarationVectorType   _vecHelperFunctions;
 

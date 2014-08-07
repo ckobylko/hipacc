@@ -688,6 +688,7 @@ bool InstructionSetSSE::IsBuiltinFunctionSupported(VectorElementTypes eElementTy
   case BuiltinFunctionsEnum::Max:     return (uiParamCount == 2);
   case BuiltinFunctionsEnum::Min:     return (uiParamCount == 2);
   case BuiltinFunctionsEnum::Sqrt:    return (uiParamCount == 1);
+  default:                            break;    // Useless default branch avoiding GCC compiler warnings
   }
 
   return false;
@@ -894,6 +895,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return ConvertMaskDown( VectorElementTypes::UInt64, eTargetType, vecCastedVectors );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -923,6 +925,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return _ConvertVector( VectorElementTypes::UInt32, eTargetType, vecCastedVectors, uiGroupIndex, bMaskConversion );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1022,7 +1025,10 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
             }
           }
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
+
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
   else
@@ -1080,6 +1086,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return ConvertVectorDown( VectorElementTypes::Int32, eTargetType, vecConvertedVectors );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1118,6 +1125,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return ConvertVectorDown(VectorElementTypes::Int32, eTargetType, vecConvertedVectors);
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1183,6 +1191,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return _ConvertVector( eIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1243,6 +1252,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return _ConvertVector( eIntermediateType, eTargetType, vecConvertedVectors, uiGroupIndex, bMaskConversion );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1352,6 +1362,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return _CreateFunctionCall( (uiGroupIndex == 0) ? IntrinsicsSSE2Enum::UnpackLowInt32 : IntrinsicsSSE2Enum::UnpackHighInt32, crvecVectorRefs.front(), pInterleaveVector );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -1422,9 +1433,12 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
 
           return ConvertVectorDown( ceIntermediateType, eTargetType, vecConvertedVectors );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
+
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -4326,6 +4340,7 @@ bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementTy
       case BuiltinFunctionsEnum::Max:     bSupported = (uiParamCount == 2);   break;
       case BuiltinFunctionsEnum::Min:     bSupported = (uiParamCount == 2);   break;
       case BuiltinFunctionsEnum::Sqrt:    bSupported = (uiParamCount == 1);   break;
+      default:                            break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -4342,10 +4357,12 @@ bool InstructionSetAVX::IsBuiltinFunctionSupported(VectorElementTypes eElementTy
       case BuiltinFunctionsEnum::Abs:     bSupported = ( (uiParamCount == 1) && cbIsUnsigned );   break;
       case BuiltinFunctionsEnum::Ceil:    bSupported =   (uiParamCount == 1);                     break;
       case BuiltinFunctionsEnum::Floor:   bSupported =   (uiParamCount == 1);                     break;
+      default:                            break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
     }
+  default:  break;    // Useless default branch avoiding GCC compiler warnings
   }
 
   if (bSupported)

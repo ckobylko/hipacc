@@ -766,6 +766,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
   case InstructionSetEnum::SSE_3:     lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSE_3",    Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSE3  >(rASTContext)) );
   case InstructionSetEnum::SSE_2:     lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSE_2",    Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSE2  >(rASTContext)) );
   case InstructionSetEnum::SSE:       lstInstructionSets.push_front( InstructionSetInfoPair("DumpSSE",      Vectorization::InstructionSetBase::Create<Vectorization::InstructionSetSSE   >(rASTContext)) );
+  default:                            break;    // Useless default branch avoiding GCC compiler warnings
   }
 
   // Select the requested instruction set parts
@@ -3357,6 +3358,7 @@ CommonDefines::ArgumentVectorType CPU_x86::CodeGenerator::GetAdditionalClangArgu
 
       break;
     }
+  default:                            break;    // Useless default branch avoiding GCC compiler warnings
   }
 
   return std::move( vecArguments );
