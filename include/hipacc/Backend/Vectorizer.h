@@ -453,6 +453,14 @@ namespace Vectorization
         }
       }
 
+      template < class TransformationType >
+      inline static void RunSimple(AST::BaseClasses::NodePtr spCurrentNode)
+      {
+        // Required by GCC
+        TransformationType Transform;
+        Run( spCurrentNode, Transform );
+      }
+
 
     public:
 
@@ -628,10 +636,10 @@ namespace Vectorization
     ::clang::FunctionDecl*      ConvertVASTFunctionDecl(AST::FunctionDeclarationPtr spVASTFunction, const size_t cszVectorWidth, ::clang::ASTContext &rASTContext, bool bUnrollVectorLoops);
 
 
-    inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { Transformations::Run(spRootNode, Transformations::FlattenMemoryAccesses()); }
-    inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { Transformations::Run(spRootNode, Transformations::FlattenScopes()); }
-    inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { Transformations::Run(spRootNode, Transformations::RemoveUnnecessaryConversions()); }
-    inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { Transformations::Run(spRootNode, Transformations::SeparateBranchingStatements()); }
+    inline void FlattenMemoryAccesses(AST::BaseClasses::NodePtr spRootNode)         { Transformations::RunSimple< Transformations::FlattenMemoryAccesses        >( spRootNode ); }
+    inline void FlattenScopeTrees(AST::BaseClasses::NodePtr spRootNode)             { Transformations::RunSimple< Transformations::FlattenScopes                >( spRootNode ); }
+    inline void RemoveUnnecessaryConversions(AST::BaseClasses::NodePtr spRootNode)  { Transformations::RunSimple< Transformations::RemoveUnnecessaryConversions >( spRootNode ); }
+    inline void SeparateBranchingStatements(AST::BaseClasses::NodePtr spRootNode)   { Transformations::RunSimple< Transformations::SeparateBranchingStatements  >( spRootNode ); }
 
 
     void RebuildControlFlow(AST::FunctionDeclarationPtr spFunction);
