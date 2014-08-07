@@ -788,7 +788,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
 
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls;
 
-  for each (auto itInstrSet in lstInstructionSets)
+  for (auto itInstrSet : lstInstructionSets)
   {
     vecFunctionDecls.push_back( _DumpInstructionSet(itInstrSet.second, itInstrSet.first) );
   }
@@ -799,7 +799,7 @@ CPU_x86::DumpInstructionSet::DumpInstructionSet(ASTContext &rASTContext, string 
     string strErrorInfo;
     llvm::raw_fd_ostream outputStream(strDumpfile.c_str(), strErrorInfo);
 
-    for each (auto itFuncDecl in vecFunctionDecls)
+    for (auto itFuncDecl : vecFunctionDecls)
     {
       itFuncDecl->print( outputStream );
       outputStream << "\n\n";
@@ -2819,7 +2819,7 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::TranslateImageAccesses(::cla
     list< ::clang::ArraySubscriptExpr* >  lstImageAccesses = _FindImageAccesses(strParamName, pStatement);
 
     // Linearize all found image accesses
-    for each (auto itImageAccess in lstImageAccesses)
+    for (auto itImageAccess : lstImageAccesses)
     {
       _LinearizeImageAccess(strParamName, itImageAccess);
     }

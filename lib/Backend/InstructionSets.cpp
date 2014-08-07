@@ -88,7 +88,7 @@ InstructionSetBase::InstructionSetBase(ASTContext &rAstContext, string strFuncti
   const size_t cszPrefixLength = strFunctionNamePrefix.size();
   ClangASTHelper::FunctionDeclarationVectorType vecFunctionDecls = _ASTHelper.GetKnownFunctionDeclarations();
 
-  for each (auto itFuncDecl in vecFunctionDecls)
+  for (auto itFuncDecl : vecFunctionDecls)
   {
     string strFuncName = ClangASTHelper::GetFullyQualifiedFunctionName(itFuncDecl);
 
@@ -887,7 +887,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
         {
           ClangASTHelper::ExpressionVectorType vecCastedVectors;
 
-          for each (auto itVec in crvecVectorRefs)
+          for (auto itVec : crvecVectorRefs)
           {
             vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt64, itVec) );
           }
@@ -916,7 +916,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
         {
           ClangASTHelper::ExpressionVectorType vecCastedVectors;
 
-          for each (auto itVec in crvecVectorRefs)
+          for (auto itVec : crvecVectorRefs)
           {
             vecCastedVectors.push_back( ConvertMaskSameSize(eSourceType, VectorElementTypes::UInt32, itVec) );
           }
@@ -1111,7 +1111,7 @@ Expr* InstructionSetSSE2::_ConvertVector(VectorElementTypes eSourceType, VectorE
         {
           ClangASTHelper::ExpressionVectorType vecConvertedVectors;
 
-          for each (auto itVectorRef in crvecVectorRefs)
+          for (auto itVectorRef : crvecVectorRefs)
           {
             vecConvertedVectors.push_back( ConvertVectorSameSize(eSourceType, VectorElementTypes::Int32, itVectorRef) );
           }
