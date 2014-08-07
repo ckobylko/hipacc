@@ -2947,6 +2947,7 @@ bool InstructionSetSSSE3::IsBuiltinFunctionSupported(VectorElementTypes eElement
     case VectorElementTypes::Int8:
     case VectorElementTypes::Int16:
     case VectorElementTypes::Int32:   return (uiParamCount == 1);
+    default:                          break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -2973,6 +2974,7 @@ Expr* InstructionSetSSSE3::UnaryOperator(VectorElementTypes eElementType, UnaryO
     case VectorElementTypes::UInt16:  return _CreateFunctionCall( IntrinsicsSSSE3Enum::SignInt16, pSubExpr, BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral(-1) ) );
     case VectorElementTypes::Int32:
     case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsSSSE3Enum::SignInt32, pSubExpr, BroadCast( eElementType, _GetASTHelper().CreateIntegerLiteral(-1) ) );
+    default:                          break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
