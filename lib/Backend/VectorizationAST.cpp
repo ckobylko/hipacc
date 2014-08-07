@@ -76,12 +76,12 @@ public:
     OutpuStream << TValue;
     return OutpuStream.str();
   }
-
-  template <>                     inline static string ToString<bool>(bool TValue)
-  {
-    return TValue ? "true" : "false";
-  }
 };
+
+template <> inline string XMLSupport::ToString<bool>(bool TValue)
+{
+  return TValue ? "true" : "false";
+}
 
 
 // Implementation of class AST::XMLSupport
