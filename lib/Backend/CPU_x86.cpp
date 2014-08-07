@@ -2525,34 +2525,34 @@ list< ::clang::ArraySubscriptExpr* > CPU_x86::CodeGenerator::ImageAccessTranslat
   {
     return lstImageAccesses;
   }
-  else if (isa<::clang::ArraySubscriptExpr>(pStatement))
+  else if (isa< ::clang::ArraySubscriptExpr >(pStatement))
   {
     // Found an array subscript expression => Check if the structure corresponds to an image access
-    ::clang::ArraySubscriptExpr *pRootArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pStatement);
+    ::clang::ArraySubscriptExpr *pRootArraySubscript = dyn_cast< ::clang::ArraySubscriptExpr >(pStatement);
 
     // Look through implicit cast expressions
     ::clang::Expr *pLhs = pRootArraySubscript->getLHS();
-    while (isa<::clang::ImplicitCastExpr>(pLhs))
+    while (isa< ::clang::ImplicitCastExpr >(pLhs))
     {
-      pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+      pLhs = dyn_cast< ::clang::ImplicitCastExpr >(pLhs)->getSubExpr();
     }
 
-    if (isa<::clang::ArraySubscriptExpr>(pLhs))
+    if (isa< ::clang::ArraySubscriptExpr >(pLhs))
     {
       // At least 2-dimensional array found => Look for the declaration reference to the image
-      ::clang::ArraySubscriptExpr *pChildArraySubscript = dyn_cast<::clang::ArraySubscriptExpr>(pLhs);
+      ::clang::ArraySubscriptExpr *pChildArraySubscript = dyn_cast< ::clang::ArraySubscriptExpr >(pLhs);
 
       // Look through implicit cast expressions
       pLhs = pChildArraySubscript->getLHS();
-      while (isa<::clang::ImplicitCastExpr>(pLhs))
+      while (isa< ::clang::ImplicitCastExpr >(pLhs))
       {
-        pLhs = dyn_cast<::clang::ImplicitCastExpr>(pLhs)->getSubExpr();
+        pLhs = dyn_cast< ::clang::ImplicitCastExpr >(pLhs)->getSubExpr();
       }
 
-      if (isa<::clang::DeclRefExpr>(pLhs))
+      if (isa< ::clang::DeclRefExpr >(pLhs))
       {
         // Found a 2-dimensional array access => check if the array if the specified image
-        ::clang::DeclRefExpr* pArrayDeclRef = dyn_cast<::clang::DeclRefExpr>(pLhs);
+        ::clang::DeclRefExpr* pArrayDeclRef = dyn_cast< ::clang::DeclRefExpr >(pLhs);
 
         if (pArrayDeclRef->getNameInfo().getAsString() == crstrImageName)
         {
@@ -2582,12 +2582,12 @@ void CPU_x86::CodeGenerator::ImageAccessTranslator::_LinearizeImageAccess(const 
   ::clang::Expr *pIndexExprX = pImageAccessRoot->getRHS();
   ::clang::Expr *pIndexExprY = pImageAccessRoot->getLHS();
   {
-    while (!isa<::clang::ArraySubscriptExpr>(pIndexExprY))
+    while (! isa< ::clang::ArraySubscriptExpr >(pIndexExprY))
     {
-      pIndexExprY = dyn_cast<::clang::Expr>(*pIndexExprY->child_begin());
+      pIndexExprY = dyn_cast< ::clang::Expr >(*pIndexExprY->child_begin());
     }
 
-    pIndexExprY = dyn_cast<::clang::ArraySubscriptExpr>(pIndexExprY)->getRHS();
+    pIndexExprY = dyn_cast< ::clang::ArraySubscriptExpr >(pIndexExprY)->getRHS();
   }
 
   // The image pointer have been re-routed to the current pixel => strip the reference to the global pixel ID
@@ -2670,17 +2670,17 @@ bool CPU_x86::CodeGenerator::ImageAccessTranslator::_TryRemoveReference(::clang:
 
   while (true)
   {
-    if (isa<::clang::CastExpr>(pCurrentExpression))             // Current node is a cast expression => Step to the subexpression
+    if (isa< ::clang::CastExpr >(pCurrentExpression))             // Current node is a cast expression => Step to the subexpression
     {
-      pCurrentExpression = dyn_cast<::clang::CastExpr>(pCurrentExpression)->getSubExpr();
+      pCurrentExpression = dyn_cast< ::clang::CastExpr >(pCurrentExpression)->getSubExpr();
     }
-    else if (isa<::clang::ParenExpr>(pCurrentExpression))       // Current node is a parenthesis expression => Step to the subexpression
+    else if (isa< ::clang::ParenExpr >(pCurrentExpression))       // Current node is a parenthesis expression => Step to the subexpression
     {
-      pCurrentExpression = dyn_cast<::clang::ParenExpr>(pCurrentExpression)->getSubExpr();
+      pCurrentExpression = dyn_cast< ::clang::ParenExpr >(pCurrentExpression)->getSubExpr();
     }
-    else if (isa<::clang::DeclRefExpr>(pCurrentExpression))     // Current node is a declaration reference => Check for the stripping variable
+    else if (isa< ::clang::DeclRefExpr >(pCurrentExpression))     // Current node is a declaration reference => Check for the stripping variable
     {
-      if (dyn_cast<::clang::DeclRefExpr>(pCurrentExpression)->getNameInfo().getAsString() == strStripVarName)
+      if (dyn_cast< ::clang::DeclRefExpr >(pCurrentExpression)->getNameInfo().getAsString() == strStripVarName)
       {
         // Found the reference to the stripping variable => Break here and remove it
         break;
@@ -2690,9 +2690,9 @@ bool CPU_x86::CodeGenerator::ImageAccessTranslator::_TryRemoveReference(::clang:
         return false;
       }
     }
-    else if (isa<::clang::BinaryOperator>(pCurrentExpression))  // Found a binary operator => Step into its correct branch
+    else if (isa< ::clang::BinaryOperator >(pCurrentExpression))  // Found a binary operator => Step into its correct branch
     {
-      ::clang::BinaryOperator *pCurrentOperator = dyn_cast<::clang::BinaryOperator>(pCurrentExpression);
+      ::clang::BinaryOperator *pCurrentOperator = dyn_cast< ::clang::BinaryOperator >(pCurrentExpression);
 
       if (pCurrentOperator->getOpcode() == ::clang::BO_Add)       // Found an addition => Both branches are supported
       {
@@ -2940,7 +2940,7 @@ size_t CPU_x86::CodeGenerator::_HandleSwitch(CompilerSwitchTypeEnum eSwitch, Com
 ::clang::ForStmt* CPU_x86::CodeGenerator::_CreateIterationSpaceLoop(ClangASTHelper &rAstHelper, ::clang::DeclRefExpr *pLoopCounter, ::clang::Expr *pUpperLimit, ::clang::Stmt *pLoopBody)
 {
   ::clang::Stmt* pFinalLoopBody = pLoopBody;
-  if (! isa<::clang::CompoundStmt>(pFinalLoopBody))
+  if (! isa< ::clang::CompoundStmt >(pFinalLoopBody))
   {
     pFinalLoopBody = rAstHelper.CreateCompoundStatement(pLoopBody);
   }
@@ -3474,7 +3474,7 @@ bool CPU_x86::CodeGenerator::PrintKernelFunction(FunctionDecl *pKernelFunction, 
         // Compute the iteration space range, which must be handled by the scalar sub-function
         ::clang::DeclRefExpr  *pScalarRangeRef = nullptr;
         {
-          ::clang::VarDecl *pGidXDecl = dyn_cast<::clang::VarDecl>(gid_x_ref->getDecl());
+          ::clang::VarDecl *pGidXDecl = dyn_cast< ::clang::VarDecl >(gid_x_ref->getDecl());
 
           ::clang::DeclRefExpr  *pIterationSpaceWidth = hipaccHelper.GetImageParameterDecl(pKernelFunction->getParamDecl(0)->getNameAsString(), HipaccHelper::ImageParamType::Width);
           ::clang::QualType     qtReturnType          = pIterationSpaceWidth->getType();
