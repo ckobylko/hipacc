@@ -1891,6 +1891,7 @@ Expr* InstructionSetSSE2::BuiltinFunction(VectorElementTypes eElementType, Built
     case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxDouble,   crvecArguments[0], crvecArguments[1] );
     case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinDouble,   crvecArguments[0], crvecArguments[1] );
     case BuiltinFunctionsEnum::Sqrt:    return _CreateFunctionCall( IntrinsicsSSE2Enum::SqrtDouble,  crvecArguments[0] );
+    default:                            break;    // Useless default branch avoiding GCC compiler warnings
     }
 
     break;
@@ -1904,6 +1905,7 @@ Expr* InstructionSetSSE2::BuiltinFunction(VectorElementTypes eElementType, Built
     case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
     case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxUInt8, crvecArguments[0], crvecArguments[1] );
     case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinUInt8, crvecArguments[0], crvecArguments[1] );
+    default:                            break;    // Useless default branch avoiding GCC compiler warnings
     }
 
     break;
@@ -1916,6 +1918,7 @@ Expr* InstructionSetSSE2::BuiltinFunction(VectorElementTypes eElementType, Built
     case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
     case BuiltinFunctionsEnum::Max:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MaxInt16, crvecArguments[0], crvecArguments[1] );
     case BuiltinFunctionsEnum::Min:     return _CreateFunctionCall( IntrinsicsSSE2Enum::MinInt16, crvecArguments[0], crvecArguments[1] );
+    default:                            break;    // Useless default branch avoiding GCC compiler warnings
     }
 
     break;
@@ -1933,6 +1936,7 @@ Expr* InstructionSetSSE2::BuiltinFunction(VectorElementTypes eElementType, Built
       }
     case BuiltinFunctionsEnum::Ceil:
     case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();  // Nothing to do for this functions
+    default:                            break;    // Useless default branch avoiding GCC compiler warnings
     }
 
     break;
@@ -2803,6 +2807,7 @@ Expr* InstructionSetSSSE3::_ConvertVector(VectorElementTypes eSourceType, Vector
           // Merge two remaining 8-element vectors into a 16-element vector
           return _UnpackVectors( VectorElementTypes::Int64, vecShuffledVectors[0], vecShuffledVectors[1], true );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
@@ -2859,9 +2864,12 @@ Expr* InstructionSetSSSE3::_ConvertVector(VectorElementTypes eSourceType, Vector
           // Merge two remaining 4-element vectors into a 8-element vector
           return _UnpackVectors( VectorElementTypes::Int64, vecShuffledVectors[0], vecShuffledVectors[1], true );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
 
       break;
+
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -2912,6 +2920,7 @@ Expr* InstructionSetSSSE3::BuiltinFunction(VectorElementTypes eElementType, Buil
     case VectorElementTypes::Int8:    return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt8,  crvecArguments[0] );
     case VectorElementTypes::Int16:   return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt16, crvecArguments[0] );
     case VectorElementTypes::Int32:   return _CreateFunctionCall( IntrinsicsSSSE3Enum::AbsoluteInt32, crvecArguments[0] );
+    default:                          break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -3010,7 +3019,10 @@ Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, Vecto
             return ConvertVectorUp(ceNewSourceType, ceNewTargetType, crvecVectorRefs.front(), uiGroupIndex);
           }
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
+
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
   else
@@ -3226,6 +3238,7 @@ Expr* InstructionSetSSE4_1::BuiltinFunction(VectorElementTypes eElementType, Bui
 
         return BlendVectors( eElementType, pMask, crvecArguments[0], crvecArguments[1] );
       }
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
   else if (eFunctionType == BuiltinFunctionsEnum::Min)
@@ -3242,6 +3255,7 @@ Expr* InstructionSetSSE4_1::BuiltinFunction(VectorElementTypes eElementType, Bui
 
         return BlendVectors( eElementType, pMask, crvecArguments[1], crvecArguments[0] );
       }
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -3281,6 +3295,7 @@ bool InstructionSetSSE4_1::IsBuiltinFunctionSupported(VectorElementTypes eElemen
     case VectorElementTypes::Int8:  case VectorElementTypes::UInt16:
     case VectorElementTypes::Int32: case VectorElementTypes::UInt32:
     case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return (uiParamCount == 2);
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -3391,6 +3406,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
 
             return ConvertMaskSameSize( VectorElementTypes::Float, eTargetType, pFloatMask );
           }
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3411,6 +3427,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
         }
         case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
         case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsAVXEnum::CastFloatToInteger, crvecVectorRefs.front() );
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3427,6 +3444,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
           }
         case VectorElementTypes::Float:                                   return _CreateFunctionCall( IntrinsicsAVXEnum::CastIntegerToFloat, crvecVectorRefs.front() );
         case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // Same type => nothing to do
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3442,10 +3460,12 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
             {
               return crvecVectorRefs.front();   // There is no difference between signed and unsigned integer vector types
             }
+          default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
        }
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
   else
@@ -3471,6 +3491,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
 
             return _MergeSSEVectors( eTargetType, pLowHalf, pHighHalf );
           }
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3487,6 +3508,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
           }
         case VectorElementTypes::Float:                                   return crvecVectorRefs.front();   // Same type => nothing to do
         case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertFloatInt32, crvecVectorRefs.front() );
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3503,6 +3525,7 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
           }
         case VectorElementTypes::Float:                                   return _CreateFunctionCall( IntrinsicsAVXEnum::ConvertInt32Float, crvecVectorRefs.front() );
         case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return crvecVectorRefs.front();   // Same type => nothing to do
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
@@ -3518,10 +3541,12 @@ Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorEl
           {
             return crvecVectorRefs.front();   // There is no difference between signed and unsigned integer vector types
           }
+        default:  break;    // Useless default branch avoiding GCC compiler warnings
         }
 
         break;
        }
+    default:  break;    // Useless default branch avoiding GCC compiler warnings
     }
   }
 
@@ -3958,6 +3983,7 @@ Expr* InstructionSetAVX::ArithmeticOperator(VectorElementTypes eElementType, Ari
 
           return _CastVector( VectorElementTypes::Float, eElementType, ArithmeticOperator( VectorElementTypes::Float, eOpType, pCastedLHS, pCastedRHS ) );
         }
+      default:  break;    // Useless default branch avoiding GCC compiler warnings
       }
     }
   default:
@@ -4069,6 +4095,7 @@ Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, Builti
         {
         case BuiltinFunctionsEnum::Max:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::MaxDouble : IntrinsicsAVXEnum::MaxFloat, crvecArguments[0], crvecArguments[1] );
         case BuiltinFunctionsEnum::Min:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::MinDouble : IntrinsicsAVXEnum::MinFloat, crvecArguments[0], crvecArguments[1] );
+        default:                          break;    // Useless default branch avoiding GCC compiler warnings
         }
       }
       else if (cuiParamCount == 1)
@@ -4085,6 +4112,7 @@ Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, Builti
         case BuiltinFunctionsEnum::Ceil:    return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::CeilDouble  : IntrinsicsAVXEnum::CeilFloat,  crvecArguments.front() );
         case BuiltinFunctionsEnum::Floor:   return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::FloorDouble : IntrinsicsAVXEnum::FloorFloat, crvecArguments.front() );
         case BuiltinFunctionsEnum::Sqrt:    return _CreateFunctionCall( cbIsDouble ? IntrinsicsAVXEnum::SqrtDouble  : IntrinsicsAVXEnum::SqrtFloat,  crvecArguments.front() );
+        default:                            break;    // Useless default branch avoiding GCC compiler warnings
         }
       }
 
@@ -4108,10 +4136,12 @@ Expr* InstructionSetAVX::BuiltinFunction(VectorElementTypes eElementType, Builti
         }
       case BuiltinFunctionsEnum::Ceil:    return crvecArguments.front();
       case BuiltinFunctionsEnum::Floor:   return crvecArguments.front();
+      default:                            break;    // Useless default branch avoiding GCC compiler warnings
       }
       
       break;
     }
+  default:  break;    // Useless default branch avoiding GCC compiler warnings
   }
 
 
