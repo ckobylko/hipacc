@@ -288,6 +288,7 @@ AST::BaseClasses::ExpressionPtr Vectorizer::VASTBuilder::_BuildExpression(::clan
     case BO_ShrAssign:  eOpKind = BO_Shr;   break;
     case BO_SubAssign:  eOpKind = BO_Sub;   break;
     case BO_XorAssign:  eOpKind = BO_Xor;   break;
+    default:            throw InternalErrorException( "Invalid Clang compound assignment operator!" );
     }
 
     spReturnExpression = AST::Expressions::AssignmentOperator::Create( _BuildExpression(pExprLHS), _BuildBinaryOperatorExpression(pExprLHS, pExprRHS, eOpKind) );
@@ -1671,7 +1672,6 @@ Vectorizer::VASTExportArray::VASTExportArray(IndexType VectorWidth, ::clang::AST
     throw RuntimeErrorException("Cannot export loops with vectorized conditions => Rebuild the loops before calling the export!");
   }
 
-  ::clang::CompoundStmt *pLoopBody      = _BuildCompoundStatement( spLoop->GetBody() );
   ::clang::Expr         *pConditionExpr = _BuildExpression( spLoop->GetCondition(), VectorIndex() );
   ::clang::Expr         *pIncrementExpr = nullptr;
 
@@ -2754,13 +2754,13 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
 
 void Vectorizer::RebuildDataFlow(AST::FunctionDeclarationPtr spFunction, bool bEnsureMonoTypeVectorExpressions)
 {
-  Transformations::Run( spFunction, Transformations::RemoveImplicitConversions() );
+  Transformations::RunSimple< Transformations::RemoveImplicitConversions >( spFunction );
 
-  Transformations::Run( spFunction, Transformations::InsertRequiredConversions() );
+  Transformations::RunSimple< Transformations::InsertRequiredConversions >( spFunction );
 
   RemoveUnnecessaryConversions( spFunction );
 
-  Transformations::Run(spFunction, Transformations::InsertRequiredBroadcasts());
+  Transformations::RunSimple< Transformations::InsertRequiredBroadcasts >( spFunction );
 
   if (bEnsureMonoTypeVectorExpressions)
   {
