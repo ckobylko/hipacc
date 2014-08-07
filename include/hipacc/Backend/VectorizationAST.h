@@ -36,6 +36,7 @@
 #include "llvm/Support/Casting.h"
 #include "BackendExceptions.h"
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>

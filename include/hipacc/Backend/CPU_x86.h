@@ -385,6 +385,8 @@ namespace Backend
           _eIndexType       = crRVal._eIndexType;
           _uiIndex          = crRVal._uiIndex;
           _uiElementCount   = crRVal._uiElementCount;
+
+          return *this;
         }
 
 
