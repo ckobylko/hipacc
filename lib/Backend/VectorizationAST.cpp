@@ -345,7 +345,7 @@ bool AST::BaseClasses::TypeInfo::IsSigned(KnownTypes eType)
 // Implementation of class AST::BaseClasses::VariableInfo
 AST::BaseClasses::VariableInfoPtr AST::BaseClasses::VariableInfo::Create(string strName, const TypeInfo &crTypeInfo, bool bVectorize)
 {
-  AST::BaseClasses::VariableInfoPtr spVariableInfo = make_shared<AST::BaseClasses::VariableInfo>();
+  AST::BaseClasses::VariableInfoPtr spVariableInfo( new AST::BaseClasses::VariableInfo );
 
   spVariableInfo->GetTypeInfo() = crTypeInfo;
   spVariableInfo->SetName(strName);

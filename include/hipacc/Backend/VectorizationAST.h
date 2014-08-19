@@ -44,6 +44,12 @@
 #include <vector>
 #include <type_traits>
 
+#define DEFINE_NODE_TYPES( _NodeClass_ ) \
+    class _NodeClass_; \
+    typedef std::shared_ptr< _NodeClass_       >  _NodeClass_##Ptr; \
+    typedef std::shared_ptr< const _NodeClass_ >  _NodeClass_##ConstPtr;
+
+
 namespace clang
 {
 namespace hipacc
@@ -115,19 +121,14 @@ namespace Vectorization
 
   class AST
   {
-  // Forward declarations and type definitions
+  // Public type definitions
   public:
 
     typedef size_t    IndexType;
 
-
-    class IVariableContainer;
-    class FunctionDeclaration;
-    class Scope;
-
-    typedef std::shared_ptr< IVariableContainer >   IVariableContainerPtr;
-    typedef std::shared_ptr< FunctionDeclaration >  FunctionDeclarationPtr;
-    typedef std::shared_ptr< Scope >                ScopePtr;
+    DEFINE_NODE_TYPES( IVariableContainer );
+    DEFINE_NODE_TYPES( FunctionDeclaration );
+    DEFINE_NODE_TYPES( Scope );
 
 
   // Class definitions
@@ -159,20 +160,16 @@ namespace Vectorization
 
     class BaseClasses final
     {
-    // Forward declarations and type definitions
+    // Public type definitions
     public:
 
-      class ControlFlowStatement;
-      class Node;
-      class Expression;
-      class VariableInfo;
-
-      typedef std::shared_ptr< ControlFlowStatement >   ControlFlowStatementPtr;
-      typedef std::shared_ptr< Node >                   NodePtr;
-      typedef std::shared_ptr< Expression >             ExpressionPtr;
-      typedef std::shared_ptr< VariableInfo >           VariableInfoPtr;
+      DEFINE_NODE_TYPES( VariableInfo );
+      DEFINE_NODE_TYPES( Node );
+      DEFINE_NODE_TYPES( ControlFlowStatement );
+      DEFINE_NODE_TYPES( Expression );
 
 
+    // Class definitions
     public:
 
       class TypeInfo
@@ -264,15 +261,18 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         std::string _strName;
         TypeInfo    _Type;
         bool        _bVectorize;
 
+        inline VariableInfo() : _strName(""), _bVectorize(false)    {}
+
+
       public:
 
         static VariableInfoPtr Create(std::string strName, const TypeInfo &crTypeInfo, bool bVectorize = false);
-
-        inline VariableInfo() : _strName(""), _bVectorize(false)    {}
 
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
@@ -481,27 +481,24 @@ namespace Vectorization
 
     class ControlFlow final
     {
-      // Forward declarations and type definitions
+    // Public type definitions
     public:
 
-      class Loop;
-      class LoopControlStatement;
-      class ConditionalBranch;
-      class BranchingStatement;
-      class ReturnStatement;
-
-      typedef std::shared_ptr< Loop >                   LoopPtr;
-      typedef std::shared_ptr< LoopControlStatement >   LoopControlStatementPtr;
-      typedef std::shared_ptr< ConditionalBranch >      ConditionalBranchPtr;
-      typedef std::shared_ptr< BranchingStatement >     BranchingStatementPtr;
-      typedef std::shared_ptr< ReturnStatement >        ReturnStatementPtr;
+      DEFINE_NODE_TYPES( Loop );
+      DEFINE_NODE_TYPES( LoopControlStatement );
+      DEFINE_NODE_TYPES( ConditionalBranch );
+      DEFINE_NODE_TYPES( BranchingStatement );
+      DEFINE_NODE_TYPES( ReturnStatement );
 
 
+    // Class definitions
     public:
 
       class Loop final : public BaseClasses::ControlFlowStatement
       {
       private:
+
+        friend class AST;
 
         typedef BaseClasses::ControlFlowStatement   BaseType;
 
@@ -522,14 +519,14 @@ namespace Vectorization
         bool                        _bForceVectorization;
 
 
+        inline Loop() : BaseType(BaseType::ControlFlowType::Loop), _eLoopType(LoopType::TopControlled), _bForceVectorization(false)   {}
+
         static std::string _GetLoopTypeString(LoopType eType);
 
 
       public:
 
         static LoopPtr Create(LoopType eType = LoopType::TopControlled, BaseClasses::ExpressionPtr spCondition = nullptr, BaseClasses::ExpressionPtr spIncrement = nullptr);
-
-        inline Loop() : BaseType(BaseType::ControlFlowType::Loop), _eLoopType(LoopType::TopControlled), _bForceVectorization(false)   {}
 
         virtual ~Loop() {}
 
@@ -566,6 +563,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BaseClasses::ControlFlowStatement   BaseType;
 
       public:
@@ -583,11 +582,12 @@ namespace Vectorization
 
         static std::string _GetLoopControlTypeString(LoopControlType eType);
 
+        inline LoopControlStatement() : BaseType(BaseType::ControlFlowType::LoopControlStatement), _eControlType(LoopControlType::Break)  {}
+
+
       public:
 
         static LoopControlStatementPtr Create(LoopControlType eCtrlType);
-
-        inline LoopControlStatement() : BaseType(BaseType::ControlFlowType::LoopControlStatement), _eControlType(LoopControlType::Break)  {}
 
         virtual ~LoopControlStatement() {}
 
@@ -611,6 +611,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BaseClasses::ControlFlowStatement   BaseType;
         typedef BaseClasses::ExpressionPtr          ExpressionPtr;
 
@@ -619,11 +621,12 @@ namespace Vectorization
         ExpressionPtr   _spCondition;
         ScopePtr        _spBody;
 
+        inline ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
+
+
       public:
 
         static ConditionalBranchPtr Create(ExpressionPtr spCondition = nullptr);
-
-        ConditionalBranch() : BaseType(BaseType::ControlFlowType::ConditionalBranch), _spCondition(nullptr), _spBody(nullptr)   {}
 
         virtual ~ConditionalBranch()  {}
 
@@ -650,6 +653,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BaseClasses::ControlFlowStatement   BaseType;
 
       private:
@@ -657,11 +662,12 @@ namespace Vectorization
         std::vector< ConditionalBranchPtr >   _vecBranches;
         ScopePtr                              _spDefaultBranch;
 
+        inline BranchingStatement() : BaseType(BaseType::ControlFlowType::BranchingStatement), _spDefaultBranch(nullptr)   {}
+
+
       public:
 
         static BranchingStatementPtr Create();
-
-        BranchingStatement() : BaseType(BaseType::ControlFlowType::BranchingStatement), _spDefaultBranch(nullptr)   {}
 
         virtual ~BranchingStatement() {}
 
@@ -689,13 +695,16 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BaseClasses::ControlFlowStatement   BaseType;
+
+        inline ReturnStatement() : BaseType(BaseType::ControlFlowType::ReturnStatement)   {}
+
 
       public:
 
         static ReturnStatementPtr Create();
-
-        ReturnStatement() : BaseType(BaseType::ControlFlowType::ReturnStatement)   {}
 
         virtual ~ReturnStatement() {}
 
@@ -714,38 +723,28 @@ namespace Vectorization
 
     class Expressions final
     {
-    // Forward declarations and type definitions
+    // Public type definitions
     public:
 
-      class Value;
-      class Constant;
-      class Identifier;
-      class MemoryAccess;
-      class UnaryExpression;
-      class Conversion;
-      class Parenthesis;
-      class UnaryOperator;
-      class BinaryOperator;
-      class ArithmeticOperator;
-      class AssignmentOperator;
-      class RelationalOperator;
-      class FunctionCall;
+      DEFINE_NODE_TYPES( Value );
+      DEFINE_NODE_TYPES( Constant );
+      DEFINE_NODE_TYPES( Identifier );
+      DEFINE_NODE_TYPES( MemoryAccess );
 
-      typedef std::shared_ptr< Value >                ValuePtr;
-      typedef std::shared_ptr< Constant >             ConstantPtr;
-      typedef std::shared_ptr< Identifier >           IdentifierPtr;
-      typedef std::shared_ptr< MemoryAccess >         MemoryAccessPtr;
-      typedef std::shared_ptr< UnaryExpression >      UnaryExpressionPtr;
-      typedef std::shared_ptr< Conversion >           ConversionPtr;
-      typedef std::shared_ptr< Parenthesis >          ParenthesisPtr;
-      typedef std::shared_ptr< UnaryOperator >        UnaryOperatorPtr;
-      typedef std::shared_ptr< BinaryOperator >       BinaryOperatorPtr;
-      typedef std::shared_ptr< ArithmeticOperator >   ArithmeticOperatorPtr;
-      typedef std::shared_ptr< AssignmentOperator >   AssignmentOperatorPtr;
-      typedef std::shared_ptr< RelationalOperator >   RelationalOperatorPtr;
-      typedef std::shared_ptr< FunctionCall >         FunctionCallPtr;
+      DEFINE_NODE_TYPES( UnaryExpression );
+      DEFINE_NODE_TYPES( Conversion );
+      DEFINE_NODE_TYPES( Parenthesis );
+      DEFINE_NODE_TYPES( UnaryOperator );
+
+      DEFINE_NODE_TYPES( BinaryOperator );
+      DEFINE_NODE_TYPES( ArithmeticOperator );
+      DEFINE_NODE_TYPES( AssignmentOperator );
+      DEFINE_NODE_TYPES( RelationalOperator );
+
+      DEFINE_NODE_TYPES( FunctionCall );
 
 
+    // Class definitions
     public:
 
       class Value : public BaseClasses::Expression
@@ -786,8 +785,9 @@ namespace Vectorization
       {
       private:
 
-        typedef Value  BaseType;
+        friend class AST;
 
+        typedef Value                               BaseType;
         typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
 
         union
@@ -798,6 +798,8 @@ namespace Vectorization
 
         KnownTypes    _eType;
 
+
+        inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
 
         template < typename SourceValueType >
         inline void _ChangeType(KnownTypes eNewType)
@@ -833,9 +835,6 @@ namespace Vectorization
 
           return spConstant;
         }
-
-
-        inline Constant() : BaseType(BaseType::ValueType::Constant)   {}
 
         virtual ~Constant() {}
 
@@ -896,15 +895,20 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef Value  BaseType;
 
+      private:
+
         std::string   _strName;
+
+        inline Identifier() : BaseType(BaseType::ValueType::Identifier)   {}
+
 
       public:
 
         static IdentifierPtr Create( std::string strName );
-
-        inline Identifier() : BaseType(BaseType::ValueType::Identifier)   {}
 
         virtual ~Identifier() {}
 
@@ -926,17 +930,22 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef Value                         BaseType;
         typedef BaseClasses::ExpressionPtr    ExpressionPtr;
+
+      private:
 
         ExpressionPtr   _spMemoryRef;
         ExpressionPtr   _spIndexExpr;
 
+        inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
+
+
       public:
 
         static MemoryAccessPtr Create(ExpressionPtr spMemoryReference = nullptr, ExpressionPtr spIndexExpression = nullptr);
-
-        inline MemoryAccess() : BaseType(BaseType::ValueType::MemoryAccess), _spMemoryRef(nullptr), _spIndexExpr(nullptr)   {}
 
         virtual ~MemoryAccess() {}
 
@@ -1005,17 +1014,21 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef UnaryExpression   BaseType;
 
+      private:
 
         BaseClasses::TypeInfo   _ConvertType;
         bool                    _bIsExplicit;
 
+        inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion), _bIsExplicit(true)   {}
+
+
       public:
 
         static ConversionPtr Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression = nullptr, bool bExplicit = true);
-
-        inline Conversion() : BaseType(BaseType::UnaryExpressionType::Conversion), _bIsExplicit(true)   {}
 
         virtual ~Conversion() {}
 
@@ -1037,13 +1050,17 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef UnaryExpression   BaseType;
+
+
+        inline Parenthesis() : BaseType(BaseType::UnaryExpressionType::Parenthesis)   {}
+
 
       public:
 
         static ParenthesisPtr Create(BaseClasses::ExpressionPtr spSubExpression = nullptr);
-
-        inline Parenthesis() : BaseType(BaseType::UnaryExpressionType::Parenthesis)   {}
 
         virtual ~Parenthesis()  {}
 
@@ -1058,6 +1075,8 @@ namespace Vectorization
       class UnaryOperator final : public UnaryExpression
       {
       private:
+
+        friend class AST;
 
         typedef UnaryExpression   BaseType;
 
@@ -1081,11 +1100,12 @@ namespace Vectorization
 
         UnaryOperatorType    _eOpType;
 
+        inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator), _eOpType(UnaryOperatorType::Plus)  {}
+
+
       public:
 
         static UnaryOperatorPtr Create(UnaryOperatorType eType = UnaryOperatorType::Plus, BaseClasses::ExpressionPtr spSubExpression = nullptr);
-
-        inline UnaryOperator() : BaseType(BaseType::UnaryExpressionType::UnaryOperator), _eOpType(UnaryOperatorType::Plus)  {}
 
         virtual ~UnaryOperator()  {}
 
@@ -1159,6 +1179,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BinaryOperator          BaseType;
         typedef BaseClasses::TypeInfo   TypeInfo;
         typedef TypeInfo::KnownTypes    KnownTypes;
@@ -1184,11 +1206,12 @@ namespace Vectorization
 
         ArithmeticOperatorType    _eOpType;
 
+        inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator), _eOpType(ArithmeticOperatorType::Add)  {}
+
+
       public:
 
         static ArithmeticOperatorPtr Create(ArithmeticOperatorType eOpType = ArithmeticOperatorType::Add, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
-
-        inline ArithmeticOperator() : BaseType(BaseType::BinaryOperatorType::ArithmeticOperator), _eOpType(ArithmeticOperatorType::Add)  {}
 
         virtual ~ArithmeticOperator() {}
 
@@ -1212,6 +1235,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BinaryOperator            BaseType;
         typedef BaseType::ExpressionPtr   ExpressionPtr;
 
@@ -1219,11 +1244,12 @@ namespace Vectorization
 
         IdentifierPtr   _spMask;
 
+        inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator), _spMask(nullptr)  {}
+
+
       public:
 
         static AssignmentOperatorPtr Create(ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr, IdentifierPtr spMask = nullptr);
-
-        inline AssignmentOperator() : BaseType(BaseType::BinaryOperatorType::AssignmentOperator), _spMask(nullptr)  {}
 
         virtual ~AssignmentOperator() {}
 
@@ -1251,6 +1277,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BinaryOperator   BaseType;
 
       public:
@@ -1271,11 +1299,12 @@ namespace Vectorization
 
         RelationalOperatorType  _eOpType;
 
+        inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator), _eOpType(RelationalOperatorType::Equal)  {}
+
+
       public:
 
         static RelationalOperatorPtr  Create(RelationalOperatorType eOpType = RelationalOperatorType::Equal, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
-
-        inline RelationalOperator() : BaseType(BaseType::BinaryOperatorType::RelationalOperator), _eOpType(RelationalOperatorType::Equal)  {}
 
         virtual ~RelationalOperator() {}
 
@@ -1302,6 +1331,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef BaseClasses::Expression     BaseType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
@@ -1311,11 +1342,12 @@ namespace Vectorization
         BaseClasses::TypeInfo           _ReturnType;
         std::vector< ExpressionPtr >    _vecCallParams;
 
+        inline FunctionCall() : BaseType(BaseType::ExpressionType::FunctionCall)    {}
+
+
       public:
 
         static FunctionCallPtr Create(std::string strFunctionName, const BaseClasses::TypeInfo &crReturnType);
-
-        inline FunctionCall() : BaseType(BaseType::ExpressionType::FunctionCall)    {}
 
         virtual ~FunctionCall() {}
 
@@ -1348,20 +1380,16 @@ namespace Vectorization
 
     class VectorSupport final
     {
-      // Forward declarations and type definitions
+    // Public type definitions
     public:
 
-      class VectorExpression;
-      class BroadCast;
-      class CheckActiveElements;
-      class VectorIndex;
-
-      typedef std::shared_ptr< VectorExpression >       VectorExpressionPtr;
-      typedef std::shared_ptr< CheckActiveElements >    CheckActiveElementsPtr;
-      typedef std::shared_ptr< BroadCast >              BroadCastPtr;
-      typedef std::shared_ptr< VectorIndex >            VectorIndexPtr;
+      DEFINE_NODE_TYPES( VectorExpression );
+      DEFINE_NODE_TYPES( BroadCast );
+      DEFINE_NODE_TYPES( CheckActiveElements );
+      DEFINE_NODE_TYPES( VectorIndex );
 
 
+    // Class definitions
     public:
 
       class VectorExpression : public BaseClasses::Expression
@@ -1396,6 +1424,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef VectorExpression            BaseType;
         typedef BaseClasses::ExpressionPtr  ExpressionPtr;
 
@@ -1403,11 +1433,12 @@ namespace Vectorization
 
         ExpressionPtr _spSubExpression;
 
+        inline BroadCast() : BaseType(BaseType::VectorExpressionType::BroadCast), _spSubExpression(nullptr)   {}
+
+
       public:
 
         static BroadCastPtr Create(ExpressionPtr spSubExpression = nullptr);
-
-        inline BroadCast() : BaseType(BaseType::VectorExpressionType::BroadCast), _spSubExpression(nullptr)   {}
 
         virtual ~BroadCast()  {}
 
@@ -1434,6 +1465,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef VectorExpression                    BaseType;
         typedef BaseClasses::ExpressionPtr          ExpressionPtr;
 
@@ -1451,11 +1484,12 @@ namespace Vectorization
         CheckType     _eCheckType;
         ExpressionPtr _spSubExpression;
 
+        inline CheckActiveElements() : BaseType(BaseType::VectorExpressionType::CheckActiveElements), _eCheckType(CheckType::All), _spSubExpression(nullptr)  {}
+
+
       public:
 
         static CheckActiveElementsPtr Create(CheckType eCheckType = CheckType::All, ExpressionPtr spSubExpression = nullptr);
-
-        inline CheckActiveElements() : BaseType(BaseType::VectorExpressionType::CheckActiveElements), _eCheckType(CheckType::All), _spSubExpression(nullptr)  {}
 
         virtual ~CheckActiveElements()  {}
 
@@ -1487,6 +1521,8 @@ namespace Vectorization
       {
       private:
 
+        friend class AST;
+
         typedef VectorExpression                    BaseType;
         typedef BaseClasses::ExpressionPtr          ExpressionPtr;
         typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
@@ -1495,11 +1531,11 @@ namespace Vectorization
 
         KnownTypes  _eType;
 
+        inline VectorIndex() : BaseType(BaseType::VectorExpressionType::VectorIndex), _eType(KnownTypes::Int32)  {}
+
       public:
 
         static VectorIndexPtr Create(KnownTypes eType = KnownTypes::Int32);
-
-        inline VectorIndex() : BaseType(BaseType::VectorExpressionType::VectorIndex), _eType(KnownTypes::Int32)  {}
 
         virtual ~VectorIndex()  {}
 
@@ -1543,7 +1579,6 @@ namespace Vectorization
       virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const = 0;
     };
 
-
     class Scope final : public IVariableContainer
     {
     public:
@@ -1551,6 +1586,8 @@ namespace Vectorization
       typedef std::vector< Expressions::IdentifierPtr >   VariableDeclarationVectorType;
 
     private:
+
+      friend class AST;
 
       typedef IVariableContainer      BaseType;
       typedef BaseClasses::NodePtr    NodePtr;
@@ -1563,6 +1600,8 @@ namespace Vectorization
       ChildrenContainerType     _Children;
       std::set< std::string >   _setDeclaredVariables;
 
+      inline Scope() : BaseType(Node::NodeType::Scope)   {}
+
 
       IVariableContainerPtr               _GetParentVariableContainer();
       inline const IVariableContainerPtr  _GetParentVariableContainer() const { return const_cast< Scope* >( this )->_GetParentVariableContainer(); }
@@ -1571,8 +1610,6 @@ namespace Vectorization
     public:
 
       static ScopePtr Create();
-
-      inline Scope() : BaseType(Node::NodeType::Scope)   {}
 
       virtual ~Scope()  {}
 
@@ -1606,10 +1643,11 @@ namespace Vectorization
       virtual std::string DumpToXML(const size_t cszIntend) const final override;
     };
 
-
     class FunctionDeclaration final : public IVariableContainer
     {
     private:
+
+      friend class AST;
 
       typedef IVariableContainer    BaseType;
       typedef BaseClasses::NodePtr  NodePtr;
@@ -1625,12 +1663,12 @@ namespace Vectorization
       KnownVariablesMapType   _mapKnownVariables;
       std::string             _strName;
 
+      inline FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)  {}
+
 
     public:
 
       static FunctionDeclarationPtr Create(std::string strFunctionName);
-
-      inline FunctionDeclaration() : BaseType(Node::NodeType::FunctionDeclaration), _spBody(nullptr)  {}
 
       virtual ~FunctionDeclaration()  {}
 
@@ -1664,20 +1702,19 @@ namespace Vectorization
     };
 
 
+  private:
 
-    public:
+    template < class NodeClass >
+    inline static std::shared_ptr< NodeClass > CreateNode()
+    {
+      static_assert(std::is_base_of< BaseClasses::Node, NodeClass >::value, "All nodes of the vectorizable AST must be derived from class \"Node\"");
 
-      template < class NodeClass >
-      inline static std::shared_ptr< NodeClass > CreateNode()
-      {
-        static_assert(std::is_base_of< BaseClasses::Node, NodeClass >::value, "All nodes of the vectorizable AST must be derived from class \"Node\"");
+      std::shared_ptr< NodeClass > spNode( new NodeClass );
 
-        std::shared_ptr< NodeClass > spNode = std::make_shared< NodeClass >();
+      spNode->_wpThis = BaseClasses::NodePtr( spNode );
 
-        spNode->_wpThis = BaseClasses::NodePtr( spNode );
-
-        return spNode;
-      }
+      return spNode;
+    }
   };
 
 
@@ -1702,6 +1739,7 @@ namespace Vectorization
 } // end namespace hipacc
 } // end namespace clang
 
+#undef DEFINE_NODE_TYPES
 
 #endif  // _BACKEND_VECTORIZATION_AST_H_
 
