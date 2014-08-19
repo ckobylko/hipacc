@@ -367,7 +367,7 @@ string AST::BaseClasses::VariableInfo::DumpToXML(const size_t cszIntend) const
 
 
 // Implementation of class AST::BaseClasses::Node
-string AST::BaseClasses::Node::_DumpChildToXml(const NodePtr spChild, const size_t cszIntend)
+string AST::BaseClasses::Node::_DumpChildToXml(const NodeConstPtr spChild, const size_t cszIntend)
 {
   return spChild ? spChild->DumpToXML(cszIntend) : "";
 }
@@ -384,7 +384,7 @@ AST::IndexType AST::BaseClasses::Node::GetHierarchyLevel() const
 {
   IndexType iHierarchyLevel = static_cast< IndexType >( 0 );
 
-  NodePtr spCurrentNode = GetThis();
+  NodeConstPtr spCurrentNode = GetThis();
   while (true)
   {
     spCurrentNode = spCurrentNode->GetParent();
@@ -407,7 +407,7 @@ AST::BaseClasses::NodePtr AST::BaseClasses::Node::GetParent()
   return _wpParent.expired() ? nullptr : _wpParent.lock();
 }
 
-AST::ScopePosition AST::BaseClasses::Node::GetScopePosition() const
+AST::ScopePosition AST::BaseClasses::Node::GetScopePosition()
 {
   NodePtr spCurrentNode = GetThis();
   while (spCurrentNode)
@@ -428,7 +428,7 @@ AST::ScopePosition AST::BaseClasses::Node::GetScopePosition() const
 
 
 // Implementation of class AST::BaseClasses::Expression
-AST::IndexType AST::BaseClasses::Expression::_FindSubExpressionIndex(ExpressionPtr spSubExpression) const
+AST::IndexType AST::BaseClasses::Expression::_FindSubExpressionIndex(ExpressionConstPtr spSubExpression) const
 {
   for (IndexType iExprIndex = static_cast<IndexType>(0); iExprIndex < GetSubExpressionCount(); ++iExprIndex)
   {
@@ -548,7 +548,7 @@ AST::ScopePtr AST::ControlFlow::Loop::GetBody()
   return _spBody;
 }
 
-const AST::ScopePtr AST::ControlFlow::Loop::GetBody() const
+AST::ScopeConstPtr AST::ControlFlow::Loop::GetBody() const
 {
   CHECK_NULL_POINTER(_spBody);
 
@@ -611,7 +611,7 @@ string AST::ControlFlow::LoopControlStatement::DumpToXML(const size_t cszIntend)
   return XMLSupport::CreateXmlTag(cszIntend, "LoopControlStatement", mapAttributes);
 }
 
-AST::ControlFlow::LoopPtr AST::ControlFlow::LoopControlStatement::GetControlledLoop() const
+AST::ControlFlow::LoopPtr AST::ControlFlow::LoopControlStatement::GetControlledLoop()
 {
   AST::BaseClasses::NodePtr spCurrentNode = GetThis();
   while (true)
@@ -628,10 +628,10 @@ AST::ControlFlow::LoopPtr AST::ControlFlow::LoopControlStatement::GetControlledL
 
 bool AST::ControlFlow::LoopControlStatement::IsVectorized() const
 {
-  LoopPtr spControlledLoop = GetControlledLoop();
+  LoopConstPtr spControlledLoop = GetControlledLoop();
   bool bVectorized = false;
 
-  AST::BaseClasses::NodePtr spCurrentNode = GetThis();
+  AST::BaseClasses::NodeConstPtr spCurrentNode = GetThis();
   while (spCurrentNode != spControlledLoop)
   {
     spCurrentNode = spCurrentNode->GetParent();
@@ -684,7 +684,7 @@ AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody()
   return _spBody;
 }
 
-const AST::ScopePtr AST::ControlFlow::ConditionalBranch::GetBody() const
+AST::ScopeConstPtr AST::ControlFlow::ConditionalBranch::GetBody() const
 {
   CHECK_NULL_POINTER(_spBody);
 
@@ -772,7 +772,7 @@ AST::BaseClasses::NodePtr AST::ControlFlow::BranchingStatement::GetChild(IndexTy
   }
 }
 
-AST::ControlFlow::ConditionalBranchPtr AST::ControlFlow::BranchingStatement::GetConditionalBranch(IndexType BranchIndex) const
+AST::ControlFlow::ConditionalBranchPtr AST::ControlFlow::BranchingStatement::GetConditionalBranch(IndexType BranchIndex)
 {
   if (BranchIndex >= GetConditionalBranchesCount())
   {
@@ -792,7 +792,7 @@ AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch()
   return _spDefaultBranch;
 }
 
-const AST::ScopePtr AST::ControlFlow::BranchingStatement::GetDefaultBranch() const
+AST::ScopeConstPtr AST::ControlFlow::BranchingStatement::GetDefaultBranch() const
 {
   CHECK_NULL_POINTER(_spDefaultBranch);
 
@@ -839,7 +839,7 @@ string AST::ControlFlow::ReturnStatement::DumpToXML(const size_t cszIntend) cons
 
 bool AST::ControlFlow::ReturnStatement::IsVectorized() const
 {
-  AST::BaseClasses::NodePtr spCurrentNode = GetThis();
+  AST::BaseClasses::NodeConstPtr spCurrentNode = GetThis();
   while (true)
   {
     spCurrentNode = spCurrentNode->GetParent();
@@ -946,7 +946,7 @@ string AST::Expressions::Identifier::DumpToXML(const size_t cszIntend) const
 
 AST::BaseClasses::TypeInfo AST::Expressions::Identifier::GetResultType() const
 {
-  BaseClasses::VariableInfoPtr spVariableInfo = LookupVariableInfo();
+  BaseClasses::VariableInfoConstPtr spVariableInfo = LookupVariableInfo();
 
   if (spVariableInfo)
   {
@@ -972,7 +972,7 @@ bool AST::Expressions::Identifier::IsVectorized()
   }
 }
 
-AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableInfo() const
+AST::BaseClasses::VariableInfoPtr AST::Expressions::Identifier::LookupVariableInfo()
 {
   BaseClasses::NodePtr spParent = GetThis();
 
@@ -1520,7 +1520,7 @@ string AST::Expressions::FunctionCall::DumpToXML(const size_t cszIntend) const
 
     mapParamAttributes["index"] = XMLSupport::ToString(static_cast<unsigned int>(i));
 
-    ExpressionPtr spParam = GetCallParameter(i);
+    ExpressionConstPtr spParam = GetCallParameter(i);
     strXmlString += XMLSupport::CreateXmlTag(cszIntend + 2, "Param", spParam->DumpToXML(cszIntend + 4), mapParamAttributes);
   }
 
@@ -1531,7 +1531,7 @@ string AST::Expressions::FunctionCall::DumpToXML(const size_t cszIntend) const
   return XMLSupport::CreateXmlTag(cszIntend, "FunctionCall", strXmlString, mapAttributes);
 }
 
-AST::BaseClasses::ExpressionPtr AST::Expressions::FunctionCall::GetCallParameter(IndexType CallParamIndex) const
+AST::BaseClasses::ExpressionPtr AST::Expressions::FunctionCall::GetCallParameter(IndexType CallParamIndex)
 {
   if (CallParamIndex >= GetSubExpressionCount())
   {
@@ -1822,7 +1822,7 @@ AST::Scope::VariableDeclarationVectorType AST::Scope::GetVariableDeclarations() 
   return std::move( vecDeclarations );
 }
 
-AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVariableName) const
+AST::BaseClasses::VariableInfoPtr AST::Scope::GetVariableInfo(std::string strVariableName)
 {
   BaseClasses::NodePtr spParent = GetThis();
 
@@ -1882,7 +1882,7 @@ void AST::Scope::InsertChild(IndexType ChildIndex, NodePtr spChildNode)
 
 bool AST::Scope::IsVariableUsed(const std::string &crstrVariableName) const
 {
-  AST::IVariableContainerPtr spParentVariableContainer = _GetParentVariableContainer();
+  AST::IVariableContainerConstPtr spParentVariableContainer = _GetParentVariableContainer();
   CHECK_NULL_POINTER(spParentVariableContainer);
 
   return spParentVariableContainer->IsVariableUsed(crstrVariableName);
@@ -2001,7 +2001,7 @@ AST::ScopePtr AST::FunctionDeclaration::GetBody()
   return _spBody;
 }
 
-const AST::ScopePtr AST::FunctionDeclaration::GetBody() const
+AST::ScopeConstPtr AST::FunctionDeclaration::GetBody() const
 {
   CHECK_NULL_POINTER(_spBody);
 
@@ -2039,7 +2039,7 @@ AST::Expressions::IdentifierPtr AST::FunctionDeclaration::GetParameter(IndexType
   return _Parameters[ iParamIndex ];
 }
 
-AST::BaseClasses::VariableInfoPtr AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName) const
+AST::BaseClasses::VariableInfoPtr AST::FunctionDeclaration::GetVariableInfo(std::string strVariableName)
 {
   auto itVariableEntry = _mapKnownVariables.find(strVariableName);
 

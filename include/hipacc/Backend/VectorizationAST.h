@@ -319,7 +319,7 @@ namespace Vectorization
         inline Node(NodeType eType) : _ceNodeType(eType)    {}
 
 
-        static std::string _DumpChildToXml(const NodePtr spChild, const size_t cszIntend);
+        static std::string _DumpChildToXml(const NodeConstPtr spChild, const size_t cszIntend);
 
         template < typename NodeClassPtr >
         inline void _SetChildPtr(NodeClassPtr &rDestinationPtr, const NodeClassPtr &crSourcePtr)
@@ -353,12 +353,12 @@ namespace Vectorization
         inline NodeType GetNodeType() const    { return _ceNodeType; }
 
         NodePtr               GetParent();
-        inline const NodePtr  GetParent() const   { return const_cast<Node*>(this)->GetParent(); }
+        inline NodeConstPtr   GetParent() const   { return const_cast<Node*>(this)->GetParent(); }
 
-        ScopePosition GetScopePosition() const;
+        ScopePosition GetScopePosition();
 
         inline NodePtr        GetThis()         { return _wpThis.lock(); }
-        inline const NodePtr  GetThis() const   { return _wpThis.lock(); }
+        inline NodeConstPtr   GetThis() const   { return _wpThis.lock(); }
 
         inline bool IsLeafNode() const  { return (GetChildCount() == static_cast<IndexType>(0)); }
 
@@ -372,6 +372,12 @@ namespace Vectorization
           }
 
           return std::dynamic_pointer_cast< NodeClass >( GetThis() );
+        }
+
+        template <class NodeClass>
+        inline std::shared_ptr< const NodeClass > CastToType() const
+        {
+          return const_cast< Node* >( this )->CastToType< const NodeClass >();
         }
 
         template <class NodeClass>
@@ -452,7 +458,7 @@ namespace Vectorization
 
         inline Expression(ExpressionType eExprType) : BaseType(Node::NodeType::Expression), _ceExprType(eExprType)  {}
 
-        IndexType _FindSubExpressionIndex(ExpressionPtr spSubExpression) const;
+        IndexType _FindSubExpressionIndex(ExpressionConstPtr spSubExpression) const;
 
       public:
 
@@ -474,7 +480,7 @@ namespace Vectorization
         virtual IndexType       GetSubExpressionCount() const = 0;
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) = 0;
 
-        inline const ExpressionPtr  GetSubExpression(IndexType SubExprIndex) const  { return const_cast< Expression* >(this)->GetSubExpression(SubExprIndex); }
+        inline ExpressionConstPtr GetSubExpression(IndexType SubExprIndex) const  { return const_cast< Expression* >(this)->GetSubExpression(SubExprIndex); }
       };
     };
 
@@ -532,14 +538,14 @@ namespace Vectorization
 
 
         ScopePtr        GetBody();
-        const ScopePtr  GetBody() const;
+        ScopeConstPtr   GetBody() const;
 
         inline BaseClasses::ExpressionPtr         GetCondition()                                        { return _spConditionExpr; }
-        inline const BaseClasses::ExpressionPtr   GetCondition() const                                  { return _spConditionExpr; }
+        inline BaseClasses::ExpressionConstPtr    GetCondition() const                                  { return _spConditionExpr; }
         inline void                               SetCondition(BaseClasses::ExpressionPtr spCondition)  { _SetChildPtr(_spConditionExpr, spCondition); }
 
         inline BaseClasses::ExpressionPtr         GetIncrement()                                        { return _spIncrementExpr; }
-        inline const BaseClasses::ExpressionPtr   GetIncrement() const                                  { return _spIncrementExpr; }
+        inline BaseClasses::ExpressionConstPtr    GetIncrement() const                                  { return _spIncrementExpr; }
         inline void                               SetIncrement(BaseClasses::ExpressionPtr spIncrement)  { _SetChildPtr(_spIncrementExpr, spIncrement); }
 
         inline bool GetForcedVectorization() const          { return _bForceVectorization; }
@@ -595,7 +601,8 @@ namespace Vectorization
         inline LoopControlType  GetControlType() const                        { return _eControlType; }
         inline void             SetControlType(LoopControlType eNewCtrlType)  { _eControlType = eNewCtrlType; }
 
-        LoopPtr GetControlledLoop() const;
+        LoopPtr               GetControlledLoop();
+        inline LoopConstPtr   GetControlledLoop() const   { return const_cast< LoopControlStatement* >( this )->GetControlledLoop(); }
 
       public:
 
@@ -615,6 +622,7 @@ namespace Vectorization
 
         typedef BaseClasses::ControlFlowStatement   BaseType;
         typedef BaseClasses::ExpressionPtr          ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr     ExpressionConstPtr;
 
       private:
 
@@ -632,10 +640,10 @@ namespace Vectorization
 
 
         ScopePtr        GetBody();
-        const ScopePtr  GetBody() const;
+        ScopeConstPtr   GetBody() const;
 
         inline ExpressionPtr        GetCondition()                            { return _spCondition; }
-        inline const ExpressionPtr  GetCondition() const                      { return _spCondition; }
+        inline ExpressionConstPtr   GetCondition() const                      { return _spCondition; }
         inline void                 SetCondition(ExpressionPtr spCondition)   { _SetChildPtr(_spCondition, spCondition); }
 
 
@@ -673,12 +681,18 @@ namespace Vectorization
 
 
         void                  AddConditionalBranch(ConditionalBranchPtr spBranch);
-        ConditionalBranchPtr  GetConditionalBranch(IndexType BranchIndex) const;
+        ConditionalBranchPtr  GetConditionalBranch(IndexType BranchIndex);
         inline IndexType      GetConditionalBranchesCount() const   { return static_cast< IndexType >( _vecBranches.size() ); }
         void                  RemoveConditionalBranch(IndexType BranchIndex);
 
         ScopePtr        GetDefaultBranch();
-        const ScopePtr  GetDefaultBranch() const;
+        ScopeConstPtr   GetDefaultBranch() const;
+
+
+        inline ConditionalBranchConstPtr  GetConditionalBranch(IndexType BranchIndex) const
+        {
+          return const_cast< BranchingStatement* >( this )->GetConditionalBranch( BranchIndex );
+        }
 
 
       public:
@@ -916,7 +930,11 @@ namespace Vectorization
         inline std::string  GetName() const               { return _strName; }
         inline void         SetName(std::string strName)  { _strName = strName; }
 
-        BaseClasses::VariableInfoPtr LookupVariableInfo() const;
+        BaseClasses::VariableInfoPtr              LookupVariableInfo();
+        inline BaseClasses::VariableInfoConstPtr  LookupVariableInfo() const
+        {
+          return const_cast< Identifier* >( this )->LookupVariableInfo();
+        }
 
 
         virtual bool IsVectorized() final override;
@@ -932,8 +950,9 @@ namespace Vectorization
 
         friend class AST;
 
-        typedef Value                         BaseType;
-        typedef BaseClasses::ExpressionPtr    ExpressionPtr;
+        typedef Value                             BaseType;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
 
       private:
 
@@ -951,11 +970,11 @@ namespace Vectorization
 
 
         inline ExpressionPtr        GetIndexExpression()                                  { return _spIndexExpr; }
-        inline const ExpressionPtr  GetIndexExpression() const                            { return _spIndexExpr; }
+        inline ExpressionConstPtr   GetIndexExpression() const                            { return _spIndexExpr; }
         inline void                 SetIndexExpression(ExpressionPtr spIndexExpression)   { _SetChildPtr(_spIndexExpr, spIndexExpression); }
 
         inline ExpressionPtr        GetMemoryReference()                                  { return _spMemoryRef; }
-        inline const ExpressionPtr  GetMemoryReference() const                            { return _spMemoryRef; }
+        inline ExpressionConstPtr   GetMemoryReference() const                            { return _spMemoryRef; }
         inline void                 SetMemoryReference(ExpressionPtr spMemoryReference)   { _SetChildPtr(_spMemoryRef, spMemoryReference); }
 
 
@@ -1001,9 +1020,9 @@ namespace Vectorization
         virtual ~UnaryExpression()  {}
 
 
-        inline BaseClasses::ExpressionPtr         GetSubExpression()                                      { return _spSubExpression; }
-        inline const BaseClasses::ExpressionPtr   GetSubExpression() const                                { return _spSubExpression; }
-        inline void                               SetSubExpression(BaseClasses::ExpressionPtr spSubExpr)  { _SetChildPtr(_spSubExpression, spSubExpr); }
+        inline BaseClasses::ExpressionPtr       GetSubExpression()                                      { return _spSubExpression; }
+        inline BaseClasses::ExpressionConstPtr  GetSubExpression() const                                { return _spSubExpression; }
+        inline void                             SetSubExpression(BaseClasses::ExpressionPtr spSubExpr)  { _SetChildPtr(_spSubExpression, spSubExpr); }
 
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
@@ -1129,8 +1148,9 @@ namespace Vectorization
       {
       protected:
 
-        typedef BaseClasses::Expression     BaseType;
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+        typedef BaseClasses::Expression           BaseType;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
 
       public:
 
@@ -1160,11 +1180,11 @@ namespace Vectorization
 
 
         inline ExpressionPtr        GetLHS()                        { return _spLHS; }
-        inline const ExpressionPtr  GetLHS() const                  { return _spLHS; }
+        inline ExpressionConstPtr   GetLHS() const                  { return _spLHS; }
         inline void                 SetLHS(ExpressionPtr spNewLHS)  { _SetChildPtr(_spLHS, spNewLHS); }
 
         inline ExpressionPtr        GetRHS()                        { return _spRHS; }
-        inline const ExpressionPtr  GetRHS() const                  { return _spRHS; }
+        inline ExpressionConstPtr   GetRHS() const                  { return _spRHS; }
         inline void                 SetRHS(ExpressionPtr spNewRHS)  { _SetChildPtr(_spRHS, spNewRHS); }
 
 
@@ -1254,7 +1274,7 @@ namespace Vectorization
         virtual ~AssignmentOperator() {}
 
         inline IdentifierPtr        GetMask()                         { return _spMask; }
-        inline const IdentifierPtr  GetMask() const                   { return _spMask; }
+        inline IdentifierConstPtr   GetMask() const                   { return _spMask; }
         inline void                 SetMask(IdentifierPtr spNewMask)  { _SetChildPtr(_spMask, spNewMask); }
 
 
@@ -1333,8 +1353,9 @@ namespace Vectorization
 
         friend class AST;
 
-        typedef BaseClasses::Expression     BaseType;
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+        typedef BaseClasses::Expression           BaseType;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
 
       private:
 
@@ -1353,10 +1374,15 @@ namespace Vectorization
 
 
         void          AddCallParameter(ExpressionPtr spCallParam);
-        ExpressionPtr GetCallParameter(IndexType CallParamIndex) const;
+        ExpressionPtr GetCallParameter(IndexType CallParamIndex);
         void          SetCallParameter(IndexType CallParamIndex, ExpressionPtr spCallParam);
 
-        inline IndexType GetCallParameterCount() const    { return static_cast< IndexType >(_vecCallParams.size()); }
+        inline IndexType          GetCallParameterCount() const    { return static_cast< IndexType >(_vecCallParams.size()); }
+        inline ExpressionConstPtr GetCallParameter(IndexType CallParamIndex) const
+        {
+          return const_cast< FunctionCall* >( this )->GetCallParameter( CallParamIndex );
+        }
+
 
         inline std::string  GetName() const                   { return _strName; }
         inline void         SetName(std::string strNewName)   { _strName = strNewName; }
@@ -1426,8 +1452,9 @@ namespace Vectorization
 
         friend class AST;
 
-        typedef VectorExpression            BaseType;
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+        typedef VectorExpression                  BaseType;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
 
       private:
 
@@ -1444,7 +1471,7 @@ namespace Vectorization
 
 
         inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
-        inline const ExpressionPtr  GetSubExpression() const                    { return _spSubExpression; }
+        inline ExpressionConstPtr   GetSubExpression() const                    { return _spSubExpression; }
         inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
 
 
@@ -1467,8 +1494,9 @@ namespace Vectorization
 
         friend class AST;
 
-        typedef VectorExpression                    BaseType;
-        typedef BaseClasses::ExpressionPtr          ExpressionPtr;
+        typedef VectorExpression                  BaseType;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
 
       public:
 
@@ -1501,7 +1529,7 @@ namespace Vectorization
         inline void       SetCheckType(CheckType eNewCheckType)   { _eCheckType = eNewCheckType; }
 
         inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
-        inline const ExpressionPtr  GetSubExpression() const                    { return _spSubExpression; }
+        inline ExpressionConstPtr   GetSubExpression() const                    { return _spSubExpression; }
         inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
 
       public:
@@ -1575,8 +1603,13 @@ namespace Vectorization
 
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) = 0;
-      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const = 0;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) = 0;
       virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const = 0;
+
+      inline BaseClasses::VariableInfoConstPtr  GetVariableInfo(std::string strVariableName) const
+      {
+        return const_cast< IVariableContainer* >( this )->GetVariableInfo( strVariableName );
+      }
     };
 
     class Scope final : public IVariableContainer
@@ -1604,7 +1637,7 @@ namespace Vectorization
 
 
       IVariableContainerPtr               _GetParentVariableContainer();
-      inline const IVariableContainerPtr  _GetParentVariableContainer() const { return const_cast< Scope* >( this )->_GetParentVariableContainer(); }
+      inline IVariableContainerConstPtr   _GetParentVariableContainer() const { return const_cast< Scope* >( this )->_GetParentVariableContainer(); }
 
 
     public:
@@ -1633,7 +1666,7 @@ namespace Vectorization
     public:
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
-      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) final override;
       virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const final override;
 
       virtual NodePtr       GetChild(IndexType ChildIndex) final override;
@@ -1678,9 +1711,14 @@ namespace Vectorization
       inline IndexType            GetParameterCount() const   { return static_cast< IndexType >( _Parameters.size() ); }
       void                        SetParameter(IndexType iParamIndex, BaseClasses::VariableInfoPtr spVariableInfo);
 
+      inline Expressions::IdentifierConstPtr  GetParameter(IndexType iParamIndex) const
+      {
+        return const_cast< FunctionDeclaration* >( this )->GetParameter( iParamIndex );
+      }
+
 
       ScopePtr        GetBody();
-      const ScopePtr  GetBody() const;
+      ScopeConstPtr   GetBody() const;
 
       inline std::string  GetName() const               { return _strName; }
       inline void         SetName(std::string strName)  { _strName = strName; }
@@ -1688,7 +1726,7 @@ namespace Vectorization
     public:
 
       virtual void                          AddVariable(BaseClasses::VariableInfoPtr spVariableInfo) final override;
-      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) const final override;
+      virtual BaseClasses::VariableInfoPtr  GetVariableInfo(std::string strVariableName) final override;
       virtual bool                          IsVariableUsed(const std::string &crstrVariableName) const final override;
 
       std::vector< std::string >  GetKnownVariableNames() const;
