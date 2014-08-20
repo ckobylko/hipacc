@@ -69,7 +69,11 @@ EXECUTE_PROCESS(
     OUTPUT_VARIABLE LLVM_BIN_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-FIND_PATH(CLANG_LIB_INCLUDE_DIR immintrin.h PATHS "${LLVM_BIN_DIR}lib/clang/*/include" NO_DEFAULT_PATH)
+IF(MSVC)
+    FIND_PATH(CLANG_LIB_INCLUDE_DIR immintrin.h PATHS "${LLVM_BIN_DIR}lib/clang/*/include" NO_DEFAULT_PATH)
+ELSE()
+    FIND_PATH(CLANG_LIB_INCLUDE_DIR immintrin.h PATHS "${LLVM_BIN_DIR}/../lib/clang/*/include" NO_DEFAULT_PATH)
+ENDIF()
 
 
 # Additional paths for Clang include headers
