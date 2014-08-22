@@ -2684,11 +2684,13 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
           {
             typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
 
-            AST::Expressions::ArithmeticOperatorPtr spUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
-                                                                                                              AST::Expressions::Identifier::Create(itMaskName),
-                                                                                                              AST::Expressions::Identifier::Create(strConditionMask) );
+            AST::Expressions::UnaryOperatorPtr      spNegatedMask = AST::Expressions::UnaryOperator::Create( AST::Expressions::UnaryOperator::UnaryOperatorType::BitwiseNot, 
+                                                                                                             AST::Expressions::Identifier::Create(strConditionMask) );
 
-            LoopControlPos.GetScope()->InsertChild( iCurrentIdx++, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
+            AST::Expressions::ArithmeticOperatorPtr spUnsetOp     = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseAnd, spNegatedMask,
+                                                                                                                  AST::Expressions::Identifier::Create(itMaskName) );
+
+            LoopControlPos.GetScope()->InsertChild( iCurrentIdx, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
           }
         }
       }
@@ -2741,11 +2743,13 @@ void Vectorizer::RebuildControlFlow(AST::FunctionDeclarationPtr spFunction)
         {
           typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType  ArithmeticOperatorType;
 
-          AST::Expressions::ArithmeticOperatorPtr spUnsetOp = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseXOr,
-                                                                                                            AST::Expressions::Identifier::Create(itMaskName),
-                                                                                                            AST::Expressions::Identifier::Create(strConditionMask) );
+          AST::Expressions::UnaryOperatorPtr      spNegatedMask = AST::Expressions::UnaryOperator::Create( AST::Expressions::UnaryOperator::UnaryOperatorType::BitwiseNot, 
+                                                                                                           AST::Expressions::Identifier::Create(strConditionMask) );
 
-          ReturnPos.GetScope()->InsertChild( iCurrentIdx++, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
+          AST::Expressions::ArithmeticOperatorPtr spUnsetOp     = AST::Expressions::ArithmeticOperator::Create( ArithmeticOperatorType::BitwiseAnd, spNegatedMask,
+                                                                                                                AST::Expressions::Identifier::Create(itMaskName) );
+
+          ReturnPos.GetScope()->InsertChild( iCurrentIdx, AST::Expressions::AssignmentOperator::Create(AST::Expressions::Identifier::Create(itMaskName), spUnsetOp) );
         }
       }
     }
