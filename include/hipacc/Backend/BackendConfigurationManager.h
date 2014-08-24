@@ -48,6 +48,7 @@ namespace clang
 {
 namespace hipacc
 {
+/** \brief  The root namespace for the entire back-end library. */
 namespace Backend
 {
   /** \brief  Manages all known backend code generators and controls the compiler configuration process. */

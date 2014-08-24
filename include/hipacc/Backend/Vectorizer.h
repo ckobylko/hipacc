@@ -49,6 +49,7 @@ namespace hipacc
 {
 namespace Backend
 {
+/** \brief  Contains all classes and type definitions, which are used during the vectorization process. */
 namespace Vectorization
 {
   class Vectorizer final

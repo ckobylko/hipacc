@@ -57,7 +57,7 @@ namespace Backend
 {
 namespace Vectorization
 {
-  typedef AST::BaseClasses::TypeInfo::KnownTypes                          VectorElementTypes;
+  typedef AST::BaseClasses::TypeInfo::KnownTypes                          VectorElementTypes;       //!< Type alias for the enumeration of all possible vector element types.
   typedef AST::Expressions::UnaryOperator::UnaryOperatorType              UnaryOperatorType;
   typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType    ArithmeticOperatorType;
   typedef AST::Expressions::RelationalOperator::RelationalOperatorType    RelationalOperatorType;
@@ -156,6 +156,7 @@ namespace Vectorization
   };
 
 
+  /** \brief  Base class for all vector instruction-set implementations. */
   class InstructionSetBase
   {
   protected:
@@ -446,7 +447,12 @@ namespace Vectorization
 
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) = 0;
+
+    /** \brief  Returns an expression, which broadcasts a scalar value into all elements of a vector.
+     *  \param  eElementType      The element type stored in the vector.
+     *  \param  pBroadCastValue   A pointer to the scalar expression object, whose return value shall be broadcasted. */
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
+
     virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) = 0;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
     virtual ::clang::Expr* CheckSingleMaskElement(VectorElementTypes eMaskElementType, ::clang::Expr *pMaskExpr, std::uint32_t uiIndex) = 0;
@@ -470,6 +476,8 @@ namespace Vectorization
 
 
   // SSE instruction sets
+
+  /** \brief  Implementation of the <b>Streaming SIMD Extensions</b> instruction-set. */
   class InstructionSetSSE : public InstructionSetBase
   {
   private:
@@ -675,6 +683,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Streaming SIMD Extensions 2</b> instruction-set. */
   class InstructionSetSSE2 : public InstructionSetSSE
   {
   private:
@@ -870,6 +879,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Streaming SIMD Extensions 3</b> instruction-set. */
   class InstructionSetSSE3 : public InstructionSetSSE2
   {
   private:
@@ -964,6 +974,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Supplemental Streaming SIMD Extensions 3</b> instruction-set. */
   class InstructionSetSSSE3 : public InstructionSetSSE3
   {
   private:
@@ -1064,6 +1075,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Streaming SIMD Extensions 4.1</b> instruction-set. */
   class InstructionSetSSE4_1 : public InstructionSetSSSE3
   {
   private:
@@ -1189,6 +1201,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Streaming SIMD Extensions 4.2</b> instruction-set. */
   class InstructionSetSSE4_2 final : public InstructionSetSSE4_1
   {
   private:
@@ -1261,6 +1274,8 @@ namespace Vectorization
 
 
   // AVX instruction sets
+
+  /** \brief  Implementation of the <b>Advanced Vector Extensions</b> instruction-set. */
   class InstructionSetAVX : public InstructionSetBase
   {
   private:
@@ -1454,6 +1469,7 @@ namespace Vectorization
     //@}
   };
 
+  /** \brief  Implementation of the <b>Advanced Vector Extensions 2</b> instruction-set. */
   class InstructionSetAVX2 final : public InstructionSetAVX
   {
   private:
