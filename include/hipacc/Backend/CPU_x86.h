@@ -471,7 +471,7 @@ namespace Backend
       typedef BaseType::CompilerSwitchInfoType                  CompilerSwitchInfoType;   //!< The type of the switch information class for this code generator.
 
       /** \brief    The specific descriptor class for this code generator.
-       *  \extends  CodeGeneratorBaseImplT::CodeGeneratorDescriptorBase. */
+       *  \extends  CodeGeneratorBaseImplT::CodeGeneratorDescriptorBase */
       class Descriptor final : public BaseType::CodeGeneratorDescriptorBase
       {
       public:
@@ -627,7 +627,7 @@ namespace Backend
       Vectorization::InstructionSetBasePtr  _CreateInstructionSet(::clang::ASTContext &rAstContext);
 
       /** \brief    Formats a function declaration for a specific kernel into a string.
-       *  \param    pKernelFunction         A pointer to the AST object declaring the kernel function.
+       *  \param    pFunctionDecl           A pointer to the AST object for the function declaration.
        *  \param    rHipaccHelper           A reference to the HIPAcc helper object which encapsulates the kernel.
        *  \param    bCheckUsage             Specifies, whether the function parameters shall be checked for being used.
        *  \param    bPrintActualImageType   Specifies, whether the actual clang types of the HIPAcc images shall be printed into the declaration.

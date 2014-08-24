@@ -282,7 +282,7 @@ namespace Backend
     /** \brief    Processes one specific compiler switch during the configuration processes.
      *  \param    strSwitch       The currently processed switch.
      *  \param    rvecArguments   A reference to vector containing the command arguments.
-     *  \param    szSwitchIndex   The index of the currently processed switch in command arguments vector.
+     *  \param    szCurIndex      The index of the currently processed switch in command arguments vector.
      *  \return   The index of the last processed argument in the command arguments vector. */
     size_t _HandleSwitch(std::string strSwitch, CommonDefines::ArgumentVectorType &rvecArguments, size_t szCurIndex);
 
