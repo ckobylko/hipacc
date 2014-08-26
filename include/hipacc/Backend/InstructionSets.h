@@ -58,9 +58,9 @@ namespace Backend
 namespace Vectorization
 {
   typedef AST::BaseClasses::TypeInfo::KnownTypes                          VectorElementTypes;       //!< Type alias for the enumeration of all possible vector element types.
-  typedef AST::Expressions::UnaryOperator::UnaryOperatorType              UnaryOperatorType;
-  typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType    ArithmeticOperatorType;
-  typedef AST::Expressions::RelationalOperator::RelationalOperatorType    RelationalOperatorType;
+  typedef AST::Expressions::UnaryOperator::UnaryOperatorType              UnaryOperatorType;        //!< Type alias for the enumeration of all possible unary operators.
+  typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType    ArithmeticOperatorType;   //!< Type alias for the enumeration of all possible binary arithmetic operators.
+  typedef AST::Expressions::RelationalOperator::RelationalOperatorType    RelationalOperatorType;   //!< Type alias for the enumeration of all possible binary relational operators.
   typedef AST::VectorSupport::CheckActiveElements::CheckType              ActiveElementsCheckType;
 
 
@@ -323,7 +323,7 @@ namespace Vectorization
 
 
     /** \brief  Returns the return type of a known non-ambiguous function declaration.
-     *  \param  strFuntionName  The name of the functions whose return type shall be retrieved. */
+     *  \param  strFuntionName  The name of the function, whose return type shall be retrieved. */
     ::clang::QualType _GetFunctionReturnType(std::string strFuntionName);
 
     //@}
@@ -353,6 +353,10 @@ namespace Vectorization
 
   public:
 
+    /** \brief    Creates an object of a particular instruction set implementation class.
+     *  \tparam   InstructionSetType  The type of the requested instruction set class.
+     *  \param    rAstContext         A reference to the current Clang AST context..
+     *  \return   A shared pointer to the newly created instruction set implementation object. */
     template < class InstructionSetType >
     inline static std::shared_ptr< InstructionSetType > Create(::clang::ASTContext &rAstContext)
     {
@@ -425,6 +429,8 @@ namespace Vectorization
     }
 
 
+    /** \brief  Returns an expression, which creates a vector with all elements set to <b>one</b>.
+     *  \param  eElementType  The requested element type stored in the vector.  */
     inline ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType)
     {
       return CreateOnesVector(eElementType, false);
@@ -434,6 +440,7 @@ namespace Vectorization
     {
       return CreateVector(eElementType, crvecElements, false);
     }
+
 
     inline  size_t GetVectorElementCount(VectorElementTypes eElementType) const    { return GetVectorWidthBytes() / AST::BaseClasses::TypeInfo::GetTypeSize(eElementType); }
 
@@ -445,7 +452,20 @@ namespace Vectorization
     virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const = 0;
 
 
+    /** \brief    Returns an expression, which performs an element-wise binary arithmetic operation on two vector values.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    eOpType       The type of the requested arithmetic operator.
+     *  \param    pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the arithmetic operation.
+     *  \param    pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the arithmetic operation.
+     *  \remarks  The element types of both operands must be identical. */
     virtual ::clang::Expr* ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
+
+    /** \brief    Returns an expression, which conditionally merges two vectors element-wise depending on a vector mask.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    pMaskRef      A pointer to the vectorized expression object, which evaluates to a vector mask that selects the elements for the merging.
+     *  \param    pVectorTrue   A pointer to the vectorized expression object, whose elements are used for mask elements evaluating to <b>true</b>.
+     *  \param    pVectorFalse  A pointer to the vectorized expression object, whose elements are used for mask elements evaluating to <b>false</b>.
+     *  \remarks  The element types of all operands must be identical. */
     virtual ::clang::Expr* BlendVectors(VectorElementTypes eElementType, ::clang::Expr *pMaskRef, ::clang::Expr *pVectorTrue, ::clang::Expr *pVectorFalse) = 0;
 
     /** \brief  Returns an expression, which broadcasts a scalar value into all elements of a vector.
@@ -456,26 +476,68 @@ namespace Vectorization
     virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) = 0;
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
     virtual ::clang::Expr* CheckSingleMaskElement(VectorElementTypes eMaskElementType, ::clang::Expr *pMaskExpr, std::uint32_t uiIndex) = 0;
+
+    /** \brief  Returns an expression, which creates a vector with all elements set to <b>one</b>.
+     *  \param  eElementType  The requested element type stored in the vector.
+     *  \param  bNegative     A flag indicating, whether the vector elements shall be set to <b>-1</b> or <b>+1</b>. */
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) = 0;
+
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
+
+    /** \brief  Returns an expression, which creates a vector with all elements set to <b>zero</b>.
+     *  \param  eElementType  The requested element type stored in the vector. */
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) = 0;
+
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) = 0;
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) = 0;
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) = 0;
     virtual ::clang::Expr* LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, ::clang::Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex) = 0;
+
+    /** \brief    Returns an expression, which performs an element-wise binary relational operation on two vector values.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    eOpType       The type of the requested relational operator.
+     *  \param    pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the relational operation.
+     *  \param    pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the relational operation.
+     *  \remarks  The element types of both operands must be identical. */
     virtual ::clang::Expr* RelationalOperator(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS) = 0;
+
+    /** \brief    Returns an expression, which shifts the values of all elements inside a vector by the <b>same</b> amount of bits.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    pVectorRef    A pointer to a vectorized expression object, which returns the vector value whose elements shall be shifted.
+     *  \param    bShiftLeft    A flag indicating, whether the vector element values shall be shifted to the left or to the right.
+     *  \param    uiCount       The number of bits, by which all vector elements shall be shifted.
+     *  \remarks  This operation is only defined for integer element types. */
     virtual ::clang::Expr* ShiftElements(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bShiftLeft, uint32_t uiCount) = 0;
+
+    /** \brief  Returns an expression, which writes a vector value into memory.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  pPointerRef   A pointer to an expression object, which returns a pointer to the desired memory location.
+     *  \param  pVectorValue  A pointer to the vectorized expression object, whose return value shall be written to memory. */
     virtual ::clang::Expr* StoreVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue) = 0;
+
+    /** \brief    Returns an expression, which conditionally writes the selected elements of a vector value into memory.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    pPointerRef   A pointer to an expression object, which returns a pointer to the desired memory location.
+     *  \param    pVectorValue  A pointer to the vectorized expression object, whose return value elements shall be written to memory.
+     *  \param    pMaskRef      A pointer to the vectorized expression object, which evaluates to a vector mask that selects the elements to be stored.
+     *  \remarks  The element types of the <b>vector value</b> and the <b>selection mask</b> must be identical. */
     virtual ::clang::Expr* StoreVectorMasked(VectorElementTypes eElementType, ::clang::Expr *pPointerRef, ::clang::Expr *pVectorValue, ::clang::Expr *pMaskRef) = 0;
+
+    /** \brief  Returns an expression, which performs a vectorized unary operator expression.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  eOpType       The type of the requested unary operator.
+     *  \param  pSubExpr      A pointer to the vectorized expression object, which shall be used as sub-expression for the unary operator. */
     virtual ::clang::Expr* UnaryOperator(VectorElementTypes eElementType, UnaryOperatorType eOpType, ::clang::Expr *pSubExpr) = 0;
 
     //@}
   };
 
+  /** \brief  The shared pointer type for instruction set implementations. */
   typedef std::shared_ptr< InstructionSetBase >   InstructionSetBasePtr;
 
 
-  // SSE instruction sets
+  /** \name SSE instruction sets */
+  //@{
 
   /** \brief  Implementation of the <b>Streaming SIMD Extensions</b> instruction-set. */
   class InstructionSetSSE : public InstructionSetBase
@@ -484,6 +546,7 @@ namespace Vectorization
 
     friend class InstructionSetBase;
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSE</b>. */
     enum class IntrinsicsSSEEnum
     {
       AddFloat,
@@ -525,24 +588,32 @@ namespace Vectorization
     };
 
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSEEnum >   IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSEEnum >   IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSE;
+    IntrinsicMapType    _mapIntrinsicsSSE;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function without any call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.  */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID)
     {
       return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -552,6 +623,10 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -562,6 +637,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with three call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument.
+     *  \param  pArg3       A pointer to the expression object, which serves as the third argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSEEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -573,6 +653,7 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+
     inline ::clang::Expr* _CreatePostfixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePostfixedUnaryOp(_mapIntrinsicsSSE, eIntrinID, eElementType, pVectorRef);
@@ -583,23 +664,25 @@ namespace Vectorization
       return InstructionSetBase::_CreatePrefixedUnaryOp(_mapIntrinsicsSSE, eIntrinID, eElementType, pVectorRef);
     }
 
+
+    /** \brief  Returns the qualified Clang return type of an intrinsic function.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function, whose return type shall be retrieved. */
     inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSEEnum eIntrinID)
     {
       return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE, eIntrinID);
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSEEnum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE, "SSE");
-    }
 
 
     void _CheckElementType(VectorElementTypes eElementType) const;
@@ -692,6 +775,7 @@ namespace Vectorization
     typedef InstructionSetSSE   BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSE 2</b>. */
     enum class IntrinsicsSSE2Enum
     {
       AddDouble,                    AddInt8,                AddInt16,                AddInt32,                AddInt64,
@@ -735,24 +819,32 @@ namespace Vectorization
       XorDouble,                    XorInteger
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE2Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE2Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSE2;
+    IntrinsicMapType    _mapIntrinsicsSSE2;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE2, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function without any call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.  */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID)
     {
       return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -762,6 +854,10 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -772,6 +868,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with three call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument.
+     *  \param  pArg3       A pointer to the expression object, which serves as the third argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -783,6 +884,7 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+
     inline ::clang::Expr* _CreatePostfixedUnaryOp(IntrinsicsSSE2Enum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePostfixedUnaryOp(_mapIntrinsicsSSE2, eIntrinID, eElementType, pVectorRef);
@@ -793,23 +895,25 @@ namespace Vectorization
       return InstructionSetBase::_CreatePrefixedUnaryOp(_mapIntrinsicsSSE2, eIntrinID, eElementType, pVectorRef);
     }
 
+
+    /** \brief  Returns the qualified Clang return type of an intrinsic function.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function, whose return type shall be retrieved. */
     inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSE2Enum eIntrinID)
     {
       return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE2, eIntrinID);
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSE2Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSE2Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE2, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE2, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE2, "SSE2");
-    }
 
 
   private:
@@ -888,24 +992,31 @@ namespace Vectorization
     typedef InstructionSetSSE2    BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSE 3</b>. */
     enum class IntrinsicsSSE3Enum
     {
       LoadInteger
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE3Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE3Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSE3;
+    IntrinsicMapType    _mapIntrinsicsSSE3;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE3Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE3, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE3Enum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -915,23 +1026,24 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Returns the qualified Clang return type of an intrinsic function.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function, whose return type shall be retrieved. */
     inline ::clang::QualType _GetFunctionReturnType(IntrinsicsSSE3Enum eIntrinID)
     {
       return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsSSE3, eIntrinID);
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSE3Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSE3Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE3, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE3, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE3, "SSE3");
-    }
 
 
   protected:
@@ -983,6 +1095,7 @@ namespace Vectorization
     typedef InstructionSetSSE3    BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSSE 3</b>. */
     enum class IntrinsicsSSSE3Enum
     {
       AbsoluteInt8, AbsoluteInt16, AbsoluteInt32,
@@ -990,19 +1103,25 @@ namespace Vectorization
       SignInt8,     SignInt16,     SignInt32
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSSE3Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSSE3Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSSE3;
+    IntrinsicMapType    _mapIntrinsicsSSSE3;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSSE3, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1012,6 +1131,10 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSSE3Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1023,17 +1146,16 @@ namespace Vectorization
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSSE3Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSSE3Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSSE3, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSSE3, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSSE3, "SSSE3");
-    }
 
 
   protected:
@@ -1084,6 +1206,7 @@ namespace Vectorization
     typedef InstructionSetSSSE3    BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSE 4.1</b>. */
     enum class IntrinsicsSSE4_1Enum
     {
       BlendDouble,        BlendFloat,         BlendInteger,
@@ -1101,19 +1224,25 @@ namespace Vectorization
       TestControl
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_1Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_1Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSE4_1;
+    IntrinsicMapType    _mapIntrinsicsSSE4_1;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE4_1, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1123,6 +1252,10 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1133,6 +1266,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with three call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument.
+     *  \param  pArg3       A pointer to the expression object, which serves as the third argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_1Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1145,21 +1283,16 @@ namespace Vectorization
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSE4_1Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSE4_1Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_1, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_1, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE4_1, "SSE4.1");
-    }
-
-
-    ::clang::Expr* _ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex);
-    ::clang::Expr* _InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex);
 
 
   protected:
@@ -1210,24 +1343,32 @@ namespace Vectorization
     typedef InstructionSetSSE4_1    BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>SSE 4.2</b>. */
     enum class IntrinsicsSSE4_2Enum
     {
       CompareGreaterThanInt64
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_2Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsSSE4_2Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsSSE4_2;
+    IntrinsicMapType    _mapIntrinsicsSSE4_2;    //!< The internal lookup-table of intrinsic functions.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_2Enum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsSSE4_2, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsSSE4_2Enum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1239,17 +1380,16 @@ namespace Vectorization
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsSSE4_2Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsSSE4_2Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_2, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsSSE4_2, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsSSE4_2, "SSE4.2");
-    }
 
 
   private:
@@ -1272,8 +1412,12 @@ namespace Vectorization
     //@}
   };
 
+  //@}
 
-  // AVX instruction sets
+
+
+  /** \name AVX instruction sets */
+  //@{
 
   /** \brief  Implementation of the <b>Advanced Vector Extensions</b> instruction-set. */
   class InstructionSetAVX : public InstructionSetBase
@@ -1282,6 +1426,7 @@ namespace Vectorization
 
     friend class InstructionSetBase;
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>AVX</b>. */
     enum class IntrinsicsAVXEnum
     {
       AddDouble,          AddFloat,
@@ -1315,25 +1460,33 @@ namespace Vectorization
     };
 
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVXEnum >   IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVXEnum >   IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType        _mapIntrinsicsAVX;
-    InstructionSetBasePtr   _spFallbackInstructionSet;
+    IntrinsicMapType        _mapIntrinsicsAVX;          //!< The internal lookup-table of intrinsic functions.
+    InstructionSetBasePtr   _spFallbackInstructionSet;  //!< A shared-pointer to the referenced SSE fallback instruction set.
 
 
+    /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
+     *  \param  eIntrinID       The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments  A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
       return InstructionSetBase::_CreateFunctionCall(_mapIntrinsicsAVX, eIntrinID, crvecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function without any call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.  */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID)
     {
       return _CreateFunctionCall(eIntrinID, ClangASTHelper::ExpressionVectorType());
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with one call parameter.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the argument of the function. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1343,6 +1496,10 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with two call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1353,6 +1510,11 @@ namespace Vectorization
       return _CreateFunctionCall(eIntrinID, vecArguments);
     }
 
+    /** \brief  Creates a function call expression object to an intrinsic function with three call parameters.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function.
+     *  \param  pArg1       A pointer to the expression object, which serves as the first argument.
+     *  \param  pArg2       A pointer to the expression object, which serves as the second argument.
+     *  \param  pArg3       A pointer to the expression object, which serves as the third argument. */
     inline ::clang::CallExpr* _CreateFunctionCall(IntrinsicsAVXEnum eIntrinID, ::clang::Expr *pArg1, ::clang::Expr *pArg2, ::clang::Expr *pArg3)
     {
       ClangASTHelper::ExpressionVectorType vecArguments;
@@ -1365,23 +1527,24 @@ namespace Vectorization
     }
 
 
+    /** \brief  Returns the qualified Clang return type of an intrinsic function.
+     *  \param  eIntrinID   The internal ID of the requested intrinsic function, whose return type shall be retrieved. */
     inline ::clang::QualType _GetFunctionReturnType(IntrinsicsAVXEnum eIntrinID)
     {
       return InstructionSetBase::_GetFunctionReturnType(_mapIntrinsicsAVX, eIntrinID);
     }
 
 
-    inline void _InitIntrinsic(IntrinsicsAVXEnum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsAVXEnum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsAVX, "AVX");
-    }
 
 
     inline void _ThrowUnsupportedType(VectorElementTypes eType)
@@ -1478,29 +1641,29 @@ namespace Vectorization
     typedef InstructionSetAVX     BaseType;
 
 
+    /** \brief  Enumeration of all internal IDs for the intrinsic functions of the instruction set <b>AVX 2</b>. */
     enum class IntrinsicsAVX2Enum
     {
     };
 
-    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVX2Enum >  IntrinsicMapType;
+    typedef InstructionSetBase::IntrinsicMapTemplateType< IntrinsicsAVX2Enum >  IntrinsicMapType;   //!< Type definition for the lookup-table of intrinsic functions.
 
 
   private:
 
-    IntrinsicMapType    _mapIntrinsicsAVX2;
+    IntrinsicMapType    _mapIntrinsicsAVX2;    //!< The internal lookup-table of intrinsic functions.
 
 
-    inline void _InitIntrinsic(IntrinsicsAVX2Enum eIntrinType, std::string strIntrinName)
+    /** \brief  Establishes a link between the name and the internal ID of a specific intrinsic function.
+     *  \param  eIntrinID       The internal ID of the intrinsic function.
+     *  \param  strIntrinName   The name of the intrinsic function. */
+    inline void _InitIntrinsic(IntrinsicsAVX2Enum eIntrinID, std::string strIntrinName)
     {
-      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX2, eIntrinType, strIntrinName);
+      InstructionSetBase::_InitIntrinsic(_mapIntrinsicsAVX2, eIntrinID, strIntrinName);
     }
 
+    /** \brief  Maps all used intrinsic functions to their corresponding internal IDs. */
     void _InitIntrinsicsMap();
-
-    inline void _LookupIntrinsics()
-    {
-      InstructionSetBase::_LookupIntrinsics(_mapIntrinsicsAVX2, "AVX2");
-    }
 
 
   protected:
@@ -1515,6 +1678,8 @@ namespace Vectorization
     }
 
   };
+
+  //@}
 } // end namespace Vectorization
 } // end namespace Backend
 } // end namespace hipacc

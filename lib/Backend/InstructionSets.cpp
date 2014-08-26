@@ -380,7 +380,7 @@ InstructionSetSSE::InstructionSetSSE(ASTContext &rAstContext) : InstructionSetBa
 
   _CreateMissingIntrinsicsSSE();  // Only required due to Clang's incomplete intrinsic headers
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSE, "SSE" );
 }
 
 void InstructionSetSSE::_CheckElementType(VectorElementTypes eElementType) const
@@ -785,7 +785,7 @@ InstructionSetSSE2::InstructionSetSSE2(ASTContext &rAstContext) : BaseType(rAstC
 
   _CreateMissingIntrinsicsSSE2();  // Only required due to Clang's incomplete intrinsic headers
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSE2, "SSE2" );
 }
 
 Expr* InstructionSetSSE2::_ArithmeticOpInteger(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -2691,7 +2691,7 @@ InstructionSetSSE3::InstructionSetSSE3(ASTContext &rAstContext) : BaseType(rAstC
 {
   _InitIntrinsicsMap();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSE3, "SSE3" );
 }
 
 Expr* InstructionSetSSE3::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
@@ -2771,7 +2771,7 @@ InstructionSetSSSE3::InstructionSetSSSE3(ASTContext &rAstContext) : BaseType(rAs
 {
   _InitIntrinsicsMap();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSSE3, "SSSE3" );
 }
 
 Expr* InstructionSetSSSE3::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
@@ -2991,7 +2991,7 @@ InstructionSetSSE4_1::InstructionSetSSE4_1(ASTContext &rAstContext) : BaseType(r
 
   _CreateMissingIntrinsicsSSE4_1();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSE4_1, "SSE4.1" );
 }
 
 Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
@@ -3099,21 +3099,6 @@ Expr* InstructionSetSSE4_1::_ConvertVector(VectorElementTypes eSourceType, Vecto
   return BaseType::_ConvertVector(eSourceType, eTargetType, crvecVectorRefs, uiGroupIndex, bMaskConversion);
 }
 
-Expr* InstructionSetSSE4_1::_ExtractElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, Expr *pVectorRef, uint32_t uiIndex)
-{
-  _CheckExtractIndex(eElementType, uiIndex);
-
-  Expr *pExtractExpr = _CreateFunctionCall( eIntrinType, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
-
-  QualType qtReturnType = _GetClangType(eElementType);
-  if (qtReturnType != pExtractExpr->getType())
-  {
-    pExtractExpr = _CreateValueCast( pExtractExpr, qtReturnType, CK_IntegralCast );
-  }
-
-  return pExtractExpr;
-}
-
 void InstructionSetSSE4_1::_InitIntrinsicsMap()
 {
   // Blending functions
@@ -3171,19 +3156,6 @@ void InstructionSetSSE4_1::_InitIntrinsicsMap()
 
   // Testing functions
   _InitIntrinsic( IntrinsicsSSE4_1Enum::TestControl, "testc_si128" );
-}
-
-Expr* InstructionSetSSE4_1::_InsertElement(VectorElementTypes eElementType, IntrinsicsSSE4_1Enum eIntrinType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
-{
-  _CheckInsertIndex(eElementType, uiIndex);
-
-  if (eElementType == VectorElementTypes::Float)
-  {
-    pElementValue   = BroadCast(eElementType, pElementValue);
-    uiIndex       <<= 4;
-  }
-
-  return _CreateFunctionCall( eIntrinType, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
 }
 
 Expr* InstructionSetSSE4_1::ArithmeticOperator(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, Expr *pExprLHS, Expr *pExprRHS)
@@ -3267,25 +3239,56 @@ Expr* InstructionSetSSE4_1::BuiltinFunction(VectorElementTypes eElementType, Bui
 
 Expr* InstructionSetSSE4_1::ExtractElement(VectorElementTypes eElementType, Expr *pVectorRef, uint32_t uiIndex)
 {
+  _CheckExtractIndex( eElementType, uiIndex );
+
+  // Select the correct extraction intrinsic
+  IntrinsicsSSE4_1Enum eIntrinID = IntrinsicsSSE4_1Enum::ExtractInt8;
+
   switch (eElementType)
   {
-  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt8,  pVectorRef, uiIndex );
-  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt32, pVectorRef, uiIndex );
-  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _ExtractElement( eElementType, IntrinsicsSSE4_1Enum::ExtractInt64, pVectorRef, uiIndex );
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE4_1Enum::ExtractInt8;    break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE4_1Enum::ExtractInt32;   break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE4_1Enum::ExtractInt64;   break;
   default:                                                          return BaseType::ExtractElement( eElementType, pVectorRef, uiIndex );
   }
+
+  // Perform the actual extraction
+  Expr *pExtractExpr = _CreateFunctionCall( eIntrinID, pVectorRef, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
+
+  QualType qtReturnType = _GetClangType(eElementType);
+  if (qtReturnType != pExtractExpr->getType())
+  {
+    pExtractExpr = _CreateValueCast( pExtractExpr, qtReturnType, CK_IntegralCast );
+  }
+
+  return pExtractExpr;
 }
 
 Expr* InstructionSetSSE4_1::InsertElement(VectorElementTypes eElementType, Expr *pVectorRef, Expr *pElementValue, uint32_t uiIndex)
 {
+  _CheckInsertIndex( eElementType, uiIndex );
+
+  // Select the correct insertion intrinsic
+  IntrinsicsSSE4_1Enum eIntrinID = IntrinsicsSSE4_1Enum::InsertFloat;
+
   switch (eElementType)
   {
-  case VectorElementTypes::Float:                                   return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertFloat, pVectorRef, pElementValue, uiIndex );
-  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt8,  pVectorRef, pElementValue, uiIndex );
-  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt32, pVectorRef, pElementValue, uiIndex );
-  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  return _InsertElement( eElementType, IntrinsicsSSE4_1Enum::InsertInt64, pVectorRef, pElementValue, uiIndex );
+  case VectorElementTypes::Float:
+    {
+      // The insertion intrinsic for the element type "float" has a different syntax
+      eIntrinID       = IntrinsicsSSE4_1Enum::InsertFloat;
+      pElementValue   = BroadCast(eElementType, pElementValue);
+      uiIndex       <<= 4;
+      break;
+    }
+  case VectorElementTypes::Int8:  case VectorElementTypes::UInt8:   eIntrinID = IntrinsicsSSE4_1Enum::InsertInt8;   break;
+  case VectorElementTypes::Int32: case VectorElementTypes::UInt32:  eIntrinID = IntrinsicsSSE4_1Enum::InsertInt32;  break;
+  case VectorElementTypes::Int64: case VectorElementTypes::UInt64:  eIntrinID = IntrinsicsSSE4_1Enum::InsertInt64;  break;
   default:                                                          return BaseType::InsertElement( eElementType, pVectorRef, pElementValue, uiIndex );
   }
+
+  // Perform the actual insertion
+  return _CreateFunctionCall( eIntrinID, pVectorRef, pElementValue, _GetASTHelper().CreateIntegerLiteral(static_cast<int32_t>(uiIndex)) );
 }
 
 bool InstructionSetSSE4_1::IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, uint32_t uiParamCount) const
@@ -3328,7 +3331,7 @@ InstructionSetSSE4_2::InstructionSetSSE4_2(::clang::ASTContext &rAstContext) : B
 {
   _InitIntrinsicsMap();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsSSE4_2, "SSE4.2" );
 }
 
 void InstructionSetSSE4_2::_InitIntrinsicsMap()
@@ -3371,7 +3374,7 @@ InstructionSetAVX::InstructionSetAVX(ASTContext &rAstContext) : InstructionSetBa
 
   _CreateMissingIntrinsicsAVX();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsAVX, "AVX" );
 }
 
 Expr* InstructionSetAVX::_ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, uint32_t uiGroupIndex, bool bMaskConversion)
@@ -4650,7 +4653,7 @@ InstructionSetAVX2::InstructionSetAVX2(ASTContext &rAstContext) : BaseType(rAstC
 {
   _InitIntrinsicsMap();
 
-  _LookupIntrinsics();
+  InstructionSetBase::_LookupIntrinsics( _mapIntrinsicsAVX2, "AVX2" );
 }
 
 void InstructionSetAVX2::_InitIntrinsicsMap()
