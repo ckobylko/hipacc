@@ -377,6 +377,14 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    /** \brief    Internal function, which creates a vector conversion expression object.
+     *  \param    eSourceType       The vector element type present in the input vectors for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    crvecVectorRefs   A vector of the vectorized expressions, which return the input vectors for the conversion.
+     *  \param    uiGroupIndex      The index of the group of vector elements, which shall be used as input for the upward conversions.
+     *  \param    bMaskConversion   A flag indicating, whether the optimizations for vector mask conversions can be applied.
+     *  \remarks  This function is called by the common base implementations of <b>conversion</b> routines, which make sure that it is correctly parametrized.
+     *  \sa       _ConvertDown(), _ConvertSameSize(), _ConvertUp() */
     virtual ::clang::Expr* _ConvertVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion) = 0;
 
     //@}
@@ -386,8 +394,32 @@ namespace Vectorization
     /** \name Vector conversion translation methods */
     //@{
 
+    /** \brief    Internal function, which creates an expression object that converts and packs multiple vectors down to one vector with a smaller element size.
+     *  \param    eSourceType       The vector element type present in the input vectors for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    crvecVectorRefs   A vector of the vectorized expressions, which return the input vectors for the conversion.
+     *  \param    bMaskConversion   A flag indicating, whether the optimizations for vector mask conversions can be applied.
+     *  \remarks  This function is called by the public <b>conversion</b> routines, which make sure that it is correctly parametrized.
+     *  \sa       ConvertMaskDown(), ConvertVectorDown() */
     ::clang::Expr* _ConvertDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, bool bMaskConversion);
+
+    /** \brief    Internal function, which creates an expression object that converts one vector into another one with the same element type size.
+     *  \param    eSourceType       The vector element type present in the input vector for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef        A pointer to a vectorized expression, which returns the input vector for the conversion.
+     *  \param    bMaskConversion   A flag indicating, whether the optimizations for vector mask conversions can be applied.
+     *  \remarks  This function is called by the public <b>conversion</b> routines, which make sure that it is correctly parametrized.
+     *  \sa       ConvertMaskSameSize(), ConvertVectorSameSize() */
     ::clang::Expr* _ConvertSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, bool bMaskConversion);
+
+    /** \brief    Internal function, which creates an expression object that selects a group of elements of one vector and converts it into a vector of larger element type size.
+     *  \param    eSourceType       The vector element type present in the input vector for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef        A pointer to a vectorized expression, which returns the input vector for the conversion.
+     *  \param    uiGroupIndex      The index of the group of vector elements, which shall be used as input for the upward conversions.
+     *  \param    bMaskConversion   A flag indicating, whether the optimizations for vector mask conversions can be applied.
+     *  \remarks  This function is called by the public <b>conversion</b> routines, which make sure that it is correctly parametrized.
+     *  \sa       ConvertMaskUp(), ConvertVectorUp() */
     ::clang::Expr* _ConvertUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex, bool bMaskConversion);
 
     //@}
@@ -397,32 +429,65 @@ namespace Vectorization
     /** \name Instruction set abstraction methods */
     //@{
 
+    /** \brief    Creates an expression object, which converts and packs multiple vector masks down to one vector mask with a smaller element size.
+     *  \param    eSourceType       The vector element type present in the input vector masks for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    crvecVectorRefs   A vector of the vectorized expressions, which return the input vector masks for the conversion.
+     *  \remarks  This function is fulfilling basically the same functionality as ConvertVectorDown(), but it uses optimized conversion paths for vector masks. */
     inline ::clang::Expr* ConvertMaskDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs)
     {
       return _ConvertDown(eSourceType, eTargetType, crvecVectorRefs, true);
     }
 
+    /** \brief    Creates an expression object, which converts one vector mask into another one with the same element type size.
+     *  \param    eSourceType   The vector element type present in the input vector mask for the conversion.
+     *  \param    eTargetType   The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef    A pointer to a vectorized expression, which returns the input vector mask for the conversion.
+     *  \remarks  This function is fulfilling basically the same functionality as ConvertVectorSameSize(), but it uses optimized conversion paths for vector masks. */
     inline ::clang::Expr* ConvertMaskSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef)
     {
       return _ConvertSameSize(eSourceType, eTargetType, pVectorRef, true);
     }
 
+    /** \brief    Creates an expression object, which selects a group of elements of one vector mask and converts it into a vector mask of larger element type size.
+     *  \param    eSourceType   The vector element type present in the input vector mask for the conversion.
+     *  \param    eTargetType   The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef    A pointer to a vectorized expression, which returns the input vector mask for the conversion.
+     *  \param    uiGroupIndex  The index of the group of vector mask elements, which shall be used as input for the upward conversions.
+     *  \remarks  This function is fulfilling basically the same functionality as ConvertVectorUp(), but it uses optimized conversion paths for vector masks. */
     inline ::clang::Expr* ConvertMaskUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex)
     {
       return _ConvertUp(eSourceType, eTargetType, pVectorRef, uiGroupIndex, true);
     }
 
 
+    /** \brief    Creates an expression object, which converts and packs multiple vectors down to one vector with a smaller element size.
+     *  \param    eSourceType       The vector element type present in the input vectors for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    crvecVectorRefs   A vector of the vectorized expressions, which return the input vectors for the conversion.
+     *  \remarks  The number of input vectors must be equal to the size spread of the source and target type, e.g. if the element type size is reduced by the factor
+                  of two, two vectors must be given as input parameters for this conversion. */
     inline ::clang::Expr* ConvertVectorDown(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs)
     {
       return _ConvertDown(eSourceType, eTargetType, crvecVectorRefs, false);
     }
 
+    /** \brief    Creates an expression object, which converts one vector into another one with the same element type size.
+     *  \param    eSourceType   The vector element type present in the input vector for the conversion.
+     *  \param    eTargetType   The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef    A pointer to a vectorized expression, which returns the input vector for the conversion. */
     inline ::clang::Expr* ConvertVectorSameSize(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef)
     {
       return _ConvertSameSize(eSourceType, eTargetType, pVectorRef, false);
     }
 
+    /** \brief    Creates an expression object, which selects a group of elements of one vector and converts it into a vector of larger element type size.
+     *  \param    eSourceType   The vector element type present in the input vector for the conversion.
+     *  \param    eTargetType   The requested vector element type for the output of the conversion.
+     *  \param    pVectorRef    A pointer to a vectorized expression, which returns the input vector for the conversion.
+     *  \param    uiGroupIndex  The index of the group of vector elements, which shall be used as input for the upward conversions.
+     *  \remarks  The index of the vector element group must be smaller than the size spread between the source and target type, e.g. if the element type size is
+                  increased by the factor of four, the group index must lie in the range of [0; 3]. */
     inline ::clang::Expr* ConvertVectorUp(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef, std::uint32_t uiGroupIndex)
     {
       return _ConvertUp(eSourceType, eTargetType, pVectorRef, uiGroupIndex, false);
@@ -654,11 +719,19 @@ namespace Vectorization
     }
 
 
+    /** \brief  Returns an expressions, which performs a post-fixed unary increment or decrement operation on all elements of a vector.
+     *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePostfixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePostfixedUnaryOp(_mapIntrinsicsSSE, eIntrinID, eElementType, pVectorRef);
     }
 
+    /** \brief  Returns an expressions, which performs a pre-fixed unary increment or decrement operation on all elements of a vector.
+     *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePrefixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePrefixedUnaryOp(_mapIntrinsicsSSE, eIntrinID, eElementType, pVectorRef);
@@ -685,10 +758,15 @@ namespace Vectorization
     void _InitIntrinsicsMap();
 
 
+    /** \brief  Checks, whether a specific vector element type is supported by this instruction set, and throws an exception if this is not the case.
+     *  \param  eElementType  The vector element type, which shall be checked. */
     void _CheckElementType(VectorElementTypes eElementType) const;
 
-    template <class ExceptionType>
-    inline void _CheckIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const
+    /** \brief    Checks, whether a certain element index is valid for a vector with a specific element type, and throws an exception if this is not the case.
+     *  \tparam   ExceptionType   The type of the exception, which shall be thrown if the element index is out of range.
+     *  \param    eElementType    The vector element type, which shall be checked.
+     *  \param    uiIndex         The element index, which shall be checked for correct range. */
+    template <class ExceptionType> inline void _CheckIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const
     {
       uint32_t uiUpperLimit = GetVectorElementCount(eElementType) - 1;
 
@@ -703,16 +781,37 @@ namespace Vectorization
     InstructionSetSSE(::clang::ASTContext &rAstContext);
 
 
+    /** \brief    Checks, whether a certain element index is valid for an element extraction with a specific vector element type.
+     *  \param    eElementType    The vector element type, which shall be checked.
+     *  \param    uiIndex         The element index, which shall be checked for correct range. */
     inline void _CheckExtractIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const  { _CheckIndex< InstructionSetExceptions::ExtractIndexOutOfRange >(eElementType, uiIndex); }
+
+    /** \brief    Checks, whether a certain element index is valid for an element insertion with a specific vector element type.
+     *  \param    eElementType    The vector element type, which shall be checked.
+     *  \param    uiIndex         The element index, which shall be checked for correct range. */
     inline void _CheckInsertIndex(VectorElementTypes eElementType, std::uint32_t uiIndex) const   { _CheckIndex< InstructionSetExceptions::InsertIndexOutOfRange  >(eElementType, uiIndex); }
 
+
+    /** \brief  Returns the common prefix for all intrinsic functions of the AVX instruction set family. */
     static inline std::string _GetIntrinsicPrefix() { return "_mm_"; }
 
 
+    /** \brief  Returns an expression, which creates a vector with all element value bits set to <b>one</b>.
+     *  \param  eElementType  The requested element type stored in the vector.  */
     virtual ::clang::Expr* _CreateFullBitMask(VectorElementTypes eElementType);
 
+    /** \brief  Returns an expression, which merges either the low or the high halves of two vectors into one vector by concatenation.
+     *  \param  eElementType  The requested element type stored in the vector.
+     *  \param  pVectorRef1   A pointer to a vectorized expression, which returns the first vector for the merging operation.
+     *  \param  pVectorRef2   A pointer to a vectorized expression, which returns the second vector for the merging operation.
+     *  \param  bLowHalf      A flag indicating, whether the low halves or the high halves of the vectors shall be merged. */
     ::clang::Expr* _MergeVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
 
+    /** \brief  Returns an expression, which element-wise interleaves either the low or the high halves of two vectors into one vector.
+     *  \param  eElementType  The requested element type stored in the vector.
+     *  \param  pVectorRef1   A pointer to a vectorized expression, which returns the first vector for the interleaving operation.
+     *  \param  pVectorRef2   A pointer to a vectorized expression, which returns the second vector for the interleaving operation.
+     *  \param  bLowHalf      A flag indicating, whether the low halves or the high halves of the vectors shall be interleaved. */
     virtual ::clang::Expr* _UnpackVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf);
 
 
@@ -885,11 +984,19 @@ namespace Vectorization
     }
 
 
+    /** \brief  Returns an expressions, which performs a post-fixed unary increment or decrement operation on all elements of a vector.
+     *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePostfixedUnaryOp(IntrinsicsSSE2Enum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePostfixedUnaryOp(_mapIntrinsicsSSE2, eIntrinID, eElementType, pVectorRef);
     }
 
+    /** \brief  Returns an expressions, which performs a pre-fixed unary increment or decrement operation on all elements of a vector.
+     *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePrefixedUnaryOp(IntrinsicsSSE2Enum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
       return InstructionSetBase::_CreatePrefixedUnaryOp(_mapIntrinsicsSSE2, eIntrinID, eElementType, pVectorRef);
@@ -918,10 +1025,36 @@ namespace Vectorization
 
   private:
 
+    /** \brief  Internal function, which handles the creation of arithmetic operation expressions for integer vectors.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  eOpType       The type of the requested arithmetic operator.
+     *  \param  pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the arithmetic operation.
+     *  \param  pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the arithmetic operation. */
     ::clang::Expr* _ArithmeticOpInteger(VectorElementTypes eElementType, ArithmeticOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
+
+    /** \brief    Internal function, which emulates relational operations for 64-bit integer vectors by a vector splitting and a series of scalar operations.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the relational operation.
+     *  \param    pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the relational operation.
+     *  \param    eOpKind       The Clang-specific ID of the requested scalar relational operator.
+     *  \return   An expression object, which returns the re-built result vector mask, containing the series of scalar operations. */
     ::clang::Expr* _CompareInt64(VectorElementTypes eElementType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS, ::clang::BinaryOperatorKind eOpKind);
+
+    /** \brief  Internal function, which handles the creation of relational operator expressions for integer vectors.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  eOpType       The type of the requested relational operator.
+     *  \param  pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the relational operation.
+     *  \param  pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the relational operation. */
     ::clang::Expr* _RelationalOpInteger(VectorElementTypes eElementType, RelationalOperatorType eOpType, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
+
+    /** \brief    Internal function, which emulates a not supported arithmetic operation for integer vectors by a vector splitting and a series of scalar operations.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    eOpKind       The Clang-specific ID of the requested scalar arithmetic operator.
+     *  \param    pExprLHS      A pointer to the vectorized expression object, which returns the left-hand-side value of the arithmetic operation.
+     *  \param    pExprRHS      A pointer to the vectorized expression object, which returns the right-hand-side value of the arithmetic operation.
+     *  \return   An expression object, which returns the re-built result vector, containing the series of scalar operations. */
     ::clang::Expr* _SeparatedArithmeticOpInteger(VectorElementTypes eElementType, ::clang::BinaryOperatorKind eOpKind, ::clang::Expr *pExprLHS, ::clang::Expr *pExprRHS);
+
 
   protected:
 
@@ -930,6 +1063,10 @@ namespace Vectorization
 
     virtual ::clang::Expr* _CreateFullBitMask(VectorElementTypes eElementType) final override;
 
+    /** \brief  Returns an expression, which shifts the contents of a vector across element boundaries by a specified amount of bytes.
+     *  \param  pVectorRef    A pointer to a vectorized expression object, which returns the vector whose contents shall be shifted.
+     *  \param  uiByteCount   The number of bytes, by which the vector contents shall be shifted.
+     *  \param  bShiftLeft    A flag indicating, whether the vector contents shall be shifted to the left or to the right. */
     ::clang::Expr* _ShiftIntegerVectorBytes(::clang::Expr *pVectorRef, std::uint32_t uiByteCount, bool bShiftLeft);
 
     virtual ::clang::Expr* _UnpackVectors(VectorElementTypes eElementType, ::clang::Expr *pVectorRef1, ::clang::Expr *pVectorRef2, bool bLowHalf) final override;
@@ -1466,7 +1603,7 @@ namespace Vectorization
   private:
 
     IntrinsicMapType        _mapIntrinsicsAVX;          //!< The internal lookup-table of intrinsic functions.
-    InstructionSetBasePtr   _spFallbackInstructionSet;  //!< A shared-pointer to the referenced SSE fallback instruction set.
+    InstructionSetBasePtr   _spFallbackInstructionSet;  //!< A shared pointer to the referenced SSE fallback instruction set.
 
 
     /** \brief  Base function for the creation of function call expression objects to intrinsic functions.
@@ -1547,6 +1684,8 @@ namespace Vectorization
     void _InitIntrinsicsMap();
 
 
+    /** \brief  Throws an exception, which indicates that a specific vector element type is not supported in this instruction set.
+     *  \param  eType   The vector element, whose use raised this error. */
     inline void _ThrowUnsupportedType(VectorElementTypes eType)
     {
       throw RuntimeErrorException( std::string("The element type \"") + AST::BaseClasses::TypeInfo::GetTypeString(eType) +
@@ -1558,27 +1697,63 @@ namespace Vectorization
 
     InstructionSetAVX(::clang::ASTContext &rAstContext);
 
+
+    /** \brief  Returns a shared pointer to the SSE fallback instruction set. */
     inline InstructionSetBasePtr _GetFallback()   { return _spFallbackInstructionSet; }
 
+    /** \brief  Returns the common prefix for all intrinsic functions of the AVX instruction set family. */
     static inline std::string _GetIntrinsicPrefix() { return "_mm256_"; }
 
 
+    /** \brief    Creates an expression, which casts one vector type into another one.
+     *  \param    eSourceType   The vector element type, which is present in the input vector for the cast operation.
+     *  \param    eTargetType   The desired vector element type in the return value of the cast.
+     *  \param    pVectorRef    A pointer to the vectorized expression object, which returns the vector that shall be casted.
+     *  \remarks  This operation only changes the syntactic type of a vector, it does not change the stored data. */
     ::clang::Expr*  _CastVector(VectorElementTypes eSourceType, VectorElementTypes eTargetType, ::clang::Expr *pVectorRef);
 
+    /** \brief  Returns an expression, which creates a vector with all element value bits set to <b>one</b>.
+     *  \param  eElementType  The requested element type stored in the vector. */
     ::clang::Expr*  _CreateFullBitMask(VectorElementTypes eElementType);
 
+    /** \brief  Returns an expression, which extracts one half of an AVX vector into a SSE vector.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  pAVXVector    A pointer to a vectorized expression, which returns the AVX vector used for the extraction.
+     *  \param  bLowHalf      A flag indicating, whether the low half or the high half of the AVX vector shall be extracted. */
     ::clang::Expr*  _ExtractSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, bool bLowHalf);
 
+    /** \brief  Returns an expression, which inserts the contents of an SSE vector into one half of an AVX vector.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  pAVXVector    A pointer to a vectorized expression, which returns the AVX vector where the contents of the SSE vector shall be inserted.
+     *  \param  pSSEVector    A pointer to a vectorized expression, which returns the SSE vector that shall be inserted into the AVX vector.
+     *  \param  bLowHalf      A flag indicating, whether the low half or the high half of the AVX vector shall be replaced. */
     ::clang::Expr*  _InsertSSEVector(VectorElementTypes eElementType, ::clang::Expr *pAVXVector, ::clang::Expr *pSSEVector, bool bLowHalf);
 
+    /** \brief  Returns an expression, which concatenates two SSE vectors into one AVX vector.
+     *  \param  eElementType    The element type stored in the vectors.
+     *  \param  pSSEVectorLow   A pointer to a vectorized expression, which returns the SSE vector that shall be used as low half of the AVX vector.
+     *  \param  pSSEVectorHigh  A pointer to a vectorized expression, which returns the SSE vector that shall be used as high half of the AVX vector. */
     ::clang::Expr*  _MergeSSEVectors(VectorElementTypes eElementType, ::clang::Expr *pSSEVectorLow, ::clang::Expr *pSSEVectorHigh);
 
 
+    /** \brief  Returns an expressions, which performs a unary increment or decrement operation on all elements of a vector.
+     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented.
+     *  \param  bPrefixed     A flag indicating, whether a pre-fixed or a post-fixed unary operation shall be created.
+     *  \param  bIncrement    A flag indicating, whether the created operation represents an increment or a decrement of the vector elements. */
     virtual ::clang::Expr*  _CreatePrePostFixedUnaryOp(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, bool bPrefixed, bool bIncrement);
 
 
   private:
 
+    /** \brief    Internal function, which creates an AVX vector conversion expression object with the use of the SSE fallback.
+     *  \param    eSourceType       The vector element type present in the input vectors for the conversion.
+     *  \param    eTargetType       The requested vector element type for the output of the conversion.
+     *  \param    crvecVectorRefs   A vector of the vectorized expressions, which return the input vectors for the conversion.
+     *  \param    uiGroupIndex      The index of the group of vector elements, which shall be used as input for the upward conversions.
+     *  \param    bMaskConversion   A flag indicating, whether the optimizations for vector mask conversions can be applied.
+     *  \remarks  This function is only called, when the conversion of AVX vectors cannot be expressed by the AVX instruction set itself.
+     *  \sa       _ConvertVector() */
     ::clang::Expr* _ConvertVectorWithSSE(VectorElementTypes eSourceType, VectorElementTypes eTargetType, const ClangASTHelper::ExpressionVectorType &crvecVectorRefs, std::uint32_t uiGroupIndex, bool bMaskConversion);
 
 
