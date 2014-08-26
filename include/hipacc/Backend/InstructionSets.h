@@ -61,20 +61,23 @@ namespace Vectorization
   typedef AST::Expressions::UnaryOperator::UnaryOperatorType              UnaryOperatorType;        //!< Type alias for the enumeration of all possible unary operators.
   typedef AST::Expressions::ArithmeticOperator::ArithmeticOperatorType    ArithmeticOperatorType;   //!< Type alias for the enumeration of all possible binary arithmetic operators.
   typedef AST::Expressions::RelationalOperator::RelationalOperatorType    RelationalOperatorType;   //!< Type alias for the enumeration of all possible binary relational operators.
-  typedef AST::VectorSupport::CheckActiveElements::CheckType              ActiveElementsCheckType;
+  typedef AST::VectorSupport::CheckActiveElements::CheckType              ActiveElementsCheckType;  //!< Type alias for the enumeration of all possible binary mask element check types.
 
 
+  /** \brief  Enumeration of supported special built-in vector functions. */
   enum class BuiltinFunctionsEnum
   {
-    Abs,
-    Ceil,
-    Floor,
-    Max,
-    Min,
-    Sqrt,
-    UnknownFunction
+    Abs,              //!< Internal ID for the element-wise <b>absolute value</b> function.
+    Ceil,             //!< Internal ID for the element-wise <b>round to next larger integer</b> function.
+    Floor,            //!< Internal ID for the element-wise <b>round to next smaller integer</b> function.
+    Max,              //!< Internal ID for the element-wise <b>maximum value</b> function.
+    Min,              //!< Internal ID for the element-wise <b>minimum value</b> function.
+    Sqrt,             //!< Internal ID for the element-wise <b>square root</b> function.
+    UnknownFunction   //!< Internal ID used as an indicator for unknown functions.
   };
 
+  /** \brief  Returns the string-identifer of a specific built-in vector function.
+   *  \param  eFunctionType   The internal ID of requested built-in function. */
   inline std::string GetBuiltinFunctionTypeString(BuiltinFunctionsEnum eFunctionType)
   {
     switch (eFunctionType)
@@ -90,10 +93,12 @@ namespace Vectorization
   }
 
 
+  /** \brief  Contains common exceptions, which can be thrown by the instruction set abstraction layer. */
   class InstructionSetExceptions final
   {
   public:
 
+    /** \brief  Indicates that a specified index has been out of range. */
     class IndexOutOfRange : public RuntimeErrorException
     {
     private:
@@ -107,6 +112,7 @@ namespace Vectorization
       IndexOutOfRange(std::string strMethodType, VectorElementTypes eElementType, std::uint32_t uiUpperLimit);
     };
 
+    /** \brief  Indicates that a specified index for an extraction operation has been out of range. */
     class ExtractIndexOutOfRange final : public IndexOutOfRange
     {
     private:
@@ -118,6 +124,7 @@ namespace Vectorization
       inline ExtractIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)  : BaseType("extraction", eElementType, uiUpperLimit)   {}
     };
 
+    /** \brief  Indicates that a specified index for an extraction operation has been out of range. */
     class InsertIndexOutOfRange final : public IndexOutOfRange
     {
     private:
@@ -129,6 +136,7 @@ namespace Vectorization
       inline InsertIndexOutOfRange(VectorElementTypes eElementType, std::uint32_t uiUpperLimit)   : BaseType("insertion", eElementType, uiUpperLimit)  {}
     };
 
+    /** \brief  Indicates that a requested special built-in vector function is not supported by a particular instruction set. */
     class UnsupportedBuiltinFunctionType final : public RuntimeErrorException
     {
     private:
@@ -142,6 +150,7 @@ namespace Vectorization
       UnsupportedBuiltinFunctionType(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount, std::string strInstructionSetName);
     };
 
+    /** \brief  Indicates that a requested vector conversion operation is not supported by a particular instruction set. */
     class UnsupportedConversion final : public RuntimeErrorException
     {
     private:
@@ -152,7 +161,6 @@ namespace Vectorization
 
       UnsupportedConversion(VectorElementTypes eSourceType, VectorElementTypes eTargetType, std::string strInstructionSetName);
     };
-
   };
 
 
@@ -161,33 +169,51 @@ namespace Vectorization
   {
   protected:
 
-    typedef std::pair< std::string, ::clang::FunctionDecl* >      IntrinsicInfoPairType;
+    typedef std::pair< std::string, ::clang::FunctionDecl* >      IntrinsicInfoPairType;    //!< Container for the name and function declaration object of an intrinsic function.
 
+    /** \brief  Generic type alias for the intrinsic function lookup tables of the instruction sets. */
     template < typename IntrinsicIDType >   using IntrinsicMapTemplateType = std::map< IntrinsicIDType, IntrinsicInfoPairType >;
 
   private:
 
-    typedef std::map< std::string, ClangASTHelper::FunctionDeclarationVectorType >   FunctionDeclMapType;
+    typedef std::map< std::string, ClangASTHelper::FunctionDeclarationVectorType >   FunctionDeclMapType;   //!< Internal type definition for a lookup table of function declarations.
 
-    ClangASTHelper        _ASTHelper;
-    FunctionDeclMapType   _mapKnownFuncDecls;
+    ClangASTHelper        _ASTHelper;           //!< The ClangASTHelper object encapsulating the current Clang AST context.
+    FunctionDeclMapType   _mapKnownFuncDecls;   //!< The lookup table of all known function declarations for each compilation run.
 
-    std::string           _strIntrinsicPrefix;
+    std::string           _strIntrinsicPrefix;  //!< The common prefix for all intrinsic functions of the derived instruction set (used to filter all known function declarations).
 
   protected:
 
+    /** \brief  Returns a reference to the current ClangASTHelper object. */
     inline ClangASTHelper& _GetASTHelper()   { return _ASTHelper; }
 
 
+    /** \brief  Returns an expression objects, which casts a pointer from one type to another.
+     *  \param  pPointerRef       A pointer to an expression object, which returns the pointer that shall be casted.
+     *  \param  crNewPointerType  The requested qualified Clang-type of the casted pointer. */
     ::clang::CastExpr* _CreatePointerCast(::clang::Expr *pPointerRef, const ::clang::QualType &crNewPointerType);
 
+    /** \brief  Returns an expression objects, which casts a scalar value into another type.
+     *  \param  pValueRef       A pointer to an expression object, which returns the scalar value that shall be casted.
+     *  \param  crNewValueType  The requested qualified Clang-type of the casted scalar value.
+     *  \param  eCastKind       The internal ID of the Clang-specific cast type. */
     ::clang::CastExpr* _CreateValueCast(::clang::Expr *pValueRef, const ::clang::QualType &crNewValueType, ::clang::CastKind eCastKind);
 
+    /** \brief  Returns the qualified Clang-specific type for a certain element type (not the vector).
+     *  \param  eType   The element type, whose Clang-specific counterpart shall be returned. */
     ::clang::QualType _GetClangType(VectorElementTypes eType);
 
+    /** \brief  Internal function, which returns all known function declaration objects with the specified name.
+     *  \param  strFunctionName   The fully qualified name of the requested function. */
     ClangASTHelper::FunctionDeclarationVectorType _GetFunctionDecl(std::string strFunctionName);
 
 
+    /** \brief  Generic base function for the creation of function call expression objects to intrinsic functions.
+     *  \tparam IntrinsicIDType   The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  crIntrinMap       A reference to the currently used intrinsic function lookup table.
+     *  \param  eIntrinID         The internal ID of the requested intrinsic function.
+     *  \param  crvecArguments    A vector containing the expression objects, which shall be used as arguments for the intrinsic function. */
     template < typename IntrinsicIDType >
     inline ::clang::CallExpr* _CreateFunctionCall(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, const ClangASTHelper::ExpressionVectorType &crvecArguments)
     {
@@ -206,6 +232,12 @@ namespace Vectorization
       return _ASTHelper.CreateFunctionCall( pIntrinsicDecl, crvecArguments );
     }
 
+    /** \brief  Generic base function for the creation of expression objects, which perform a post-fixed unary increment or decrement operation on all elements of a vector.
+     *  \tparam IntrinsicIDType   The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  crIntrinMap       A reference to the currently used intrinsic function lookup table.
+     *  \param  eIntrinID         The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType      The element type stored in the vector.
+     *  \param  pVectorRef        A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     template < typename IntrinsicIDType >
     inline ::clang::Expr* _CreatePostfixedUnaryOp(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
@@ -226,6 +258,12 @@ namespace Vectorization
       return _GetASTHelper().CreateParenthesisExpression( _GetASTHelper().CreateBinaryOperatorComma(pAssignment, pRevert) );
     }
 
+    /** \brief  Generic base function for the creation of expression objects, which perform a pre-fixed unary increment or decrement operation on all elements of a vector.
+     *  \tparam IntrinsicIDType   The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  crIntrinMap       A reference to the currently used intrinsic function lookup table.
+     *  \param  eIntrinID         The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
+     *  \param  eElementType      The element type stored in the vector.
+     *  \param  pVectorRef        A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     template < typename IntrinsicIDType >
     inline ::clang::Expr* _CreatePrefixedUnaryOp(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
@@ -238,6 +276,10 @@ namespace Vectorization
       return _GetASTHelper().CreateParenthesisExpression( _GetASTHelper().CreateBinaryOperator( pVectorRef, pPrefixOp, BO_Assign, pVectorRef->getType() ) );
     }
 
+    /** \brief  Generic base function for the retrival of the qualified Clang return type of an intrinsic function.
+     *  \tparam IntrinsicIDType   The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  crIntrinMap       A reference to the currently used intrinsic function lookup table.
+     *  \param  eIntrinID         The internal ID of the requested intrinsic function, whose return type shall be retrieved. */
     template < typename IntrinsicIDType >
     inline ::clang::QualType _GetFunctionReturnType(const IntrinsicMapTemplateType< IntrinsicIDType > &crIntrinMap, IntrinsicIDType eIntrinID)
     {
@@ -256,12 +298,22 @@ namespace Vectorization
       return pIntrinsicDecl->getResultType();
     }
 
+
+    /** \brief  Generic internal base function for creating the association between intrinsic function IDs and names.
+     *  \tparam IntrinsicIDType   The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  rIntrinMap        A reference to the currently used intrinsic function lookup table.
+     *  \param  eIntrinID         The internal ID of the intrinsic function.
+     *  \param  strIntrinName     The name of the intrinsic function. */
     template < typename IntrinsicIDType >
     inline void _InitIntrinsic(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, IntrinsicIDType eIntrinID, std::string strIntrinName)
     {
       rIntrinMap[eIntrinID] = IntrinsicInfoPairType(_strIntrinsicPrefix + strIntrinName, nullptr);
     }
 
+    /** \brief  Generic internal base function, which looks up the function declaration objects for all initialized intrinsic functions in the lookup table.
+     *  \tparam IntrinsicIDType         The type of the enumeration containing all the internal intrinsic function IDs.
+     *  \param  rIntrinMap              A reference to the currently used intrinsic function lookup table.
+     *  \param  strInstructionSetName   The name of the currently processed instruction set. */
     template < typename IntrinsicIDType >
     inline void _LookupIntrinsics(IntrinsicMapTemplateType< IntrinsicIDType > &rIntrinMap, std::string strInstructionSetName)
     {
@@ -303,6 +355,8 @@ namespace Vectorization
     }
 
 
+    /** \brief  Reverts the order of expressions in a vector of expression objects. 
+     *  \param  crvecExpressions  The vector of expression objects, whose order shall be reverted. */
     ClangASTHelper::ExpressionVectorType _SwapExpressionOrder(const ClangASTHelper::ExpressionVectorType &crvecExpressions);
 
 
@@ -310,14 +364,41 @@ namespace Vectorization
     /** \name Clang bugfixing helper methods */
     //@{
 
+    /** \brief    Base function for the creation of missing intrinsic function declaration objects
+     *  \param    strFunctionName   The requested name of newly declared intrinsic function.
+     *  \param    crReturnType      The requested qualified return type of newly declared intrinsic function.
+     *  \param    crvecArgTypes     A vector containing the requested qualified types of all function arguments.
+     *  \param    crvecArgNames     A vector containing the requested parameter names of all function arguments.
+     *  \remarks  The number of specified argument types must equal the number of specified argument names. */
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ClangASTHelper::QualTypeVectorType &crvecArgTypes,
                                       const ClangASTHelper::StringVectorType &crvecArgNames );
 
+    /** \brief  Creates a missing intrinsic function declaration object with one call parameter.
+     *  \param  strFunctionName   The requested name of newly declared intrinsic function.
+     *  \param  crReturnType      The requested qualified return type of newly declared intrinsic function.
+     *  \param  crArgType1        The requested qualified type of the first function argument.
+     *  \param  strArgName1       The requested parameter name of the first function argument. */
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1 );
 
+    /** \brief  Creates a missing intrinsic function declaration object with two call parameters.
+     *  \param  strFunctionName   The requested name of newly declared intrinsic function.
+     *  \param  crReturnType      The requested qualified return type of newly declared intrinsic function.
+     *  \param  crArgType1        The requested qualified type of the first function argument.
+     *  \param  strArgName1       The requested parameter name of the first function argument.
+     *  \param  crArgType2        The requested qualified type of the second function argument.
+     *  \param  strArgName2       The requested parameter name of the second function argument. */
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1,
                                       const ::clang::QualType &crArgType2, std::string strArgName2 );
 
+    /** \brief  Creates a missing intrinsic function declaration object with three call parameters.
+     *  \param  strFunctionName   The requested name of newly declared intrinsic function.
+     *  \param  crReturnType      The requested qualified return type of newly declared intrinsic function.
+     *  \param  crArgType1        The requested qualified type of the first function argument.
+     *  \param  strArgName1       The requested parameter name of the first function argument.
+     *  \param  crArgType2        The requested qualified type of the second function argument.
+     *  \param  strArgName2       The requested parameter name of the second function argument.
+     *  \param  crArgType3        The requested qualified type of the third function argument.
+     *  \param  strArgName3       The requested parameter name of the third function argument. */
     void _CreateIntrinsicDeclaration( std::string strFunctionName, const ::clang::QualType &crReturnType, const ::clang::QualType &crArgType1, std::string strArgName1,
                                       const ::clang::QualType &crArgType2, std::string strArgName2, const ::clang::QualType &crArgType3, std::string strArgName3 );
 
@@ -501,19 +582,38 @@ namespace Vectorization
       return CreateOnesVector(eElementType, false);
     }
 
+    /** \brief    Returns an expression, which creates a vector with explicitly specified elements.
+     *  \param    eElementType    The requested element type stored in the vector.
+     *  \param    crvecElements   A vector of scalar expressions objects, which return the initialization values for the vector elements.
+     *  \remarks  The number of scalar input expressions must be equal to the number of vector elements.
+     *  \sa       GetVectorElementCount() */
     inline ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements)
     {
       return CreateVector(eElementType, crvecElements, false);
     }
 
 
+    /** \brief  Returns the number of elements, which are stored in a vector with a specified element type.
+     *  \param  eElementType  The element type stored in the vector. */
     inline  size_t GetVectorElementCount(VectorElementTypes eElementType) const    { return GetVectorWidthBytes() / AST::BaseClasses::TypeInfo::GetTypeSize(eElementType); }
 
+    /** \brief  Returns the qualified Clang-specific type of a vector variable with a specified element type.
+     *  \param  eElementType  The element type stored in the vector. */
     virtual ::clang::QualType GetVectorType(VectorElementTypes eElementType) = 0;
+
+    /** \brief  Returns the size of a vector register in bytes. */
     virtual size_t            GetVectorWidthBytes() const = 0;
 
 
+    /** \brief  Checks, whether a specific built-in vector function is supported by the instruction set.
+     *  \param  eElementType    The element type stored in the vector.
+     *  \param  eFunctionType   The internal ID of the requested built-in vector function.
+     *  \param  uiParamCount    The number of parameters for the built-in function.
+     */
     virtual bool IsBuiltinFunctionSupported(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, std::uint32_t uiParamCount) const = 0;
+
+    /** \brief  Checks, whether a specific vector element type is supported for the instruction set.
+     *  \param  eElementType  The element type stored in the vector. */
     virtual bool IsElementTypeSupported(VectorElementTypes eElementType) const = 0;
 
 
@@ -538,8 +638,25 @@ namespace Vectorization
      *  \param  pBroadCastValue   A pointer to the scalar expression object, whose return value shall be broadcasted. */
     virtual ::clang::Expr* BroadCast(VectorElementTypes eElementType, ::clang::Expr *pBroadCastValue) = 0;
 
+    /** \brief    Returns an expression, which calls a special built-in vector function.
+     *  \param    eElementType    The element type stored in the vector.
+     *  \param    eFunctionType   The internal ID of the built-in vector function.
+     *  \param    crvecArguments  A vector of expression objects, which return the call parameters for the built-in function.
+     *  \remarks  If the requested built-in function is not supported, an <b>UnsupportedBuiltinFunctionType</b> exception will be thrown.
+     *  \sa       IsBuiltinFunctionSupported(), InstructionSetExceptions::UnsupportedBuiltinFunctionType */
     virtual ::clang::Expr* BuiltinFunction(VectorElementTypes eElementType, BuiltinFunctionsEnum eFunctionType, const ClangASTHelper::ExpressionVectorType &crvecArguments) = 0;
+
+    /** \brief  Returns an expression, which collapses the values of the elements in a vector mask into a scalar boolean value.
+     *  \param  eMaskElementType  The element type stored in the vector mask.
+     *  \param  eCheckType        The type of the checking operation, which shall be performed on the vector mask.
+     *  \param  pMaskExpr         A pointer to a vectorized expression object, which returns a vector mask. */
     virtual ::clang::Expr* CheckActiveElements(VectorElementTypes eMaskElementType, ActiveElementsCheckType eCheckType, ::clang::Expr *pMaskExpr) = 0;
+
+    /** \brief    Returns an expression, which checks whether a specified element of a vector mask is set.
+     *  \param    eMaskElementType  The element type stored in the vector mask.
+     *  \param    pMaskExpr         A pointer to a vectorized expression object, which returns a vector mask.
+     *  \param    uiIndex           The index of the vector mask element, which shall be checked.
+     *  \remarks  The return value of the created expression object is a scalar boolean value. */
     virtual ::clang::Expr* CheckSingleMaskElement(VectorElementTypes eMaskElementType, ::clang::Expr *pMaskExpr, std::uint32_t uiIndex) = 0;
 
     /** \brief  Returns an expression, which creates a vector with all elements set to <b>one</b>.
@@ -547,15 +664,47 @@ namespace Vectorization
      *  \param  bNegative     A flag indicating, whether the vector elements shall be set to <b>-1</b> or <b>+1</b>. */
     virtual ::clang::Expr* CreateOnesVector(VectorElementTypes eElementType, bool bNegative) = 0;
 
+    /** \brief    Returns an expression, which creates a vector with explicitly specified elements.
+     *  \param    eElementType    The requested element type stored in the vector.
+     *  \param    crvecElements   A vector of scalar expressions objects, which return the initialization values for the vector elements.
+     *  \param    bReversedOrder  A flag indicating, whether the vector elements shall be set in reversed or specified order.
+     *  \remarks  The number of scalar input expressions must be equal to the number of vector elements.
+     *  \sa       GetVectorElementCount() */
     virtual ::clang::Expr* CreateVector(VectorElementTypes eElementType, const ClangASTHelper::ExpressionVectorType &crvecElements, bool bReversedOrder) = 0;
 
     /** \brief  Returns an expression, which creates a vector with all elements set to <b>zero</b>.
      *  \param  eElementType  The requested element type stored in the vector. */
     virtual ::clang::Expr* CreateZeroVector(VectorElementTypes eElementType) = 0;
 
+    /** \brief    Returns an expression, which extracts a specified element from a vector.
+     *  \param    eElementType  The element type stored in the vector.
+     *  \param    pVectorRef    A pointer to a vectorized expression, which returns the vector for the element extraction.
+     *  \param    uiIndex       The index of the element, which shall be extracted.
+     *  \remarks  The specified element index must be smaller than the amount of elements stored in the vector.
+     *  \sa       GetVectorElementCount() */
     virtual ::clang::Expr* ExtractElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, std::uint32_t uiIndex) = 0;
+
+    /** \brief    Returns an expression, which inserts an element into a vector at a specified position.
+     *  \param    eElementType    The element type stored in the vector.
+     *  \param    pVectorRef      A pointer to a vectorized expression, which returns the vector where the element shall be inserted into.
+     *  \param    pElementValue   A pointer to a scalar expression, which returns the element that shall be inserted.
+     *  \param    uiIndex         The index of the element position in the vector, where the element shall be inserted.
+     *  \remarks  The specified element index must be smaller than the amount of elements stored in the vector.
+     *  \sa       GetVectorElementCount() */
     virtual ::clang::Expr* InsertElement(VectorElementTypes eElementType, ::clang::Expr *pVectorRef, ::clang::Expr *pElementValue, std::uint32_t uiIndex) = 0;
+
+    /** \brief  Returns an expression, which reads a vector value from memory.
+     *  \param  eElementType  The element type stored in the vector.
+     *  \param  pPointerRef   A pointer to an expression object, which returns a pointer to the desired memory location. */
     virtual ::clang::Expr* LoadVector(VectorElementTypes eElementType, ::clang::Expr *pPointerRef) = 0;
+
+    /** \brief    Returns an expression, which describes a <b>gather read</b> operation from multiple memory locations.
+     *  \param    eElementType        The element type stored in the loaded vector.
+     *  \param    eIndexElementType   The element type used for the index vectors.
+     *  \param    pPointerRef         A pointer to an expression object, which returns a pointer to the desired memory base location.
+     *  \param    crvecIndexExprs     A vector of vectorized expressions objects, which return the index vectors for the element-wise memory transactions of the gather read.
+     *  \param    uiGroupIndex        The index of the group of index vector elements that shall be used as offsets for element-wise memory transactions.
+     *  \remarks  Currently, only 32-bit and 64-bit integers are supported as index element type, and same restrictions apply as in the case of the conversion methods. */
     virtual ::clang::Expr* LoadVectorGathered(VectorElementTypes eElementType, VectorElementTypes eIndexElementType, ::clang::Expr *pPointerRef, const ClangASTHelper::ExpressionVectorType &crvecIndexExprs, uint32_t uiGroupIndex) = 0;
 
     /** \brief    Returns an expression, which performs an element-wise binary relational operation on two vector values.
@@ -721,7 +870,7 @@ namespace Vectorization
 
     /** \brief  Returns an expressions, which performs a post-fixed unary increment or decrement operation on all elements of a vector.
      *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
-     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  eElementType  The element type stored in the vector.
      *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePostfixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
@@ -730,7 +879,7 @@ namespace Vectorization
 
     /** \brief  Returns an expressions, which performs a pre-fixed unary increment or decrement operation on all elements of a vector.
      *  \param  eIntrinID     The internal ID of the intrinsic, which represents an addition or a subtraction for the current vector element type.
-     *  \param  eElementType  The element type stored in the vectors.
+     *  \param  eElementType  The element type stored in the vector.
      *  \param  pVectorRef    A pointer to a vectorized expression, which returns the vector that shall be incremented or decremented. */
     inline ::clang::Expr* _CreatePrefixedUnaryOp(IntrinsicsSSEEnum eIntrinID, VectorElementTypes eElementType, ::clang::Expr *pVectorRef)
     {
