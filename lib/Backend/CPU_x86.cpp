@@ -2248,30 +2248,6 @@ VectorElementTypes CPU_x86::VASTExportInstructionSet::_GetMaskElementType()
   return VectorElementTypes::UInt64;
 }
 
-CPU_x86::VASTExportInstructionSet::VectorElementTypesSetType CPU_x86::VASTExportInstructionSet::_GetUsedVectorElementTypes(AST::BaseClasses::ExpressionPtr spExpression)
-{
-  VectorElementTypesSetType setElementTypes;
-
-  // Add the result type of the current expression if it is a vectorized expression
-  if (spExpression->IsVectorized())
-  {
-    setElementTypes.insert( spExpression->GetResultType().GetType() );
-  }
-
-  // Parse all children
-  for (AST::IndexType iSubExprIdx = static_cast<AST::IndexType>(0); iSubExprIdx < spExpression->GetSubExpressionCount(); ++iSubExprIdx)
-  {
-    VectorElementTypesSetType setSubElementTypes = _GetUsedVectorElementTypes( spExpression->GetSubExpression(iSubExprIdx) );
-
-    for (auto itSubType : setSubElementTypes)
-    {
-      setElementTypes.insert( itSubType );
-    }
-  }
-
-  return std::move( setElementTypes );
-}
-
 size_t CPU_x86::VASTExportInstructionSet::_GetVectorArraySize(Vectorization::VectorElementTypes eElementType)
 {
   return max( static_cast<size_t>(1), _cVectorWidth / _spInstructionSet->GetVectorElementCount(eElementType) );
@@ -2426,7 +2402,7 @@ Expr* CPU_x86::VASTExportInstructionSet::_TranslateMemoryAccessToPointerRef(AST:
 }
 
 
-FunctionDecl* CPU_x86::VASTExportInstructionSet::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction, bool bUnrollVectorLoops)
+FunctionDecl* CPU_x86::VASTExportInstructionSet::ExportVASTFunction(AST::FunctionDeclarationPtr spVASTFunction)
 {
   if (! spVASTFunction)
   {
@@ -3307,7 +3283,7 @@ size_t CPU_x86::CodeGenerator::_GetVectorWidth(Vectorization::AST::FunctionDecla
 
       VASTExportInstructionSet Exporter( cszVectorWidth, rAstContext, _CreateInstructionSet(rAstContext) );
 
-      ::clang::FunctionDecl *pExportedKernelFunction = Exporter.ExportVASTFunction( spVecFunction, _bUnrollVectorLoops );
+      ::clang::FunctionDecl *pExportedKernelFunction = Exporter.ExportVASTFunction( spVecFunction );
 
 
       // Print all generated helper functions
