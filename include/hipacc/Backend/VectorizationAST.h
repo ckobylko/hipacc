@@ -1645,20 +1645,36 @@ namespace Vectorization
     };
 
 
+    /** \brief  Contains all class definitions for VAST nodes describing special vector expressions. */
     class VectorSupport final
     {
-    // Public type definitions
     public:
 
-      DEFINE_NODE_TYPES( VectorExpression );
-      DEFINE_NODE_TYPES( BroadCast );
-      DEFINE_NODE_TYPES( CheckActiveElements );
-      DEFINE_NODE_TYPES( VectorIndex );
+      /** \name Shared pointer type definitions */
+      //@{
+
+      class VectorExpression;
+      typedef std::shared_ptr< VectorExpression       >  VectorExpressionPtr;       //!< Shared pointer type for objects of class VectorExpression
+      typedef std::shared_ptr< const VectorExpression >  VectorExpressionConstPtr;  //!< Shared pointer type for constant objects of class VectorExpression
+
+      class BroadCast;
+      typedef std::shared_ptr< BroadCast       >  BroadCastPtr;       //!< Shared pointer type for objects of class BroadCast
+      typedef std::shared_ptr< const BroadCast >  BroadCastConstPtr;  //!< Shared pointer type for constant objects of class BroadCast
+
+      class CheckActiveElements;
+      typedef std::shared_ptr< CheckActiveElements       >  CheckActiveElementsPtr;       //!< Shared pointer type for objects of class CheckActiveElements
+      typedef std::shared_ptr< const CheckActiveElements >  CheckActiveElementsConstPtr;  //!< Shared pointer type for constant objects of class CheckActiveElements
+
+      class VectorIndex;
+      typedef std::shared_ptr< VectorIndex       >  VectorIndexPtr;       //!< Shared pointer type for objects of class VectorIndex
+      typedef std::shared_ptr< const VectorIndex >  VectorIndexConstPtr;  //!< Shared pointer type for constant objects of class VectorIndex
+
+      //@}
 
 
-    // Class definitions
     public:
 
+      /** \brief  Base class for all special vector expression classes. */
       class VectorExpression : public BaseClasses::Expression
       {
       protected:
@@ -1670,14 +1686,16 @@ namespace Vectorization
         virtual ~VectorExpression()  {}
       };
 
+      /** \brief    Describes an unary expression, which broadcasts the result of a scalar sub-expression into all elements of a vector.
+       *  \remarks  The result type of this expression is identical to the one of its sub-expression, but the vectorization marker will be set. */
       class BroadCast final : public VectorExpression
       {
       private:
 
         friend class AST;
 
-        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
-        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;        //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;   //!< Type alias for constant shared pointers to class <b>BaseClasses::Expression</b>.
 
       private:
 
@@ -1688,17 +1706,29 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  spSubExpression   A shared pointer to the expression object, which shall be used as the sub-expression. */
         static BroadCastPtr Create(ExpressionPtr spSubExpression = nullptr);
 
         virtual ~BroadCast()  {}
 
 
+        /** \brief  Returns a shared pointer to the currently referenced sub-expression. */
         inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
+
+        /** \brief  Returns a constant shared pointer to the currently referenced sub-expression. */
         inline ExpressionConstPtr   GetSubExpression() const                    { return _spSubExpression; }
+
+        /** \brief    Sets a new sub-expression.
+         *  \param    spSubExpr   A shared pointer to the new sub-expression.
+         *  \remarks  The sub-expression should return a scalar element value, which can be broadcasted into all elements of a vector. */
         inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
 
 
       public:
+
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
 
         virtual bool IsVectorized() final override      { return true; }
 
@@ -1708,25 +1738,36 @@ namespace Vectorization
         virtual IndexType       GetSubExpressionCount() const final override      { return static_cast< IndexType >( 1 ); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
 
+        // @}
+
+
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
+
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        // @}
       };
 
+      /** \brief    Describes an unary expression, which checks whether the elements inside of a vector mask fulfil a certain criterion.
+       *  \remarks  The result type of this expression is always a scalar boolean value. */
       class CheckActiveElements final : public VectorExpression
       {
       private:
 
         friend class AST;
 
-        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
-        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;        //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;   //!< Type alias for constant shared pointers to class <b>BaseClasses::Expression</b>.
 
       public:
 
+        /** \brief  Enumeration of all supported mask element checking types. */
         enum class CheckType
         {
-          All,
-          Any,
-          None
+          All,    //!< Internal ID which indicates, that all mask elements must be set.
+          Any,    //!< Internal ID which indicates, that at least one of the mask elements must be set.
+          None    //!< Internal ID which indicates, that none of the mask elements is allowed to be set.
         };
 
       private:
@@ -1739,22 +1780,43 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  eCheckType        The requested type of the mask element checking routine.
+         *  \param  spSubExpression   A shared pointer to the expression object, which shall be used as the sub-expression. */
         static CheckActiveElementsPtr Create(CheckType eCheckType = CheckType::All, ExpressionPtr spSubExpression = nullptr);
 
         virtual ~CheckActiveElements()  {}
 
 
+        /** \brief  Returns the string identifier of a specific mask element checking type.
+         *  \param  eType   The mask element checking type, whose string identifier shall be returned. */
         static std::string GetCheckTypeString(CheckType eType);
 
 
+        /** \brief  Returns the currently set mask element checking type. */
         inline CheckType  GetCheckType() const                    { return _eCheckType; }
+
+        /** \brief  Changes the mask element checking type.
+         *  \param  eNewCheckType   The requested new mask element checking type. */
         inline void       SetCheckType(CheckType eNewCheckType)   { _eCheckType = eNewCheckType; }
 
+
+        /** \brief  Returns a shared pointer to the currently referenced sub-expression. */
         inline ExpressionPtr        GetSubExpression()                          { return _spSubExpression; }
+
+        /** \brief  Returns a constant shared pointer to the currently referenced sub-expression. */
         inline ExpressionConstPtr   GetSubExpression() const                    { return _spSubExpression; }
+
+        /** \brief    Sets a new sub-expression.
+         *  \param    spSubExpr   A shared pointer to the new sub-expression.
+         *  \remarks  The sub-expression should evaluate to a vector mask, whose elements can then be checked. */
         inline void                 SetSubExpression(ExpressionPtr spSubExpr)   { _SetChildPtr(_spSubExpression, spSubExpr); }
 
+
       public:
+
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
 
         virtual bool IsVectorized() final override                            { return false; }
 
@@ -1764,17 +1826,27 @@ namespace Vectorization
         virtual IndexType       GetSubExpressionCount() const final override                                      { return static_cast< IndexType >(1); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
 
+        //@}
+
+
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
+
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        //@}
       };
 
+      /** \brief    Describes that an index vector shall be created with element values ranging from <b>zero</b> to <b>vector width - 1</b>.
+       *  \remarks  This expression is a leaf node, which always returns a vector of a specified type. */
       class VectorIndex final : public VectorExpression
       {
       private:
 
         friend class AST;
 
-        typedef BaseClasses::ExpressionPtr          ExpressionPtr;
-        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
+        typedef BaseClasses::ExpressionPtr          ExpressionPtr;    //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;       //!< Type alias for the enumeration of known element types.
 
       private:
 
@@ -1784,16 +1856,25 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  eType   The requested element type used for the index vector. */
         static VectorIndexPtr Create(KnownTypes eType = KnownTypes::Int32);
 
         virtual ~VectorIndex()  {}
 
 
+        /** \brief  Returns the currently set index element type. */
         inline KnownTypes   GetType() const                 { return _eType; }
+
+        /** \brief  Changes the element type for the index vector.
+         *  \param  eNewType  The requested new index element type. */
         inline void         SetType(KnownTypes eNewType)    { _eType = eNewType; }
 
 
       public:
+
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
 
         virtual bool IsVectorized() final override      { return true; }
 
@@ -1803,7 +1884,15 @@ namespace Vectorization
         virtual IndexType       GetSubExpressionCount() const final override                                      { return static_cast< IndexType >(0); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override  { throw ASTExceptions::ChildIndexOutOfRange(); }
 
+        //@}
+
+
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
+
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+
+        //@}
       };
     };
 
