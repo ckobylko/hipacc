@@ -1094,11 +1094,12 @@ namespace Vectorization
 
     public:
 
+      /** \brief  Base class for all VAST nodes, which specify or access value. */
       class Value : public BaseClasses::Expression
       {
       private:
 
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;    //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
 
       protected:
 
@@ -1109,18 +1110,21 @@ namespace Vectorization
         virtual ~Value()  {}
 
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) override                           { throw ASTExceptions::ChildIndexOutOfRange(); }
         virtual IndexType       GetSubExpressionCount() const override                                      { return static_cast< IndexType >(0); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) override  { throw ASTExceptions::ChildIndexOutOfRange(); }
+        //@}
       };
 
+      /** \brief  Describes all kinds of compile-time constant values, e.g. integer literals. */
       class Constant final : public Value
       {
       private:
 
         friend class AST;
-
-        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;
+        typedef BaseClasses::TypeInfo::KnownTypes   KnownTypes;   //!< Type alias for the enumeration of known element types.
 
         union
         {
@@ -1133,6 +1137,10 @@ namespace Vectorization
 
         inline Constant()   {}
 
+
+        /** \brief    Generic internal method, which handles changes of the numeric type of this constant.
+         *  \tparam   SourceValueType   The internal numeric type of this constant before the type-changing action.
+         *  \param    eNewType          The requested new element type of this constant. */
         template < typename SourceValueType >
         inline void _ChangeType(KnownTypes eNewType)
         {
@@ -1155,9 +1163,11 @@ namespace Vectorization
           }
         }
 
-
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \tparam ValueType   The numeric type, the Constant object shall represent. Allowed types are integral and floating-point types, as well as <b>bool</b>.
+         *  \param  TValue      The actual value, which shall be stored by this constant. */
         template <typename ValueType>
         static ConstantPtr Create(ValueType TValue)
         {
@@ -1171,11 +1181,18 @@ namespace Vectorization
         virtual ~Constant() {}
 
 
+        /** \brief  Returns the currently set element type of this constant. */
         inline BaseClasses::TypeInfo::KnownTypes  GetValueType() const    { return _eType; }
 
 
+        /** \brief    Changes the internal numeric type of this constant.
+         *  \param    eNewType  The requested new element type of this constant.
+         *  \remarks  This method can be used to implement cast operations on constants. */
         void  ChangeType(KnownTypes eNewType);
 
+        /** \brief    Returns the internally stored constant value.
+         *  \tparam   ValueType   The requested numeric type of the return value. Allowed types are integral and floating-point types, as well as <b>bool</b>.
+         *  \remarks  If the requested output value type does not equal the internal constant type, a loss of information can occur in the return value due to truncation. */
         template <typename ValueType> inline ValueType GetValue() const
         {
           static_assert(std::is_arithmetic< ValueType >::value, "Expected a numeric value type!");
@@ -1189,6 +1206,9 @@ namespace Vectorization
           }
         }
 
+        /** \brief  Sets a new internal value.
+         *  \tparam ValueType   The numeric type, the Constant object shall represent. Allowed types are integral and floating-point types, as well as <b>bool</b>.
+         *  \param  TValue      The requested new value, which shall be stored by this constant. */
         template <typename ValueType> inline void SetValue(ValueType TValue)
         {
           static_assert(std::is_arithmetic< ValueType >::value, "Expected a numeric value type!");
@@ -1216,13 +1236,23 @@ namespace Vectorization
         }
 
 
+        /** \brief  Returns the string representation of the internally stored constant value. */
         std::string GetAsString() const;
 
-        virtual BaseClasses::TypeInfo GetResultType() const final override;
+      public:
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+        //@}
+
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
+      /** \brief  Describes a simple reference to a declared variable in the current AST. */
       class Identifier final : public Value
       {
       private:
@@ -1238,36 +1268,58 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  strName   The unique name of the referenced variable. */
         static IdentifierPtr Create( std::string strName );
 
         virtual ~Identifier() {}
 
 
+        /** \brief  Returns the name of the currently referenced variable. */
         inline std::string  GetName() const               { return _strName; }
+
+        /** \brief  Sets a name referenced variable name.
+         *  \param  strName   The new unique name of the variable, which shall be referenced. */
         inline void         SetName(std::string strName)  { _strName = strName; }
 
+
+        /** \brief    Returns a shared pointer to the VariableInfo object, which describes the declaration of the referenced variable.
+         *  \remarks  This method requires the VAST node to be correctly linked into an enclosing AST, because it retrives the variable declaration
+         *            from the root <b>FunctionDeclaration</b> object. */
         BaseClasses::VariableInfoPtr              LookupVariableInfo();
+
+        /** \brief    Returns a constant shared pointer to the VariableInfo object, which describes the declaration of the referenced variable.
+         *  \remarks  This method requires the VAST node to be correctly linked into an enclosing AST, because it retrives the variable declaration
+         *            from the root <b>FunctionDeclaration</b> object. */
         inline BaseClasses::VariableInfoConstPtr  LookupVariableInfo() const
         {
           return const_cast< Identifier* >( this )->LookupVariableInfo();
         }
 
+      public:
 
-        virtual bool IsVectorized() final override;
-
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override;
+        virtual bool                  IsVectorized() final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
+      /** \brief    Describes all kinds of memory accesses.
+       *  \remarks  This class is used to describe array accesses as well as memory transactions with pointers and offsets.
+                    The unary dereferencing operator can be described by setting a Constant object with <b>zero</b> value as index expression. */
       class MemoryAccess final : public Value
       {
       private:
 
         friend class AST;
-
-        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
-        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;        //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;   //!< Type alias for constant shared pointers to class <b>BaseClasses::Expression</b>.
 
       private:
 
@@ -1279,28 +1331,50 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  spMemoryReference   A shared pointer to the expression object, which returns the memory reference. It must evaluate to a dereferencable type.
+         *  \param  spIndexExpression   A shared pointer to the expression object, which returns the offset to the memory address. It must evaluate to a native element type. */
         static MemoryAccessPtr Create(ExpressionPtr spMemoryReference = nullptr, ExpressionPtr spIndexExpression = nullptr);
 
         virtual ~MemoryAccess() {}
 
 
+        /** \brief  Returns a shared pointer to the currently set index expression object. */
         inline ExpressionPtr        GetIndexExpression()                                  { return _spIndexExpr; }
+
+        /** \brief  Returns a constant shared pointer to the currently set index expression object. */
         inline ExpressionConstPtr   GetIndexExpression() const                            { return _spIndexExpr; }
+
+        /** \brief  Sets a new expression, which returns the offset to the memory address. It must evaluate to a native element type.
+         *  \param  spIndexExpression   A shared pointer to the new <b>index</b> expression. */
         inline void                 SetIndexExpression(ExpressionPtr spIndexExpression)   { _SetChildPtr(_spIndexExpr, spIndexExpression); }
 
+
+        /** \brief  Returns a shared pointer to the currently set expression object, which returns the memory reference. */
         inline ExpressionPtr        GetMemoryReference()                                  { return _spMemoryRef; }
+
+        /** \brief  Returns a constant shared pointer to the currently set expression object, which returns the memory reference. */
         inline ExpressionConstPtr   GetMemoryReference() const                            { return _spMemoryRef; }
+
+        /** \brief  Sets a new expression, which returns the memory reference. It must evaluate to a dereferencable type.
+         *  \param  spMemoryReference   A shared pointer to the new <b>memory reference</b> expression. */
         inline void                 SetMemoryReference(ExpressionPtr spMemoryReference)   { _SetChildPtr(_spMemoryRef, spMemoryReference); }
 
+      public:
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType       GetSubExpressionCount() const final override  { return static_cast< IndexType >(2); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
+        //@}
 
-
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
 
@@ -1497,7 +1571,7 @@ namespace Vectorization
       };
 
 
-      /** \brief  Base class for all VAST nodes describing typical binary expressions. */
+      /** \brief  Base class for all VAST nodes describing typical binary operators. */
       class BinaryOperator : public BaseClasses::Expression
       {
       private:
