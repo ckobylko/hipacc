@@ -1497,18 +1497,21 @@ namespace Vectorization
       };
 
 
+      /** \brief  Base class for all VAST nodes describing typical binary expressions. */
       class BinaryOperator : public BaseClasses::Expression
       {
       private:
 
-        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
-        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;        //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;   //!< Type alias for constant shared pointers to class <b>BaseClasses::Expression</b>.
 
         ExpressionPtr             _spLHS;
         ExpressionPtr             _spRHS;
 
       protected:
 
+        /** \brief  Internal method, which dumps both sub-expressions into a XML string.
+         *  \param  cszIntend   The intendation level, which shall be used for each line in the XML string, in space characters. */
         std::string _DumpSubExpressionsToXML(const size_t cszIntend) const;
 
         inline BinaryOperator()   {}
@@ -1518,46 +1521,60 @@ namespace Vectorization
         virtual ~BinaryOperator() {}
 
 
+        /** \brief  Returns a shared pointer to the currently referenced sub-expression, which is used as the left-hand-side. */
         inline ExpressionPtr        GetLHS()                        { return _spLHS; }
+
+        /** \brief  Returns a constant shared pointer to the currently referenced sub-expression, which is used as the left-hand-side. */
         inline ExpressionConstPtr   GetLHS() const                  { return _spLHS; }
+
+        /** \brief  Sets a new sub-expression as the left-hand-side.
+         *  \param  spNewLHS  A shared pointer to the new sub-expression. */
         inline void                 SetLHS(ExpressionPtr spNewLHS)  { _SetChildPtr(_spLHS, spNewLHS); }
 
-        inline ExpressionPtr        GetRHS()                        { return _spRHS; }
-        inline ExpressionConstPtr   GetRHS() const                  { return _spRHS; }
-        inline void                 SetRHS(ExpressionPtr spNewRHS)  { _SetChildPtr(_spRHS, spNewRHS); }
 
+        /** \brief  Returns a shared pointer to the currently referenced sub-expression, which is used as the right-hand-side. */
+        inline ExpressionPtr        GetRHS()                        { return _spRHS; }
+
+        /** \brief  Returns a constant shared pointer to the currently referenced sub-expression, which is used as the right-hand-side. */
+        inline ExpressionConstPtr   GetRHS() const                  { return _spRHS; }
+
+        /** \brief  Sets a new sub-expression as the right-hand-side.
+         *  \param  spNewRHS  A shared pointer to the new sub-expression. */
+        inline void                 SetRHS(ExpressionPtr spNewRHS)  { _SetChildPtr(_spRHS, spNewRHS); }
 
       public:
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual ExpressionPtr GetSubExpression(IndexType SubExprIndex) override;
         virtual IndexType     GetSubExpressionCount() const override      { return static_cast< IndexType >(2); }
         virtual void          SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) override;
+        //@}
       };
 
+      /** \brief  Describes all kinds of binary arithmetic operators. */
       class ArithmeticOperator final : public BinaryOperator
       {
       private:
 
         friend class AST;
-
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
-        typedef BaseClasses::TypeInfo       TypeInfo;
-        typedef TypeInfo::KnownTypes        KnownTypes;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;    //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
 
       public:
 
+        /** \brief  Enumeration of all supported arithmetic operator types. */
         enum class ArithmeticOperatorType
         {
-          Add,
-          BitwiseAnd,
-          BitwiseOr,
-          BitwiseXOr,
-          Divide,
-          Modulo,
-          Multiply,
-          ShiftLeft,
-          ShiftRight,
-          Subtract
+          Add,            //!< Internal ID of the addition operation, i.e. <b>a + b</b>.
+          BitwiseAnd,     //!< Internal ID of the bit-wise <b>and</b> operation, i.e. <b>a &amp; b</b>.
+          BitwiseOr,      //!< Internal ID of the bit-wise <b>or</b> operation, i.e. <b>a | b</b>.
+          BitwiseXOr,     //!< Internal ID of the bit-wise <b>exclusive-or</b> operation, i.e. <b>a ^ b</b>.
+          Divide,         //!< Internal ID of the division operation, i.e. <b>a / b</b>.
+          Modulo,         //!< Internal ID of the modulo operation, i.e. <b>a % b</b>.
+          Multiply,       //!< Internal ID of the multiplication operation, i.e. <b>a * b</b>.
+          ShiftLeft,      //!< Internal ID of the left-shift operation, i.e. <b>a &lt;&lt; b</b>.
+          ShiftRight,     //!< Internal ID of the right-shift operation, i.e. <b>a &gt;&gt; b</b>.
+          Subtract        //!< Internal ID of the subtraction operation, i.e. <b>a - b</b>.
         };
 
 
@@ -1570,34 +1587,50 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  eOpType   The requested type of the arithmetic operator.
+         *  \param  spLHS     A shared pointer to the expression object, which shall be used as left-hand-side of this binary operator.
+         *  \param  spRHS     A shared pointer to the expression object, which shall be used as right-hand-side of this binary operator. */
         static ArithmeticOperatorPtr Create(ArithmeticOperatorType eOpType = ArithmeticOperatorType::Add, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
 
         virtual ~ArithmeticOperator() {}
 
 
+        /** \brief  Returns the string identifier of a specific arithmetic operator type.
+         *  \param  eType   The arithmetic operator type, whose string identifier shall be returned. */
         static std::string GetOperatorTypeString(ArithmeticOperatorType eType);
 
 
+        /** \brief  Returns the currently set arithmetic operator type. */
         inline ArithmeticOperatorType GetOperatorType() const                           { return _eOpType; }
-        inline void                   SetOperatorType(ArithmeticOperatorType eOpType)   { _eOpType = eOpType; }
 
+        /** \brief  Changes the arithmetic operator type.
+         *  \param  eOpType   The requested new arithmetic operator type. */
+        inline void                   SetOperatorType(ArithmeticOperatorType eOpType)   { _eOpType = eOpType; }
 
       public:
 
-        virtual BaseClasses::TypeInfo GetResultType() const final override;
-
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+        //@}
       };
 
+      /** \brief    Describes the assignment operator.
+       *  \remarks  This operator can receive an additional Identifier object referencing a <b>boolean</b> mask. If this is the case,
+       *            the assignment shall only be performed, when the mask evaluates to <b>true</b>. */
       class AssignmentOperator final : public BinaryOperator
       {
       private:
 
         friend class AST;
-
         typedef BinaryOperator              BaseType;
-        typedef BaseClasses::ExpressionPtr  ExpressionPtr;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;    //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
 
       private:
 
@@ -1608,50 +1641,68 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  spLHS   A shared pointer to the expression object, which shall be used as left-hand-side of this binary operator.
+         *  \param  spRHS   A shared pointer to the expression object, which shall be used as right-hand-side of this binary operator.
+         *  \param  spMask  A shared pointer to the optional identifier object, which shall be used as a condition mask for the assignment. */
         static AssignmentOperatorPtr Create(ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr, IdentifierPtr spMask = nullptr);
 
         virtual ~AssignmentOperator() {}
 
+
+        /** \brief  Returns a shared pointer to the currently set mask identifier. */
         inline IdentifierPtr        GetMask()                         { return _spMask; }
+
+        /** \brief  Returns a constant shared pointer to the currently set mask identifier. */
         inline IdentifierConstPtr   GetMask() const                   { return _spMask; }
+
+        /** \brief    Sets a new mask identifier for conditional assignments.
+         *  \param    spNewMask   A shared pointer to the new mask identifier.
+         *  \remarks  If the assignment shall not be masked, set a <b>nullptr</b> as mask identifier. */
         inline void                 SetMask(IdentifierPtr spNewMask)  { _SetChildPtr(_spMask, spNewMask); }
 
 
+        /** \brief  Returns, whether the assignment is conditional, i.e. whether a mask identifier has been set. */
         inline bool IsMasked() const  { return static_cast<bool>( GetMask() ); }
-
 
       public:
 
-        virtual BaseClasses::TypeInfo GetResultType() const final override;
-
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
 
         virtual ExpressionPtr GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType     GetSubExpressionCount() const final override;
         virtual void          SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override;
+        //@}
       };
 
+      /** \brief  Describes all kinds of binary relational operators, meaning operators returning <b>boolean</b> values regardless of the input types. */
       class RelationalOperator final : public BinaryOperator
       {
       private:
 
         friend class AST;
-
-        typedef BaseClasses::ExpressionPtr   ExpressionPtr;
+        typedef BaseClasses::ExpressionPtr  ExpressionPtr;    //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
 
       public:
 
+        /** \brief  Enumeration of all supported relational operator types. */
         enum class RelationalOperatorType
         {
-          Equal,
-          Greater,
-          GreaterEqual,
-          Less,
-          LessEqual,
-          LogicalAnd,
-          LogicalOr,
-          NotEqual
+          Equal,          //!< Internal ID of the equal-to comparison, i.e. <b>a == b</b>.
+          Greater,        //!< Internal ID of the greater-than comparison, i.e. <b>a &gt; b</b>.
+          GreaterEqual,   //!< Internal ID of the greater-than-or-equal-to comparison, i.e. <b>a &gt;= b</b>.
+          Less,           //!< Internal ID of the less-than comparison, i.e. <b>a &lt; b</b>.
+          LessEqual,      //!< Internal ID of the less-than-or-equal-to comparison, i.e. <b>a &lt;= b</b>.
+          LogicalAnd,     //!< Internal ID of the logical-and combination, i.e. <b>a &amp;&amp; b</b>.
+          LogicalOr,      //!< Internal ID of the logical-or combination, i.e. <b>a || b</b>.
+          NotEqual        //!< Internal ID of the not-equal-to comparison, i.e. <b>a != b</b>.
         };
 
       private:
@@ -1663,26 +1714,43 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  eOpType   The requested type of the relational operator.
+         *  \param  spLHS     A shared pointer to the expression object, which shall be used as left-hand-side of this binary operator.
+         *  \param  spRHS     A shared pointer to the expression object, which shall be used as right-hand-side of this binary operator. */
         static RelationalOperatorPtr  Create(RelationalOperatorType eOpType = RelationalOperatorType::Equal, ExpressionPtr spLHS = nullptr, ExpressionPtr spRHS = nullptr);
 
         virtual ~RelationalOperator() {}
 
 
+        /** \brief  Returns the string identifier of a specific relational operator type.
+         *  \param  eType   The relational operator type, whose string identifier shall be returned. */
         static std::string GetOperatorTypeString(RelationalOperatorType eType);
 
 
+        /** \brief    Returns the internal type used during the relational operation.
+         *  \remarks  The internal comparison type depends on the return types of the sub-expressions. */
         BaseClasses::TypeInfo GetComparisonType() const;
 
-        inline RelationalOperatorType GetOperatorType() const                           { return _eOpType; }
-        inline void                   SetOperatorType(RelationalOperatorType eOpType)   { _eOpType = eOpType; }
 
+        /** \brief  Returns the currently set relational operator type. */
+        inline RelationalOperatorType GetOperatorType() const                           { return _eOpType; }
+
+        /** \brief  Changes the relational operator type.
+         *  \param  eOpType   The requested new relational operator type. */
+        inline void                   SetOperatorType(RelationalOperatorType eOpType)   { _eOpType = eOpType; }
 
       public:
 
-        virtual BaseClasses::TypeInfo GetResultType() const final override;
-
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
+        virtual BaseClasses::TypeInfo GetResultType() const final override;
+        //@}
       };
 
 

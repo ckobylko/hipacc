@@ -1259,12 +1259,14 @@ string AST::Expressions::ArithmeticOperator::GetOperatorTypeString(ArithmeticOpe
 
 AST::BaseClasses::TypeInfo AST::Expressions::ArithmeticOperator::GetResultType() const
 {
+  typedef BaseClasses::TypeInfo   TypeInfo;
+
   if ( GetLHS() && GetRHS() )     // Check if both children are set
   {
     TypeInfo TypeLHS = GetLHS()->GetResultType();
     TypeInfo TypeRHS = GetRHS()->GetResultType();
 
-    if ( (TypeLHS.GetType() == KnownTypes::Unknown) || (TypeRHS.GetType() == KnownTypes::Unknown) )
+    if ( (TypeLHS.GetType() == TypeInfo::KnownTypes::Unknown) || (TypeRHS.GetType() == TypeInfo::KnownTypes::Unknown) )
     {
       // Cannot do arithmetic with unknown types => Return type is unknown
       return TypeInfo();
