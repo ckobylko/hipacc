@@ -44,11 +44,6 @@
 #include <vector>
 #include <type_traits>
 
-#define DEFINE_NODE_TYPES( _NodeClass_ ) \
-    class _NodeClass_; \
-    typedef std::shared_ptr< _NodeClass_       >  _NodeClass_##Ptr; \
-    typedef std::shared_ptr< const _NodeClass_ >  _NodeClass_##ConstPtr;
-
 
 namespace clang
 {
@@ -1031,30 +1026,72 @@ namespace Vectorization
     };
 
 
+    /** \brief  Contains all class definitions for VAST nodes describing expressions. */
     class Expressions final
     {
-    // Public type definitions
     public:
 
-      DEFINE_NODE_TYPES( Value );
-      DEFINE_NODE_TYPES( Constant );
-      DEFINE_NODE_TYPES( Identifier );
-      DEFINE_NODE_TYPES( MemoryAccess );
+      /** \name Shared pointer type definitions */
+      //@{
 
-      DEFINE_NODE_TYPES( UnaryExpression );
-      DEFINE_NODE_TYPES( Conversion );
-      DEFINE_NODE_TYPES( Parenthesis );
-      DEFINE_NODE_TYPES( UnaryOperator );
+      class Value;
+      typedef std::shared_ptr< Value       >  ValuePtr;       //!< Shared pointer type for objects of class Value
+      typedef std::shared_ptr< const Value >  ValueConstPtr;  //!< Shared pointer type for constant objects of class Value
 
-      DEFINE_NODE_TYPES( BinaryOperator );
-      DEFINE_NODE_TYPES( ArithmeticOperator );
-      DEFINE_NODE_TYPES( AssignmentOperator );
-      DEFINE_NODE_TYPES( RelationalOperator );
+      class Constant;
+      typedef std::shared_ptr< Constant       >  ConstantPtr;       //!< Shared pointer type for objects of class Constant
+      typedef std::shared_ptr< const Constant >  ConstantConstPtr;  //!< Shared pointer type for constant objects of class Constant
 
-      DEFINE_NODE_TYPES( FunctionCall );
+      class Identifier;
+      typedef std::shared_ptr< Identifier       >  IdentifierPtr;       //!< Shared pointer type for objects of class Identifier
+      typedef std::shared_ptr< const Identifier >  IdentifierConstPtr;  //!< Shared pointer type for constant objects of class Identifier
+
+      class MemoryAccess;
+      typedef std::shared_ptr< MemoryAccess       >  MemoryAccessPtr;       //!< Shared pointer type for objects of class MemoryAccess
+      typedef std::shared_ptr< const MemoryAccess >  MemoryAccessConstPtr;  //!< Shared pointer type for constant objects of class MemoryAccess
 
 
-    // Class definitions
+      class UnaryExpression;
+      typedef std::shared_ptr< UnaryExpression       >  UnaryExpressionPtr;       //!< Shared pointer type for objects of class UnaryExpression
+      typedef std::shared_ptr< const UnaryExpression >  UnaryExpressionConstPtr;  //!< Shared pointer type for constant objects of class UnaryExpression
+
+      class Conversion;
+      typedef std::shared_ptr< Conversion       >  ConversionPtr;       //!< Shared pointer type for objects of class Conversion
+      typedef std::shared_ptr< const Conversion >  ConversionConstPtr;  //!< Shared pointer type for constant objects of class Conversion
+
+      class Parenthesis;
+      typedef std::shared_ptr< Parenthesis       >  ParenthesisPtr;       //!< Shared pointer type for objects of class Parenthesis
+      typedef std::shared_ptr< const Parenthesis >  ParenthesisConstPtr;  //!< Shared pointer type for constant objects of class Parenthesis
+
+      class UnaryOperator;
+      typedef std::shared_ptr< UnaryOperator       >  UnaryOperatorPtr;       //!< Shared pointer type for objects of class UnaryOperator
+      typedef std::shared_ptr< const UnaryOperator >  UnaryOperatorConstPtr;  //!< Shared pointer type for constant objects of class UnaryOperator
+
+
+      class BinaryOperator;
+      typedef std::shared_ptr< BinaryOperator       >  BinaryOperatorPtr;       //!< Shared pointer type for objects of class BinaryOperator
+      typedef std::shared_ptr< const BinaryOperator >  BinaryOperatorConstPtr;  //!< Shared pointer type for constant objects of class BinaryOperator
+
+      class ArithmeticOperator;
+      typedef std::shared_ptr< ArithmeticOperator       >  ArithmeticOperatorPtr;       //!< Shared pointer type for objects of class ArithmeticOperator
+      typedef std::shared_ptr< const ArithmeticOperator >  ArithmeticOperatorConstPtr;  //!< Shared pointer type for constant objects of class ArithmeticOperator
+
+      class AssignmentOperator;
+      typedef std::shared_ptr< AssignmentOperator       >  AssignmentOperatorPtr;       //!< Shared pointer type for objects of class AssignmentOperator
+      typedef std::shared_ptr< const AssignmentOperator >  AssignmentOperatorConstPtr;  //!< Shared pointer type for constant objects of class AssignmentOperator
+
+      class RelationalOperator;
+      typedef std::shared_ptr< RelationalOperator       >  RelationalOperatorPtr;       //!< Shared pointer type for objects of class RelationalOperator
+      typedef std::shared_ptr< const RelationalOperator >  RelationalOperatorConstPtr;  //!< Shared pointer type for constant objects of class RelationalOperator
+
+
+      class FunctionCall;
+      typedef std::shared_ptr< FunctionCall       >  FunctionCallPtr;       //!< Shared pointer type for objects of class FunctionCall
+      typedef std::shared_ptr< const FunctionCall >  FunctionCallConstPtr;  //!< Shared pointer type for constant objects of class FunctionCall
+
+      //@}
+
+
     public:
 
       class Value : public BaseClasses::Expression
@@ -1267,6 +1304,8 @@ namespace Vectorization
       };
 
 
+      /** \brief    Base class for all VAST nodes describing typical unary expressions.
+       *  \remarks  All unary expressions contain exactly one sub-expression. */
       class UnaryExpression : public BaseClasses::Expression
       {
       private:
@@ -1275,6 +1314,8 @@ namespace Vectorization
 
       protected:
 
+        /** \brief  Internal method, which dumps the sub-expression into a XML string.
+         *  \param  cszIntend   The intendation level, which shall be used for each line in the XML string, in space characters. */
         std::string _DumpSubExpressionToXML(const size_t cszIntend) const;
 
         inline UnaryExpression() : _spSubExpression(nullptr)  {}
@@ -1284,15 +1325,26 @@ namespace Vectorization
         virtual ~UnaryExpression()  {}
 
 
+        /** \brief  Returns a shared pointer to the currently referenced sub-expression. */
         inline BaseClasses::ExpressionPtr       GetSubExpression()                                      { return _spSubExpression; }
+
+        /** \brief  Returns a constant shared pointer to the currently referenced sub-expression. */
         inline BaseClasses::ExpressionConstPtr  GetSubExpression() const                                { return _spSubExpression; }
+
+        /** \brief    Sets a new sub-expression.
+         *  \param    spSubExpr   A shared pointer to the new sub-expression. */
         inline void                             SetSubExpression(BaseClasses::ExpressionPtr spSubExpr)  { _SetChildPtr(_spSubExpression, spSubExpr); }
 
+
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::ExpressionPtr  GetSubExpression(IndexType SubExprIndex) final override;
         virtual IndexType                   GetSubExpressionCount() const final override  { return static_cast< IndexType >( 1 ); }
         virtual void                        SetSubExpression(IndexType SubExprIndex, BaseClasses::ExpressionPtr spSubExpr) final override;
+        //@}
       };
 
+      /** \brief  Describes all kinds of conversion expressions, including casts. */
       class Conversion final : public UnaryExpression
       {
       private:
@@ -1309,24 +1361,44 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  crConvertType     A constant reference to the TypeInfo object describing the return type of the conversion. Its contents will be copied.
+         *  \param  spSubExpression   A shared pointer to the expression object, which shall be used as the sub-expression.
+         *  \param  bExplicit         A flag indicating, whether this conversion expression has been explicitly stated by the programmer. */
         static ConversionPtr Create(const BaseClasses::TypeInfo &crConvertType, BaseClasses::ExpressionPtr spSubExpression = nullptr, bool bExplicit = true);
 
         virtual ~Conversion() {}
 
 
+        /** \brief  Returns the currently set target type of the conversion. */
         inline BaseClasses::TypeInfo  GetConvertType() const                                    { return _ConvertType; }
+
+        /** \brief  Sets a new target type for the conversion.
+         *  \param  crConvType    A constant reference to the TypeInfo object describing the return type of the conversion. Its contents will be copied. */
         inline void                   SetConvertType(const BaseClasses::TypeInfo &crConvType)   { _ConvertType = crConvType; }
 
+
+        /** \brief  Returns the currently set <b>explicit conversion</b> flag. */
         inline bool GetExplicit() const             { return _bIsExplicit; }
+
+        /** \brief  Sets a flag, which indicates whether this conversion has been explicitly stated by the programmer.
+         *  \param  bIsExplicit   The new explicit conversion flag. */
         inline void SetExplicit(bool bIsExplicit)   { _bIsExplicit = bIsExplicit; }
 
       public:
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetConvertType(); }
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
+      /** \brief  Describes the encapsulation of the sub-expression into a parenthesis. */
       class Parenthesis final : public UnaryExpression
       {
       private:
@@ -1338,6 +1410,8 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  spSubExpression   A shared pointer to the expression object, which shall be used as the sub-expression. */
         static ParenthesisPtr Create(BaseClasses::ExpressionPtr spSubExpression = nullptr);
 
         virtual ~Parenthesis()  {}
@@ -1345,11 +1419,18 @@ namespace Vectorization
 
       public:
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
+      /** \brief  Describes all kinds of typical unary operators, except the unary dereferencing operator, which is handled by class <b>MemoryAccess</b>. */
       class UnaryOperator final : public UnaryExpression
       {
       private:
@@ -1358,17 +1439,18 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Enumeration of all supported unary operator types. */
         enum class UnaryOperatorType
         {
-          AddressOf,
-          BitwiseNot,
-          LogicalNot,
-          Minus,
-          Plus,
-          PostDecrement,
-          PostIncrement,
-          PreDecrement,
-          PreIncrement
+          AddressOf,        //!< Internal ID of the address-of operator, i.e. <b>&amp;x</b>. The return type is a pointer to the sub-expression return type.
+          BitwiseNot,       //!< Internal ID of the <b>bit-wise</b> not-operator, i.e. <b>!x</b>. The return type of the sub-expression is kept.
+          LogicalNot,       //!< Internal ID of the <b>logical</b> not-operator, i.e. <b>!x</b>. The return type of this operator is <b>boolean</b>.
+          Minus,            //!< Internal ID of the unary sign operator <b>minus</b>, i.e. <b>-x</b>.
+          Plus,             //!< Internal ID of the unary sign operator <b>plus</b>, i.e. <b>+x</b>.
+          PostDecrement,    //!< Internal ID of the post-decrement operator, i.e. <b>x--</b>.
+          PostIncrement,    //!< Internal ID of the post-increment operator, i.e. <b>x++</b>.
+          PreDecrement,     //!< Internal ID of the pre-decrement operator, i.e. <b>--x</b>.
+          PreIncrement      //!< Internal ID of the pre-increment operator, i.e. <b>++x</b>.
         };
 
       private:
@@ -1380,23 +1462,38 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  eType             The requested type of the unary operator.
+         *  \param  spSubExpression   A shared pointer to the expression object, which shall be used as the sub-expression. */
         static UnaryOperatorPtr Create(UnaryOperatorType eType = UnaryOperatorType::Plus, BaseClasses::ExpressionPtr spSubExpression = nullptr);
 
         virtual ~UnaryOperator()  {}
 
 
+        /** \brief  Returns the string identifier of a specific unary operator type.
+         *  \param  eType   The unary operator type, whose string identifier shall be returned. */
         static std::string GetOperatorTypeString(UnaryOperatorType eType);
 
 
+        /** \brief  Returns the currently set unary operator type. */
         inline UnaryOperatorType  GetOperatorType() const                     { return _eOpType; }
+
+        /** \brief  Changes the unary operator type.
+         *  \param  eOpType   The requested new unary operator type. */
         inline void               SetOperatorType(UnaryOperatorType eOpType)  { _eOpType = eOpType; }
 
 
       public:
 
-        virtual std::string DumpToXML(const size_t cszIntend) const final override;
-
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override;
+        //@}
+
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
+        virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
       };
 
 
@@ -1589,14 +1686,16 @@ namespace Vectorization
       };
 
 
+      /** \brief    Describes a call to another function.
+       *  \remarks  The number of sub-expressions of this VAST node is equal to the number of call parameters of the referenced function. */
       class FunctionCall : public BaseClasses::Expression
       {
       private:
 
         friend class AST;
 
-        typedef BaseClasses::ExpressionPtr        ExpressionPtr;
-        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;
+        typedef BaseClasses::ExpressionPtr        ExpressionPtr;        //!< Type alias for shared pointers to class <b>BaseClasses::Expression</b>.
+        typedef BaseClasses::ExpressionConstPtr   ExpressionConstPtr;   //!< Type alias for constant shared pointers to class <b>BaseClasses::Expression</b>.
 
       private:
 
@@ -1609,38 +1708,78 @@ namespace Vectorization
 
       public:
 
+        /** \brief  Creates a new object of this class.
+         *  \param  strFunctionName   The fully qualified name of the function, which shall be called.
+         *  \param  crReturnType      A constant reference to the TypeInfo object describing the return type of the function call. Its contents will be copied. */
         static FunctionCallPtr Create(std::string strFunctionName, const BaseClasses::TypeInfo &crReturnType);
 
         virtual ~FunctionCall() {}
 
 
+        /** \name Public methods for accessing the call parameter expression container. */
+        //@{
+
+        /** \brief  Adds a new function call parameter at the end of the current parameter list.
+         *  \param  spCallParam   A shared pointer to the expression object, describing the new function call parameter. */
         void          AddCallParameter(ExpressionPtr spCallParam);
+
+        /** \brief    Returns a shared pointer to the expression object, which is used as a specific function call parameter.
+         *  \param    CallParamIndex  The index of the function call parameter, which shall be returned.
+         *  \remarks  If the function call parameter index is out of range, a <b>ASTExceptions::ChildIndexOutOfRange</b> exception will be thrown. */
         ExpressionPtr GetCallParameter(IndexType CallParamIndex);
+
+        /** \brief    Replaces an existing function call parameter with a new one.
+         *  \param    CallParamIndex  The index of the function call parameter, which shall be replaced.
+         *  \param    spCallParam     A shared pointer to the expression object, describing the new function call parameter.
+         *  \remarks  If the function call parameter index is out of range, a <b>ASTExceptions::ChildIndexOutOfRange</b> exception will be thrown. */
         void          SetCallParameter(IndexType CallParamIndex, ExpressionPtr spCallParam);
 
+
+        /** \brief  Returns the number of currently set call parameter expressions. */
         inline IndexType          GetCallParameterCount() const    { return static_cast< IndexType >(_vecCallParams.size()); }
+
+        /** \brief    Returns a constant shared pointer to the expression object, which is used as a specific function call parameter.
+         *  \param    CallParamIndex  The index of the function call parameter, which shall be returned.
+         *  \remarks  If the function call parameter index is out of range, a <b>ASTExceptions::ChildIndexOutOfRange</b> exception will be thrown. */
         inline ExpressionConstPtr GetCallParameter(IndexType CallParamIndex) const
         {
           return const_cast< FunctionCall* >( this )->GetCallParameter( CallParamIndex );
         }
 
+        //@}
 
+
+        /** \brief  Returns the currently set fully qualified name of the function, which shall be called. */
         inline std::string  GetName() const                   { return _strName; }
+
+        /** \brief    Sets a new function name.
+         *  \param    strNewName  The requested new function name.
+         *  \remarks  The function name is expected to be fully qualified, i.e. it should contain the name of all enclosing namespaces. */
         inline void         SetName(std::string strNewName)   { _strName = strNewName; }
 
-        inline BaseClasses::TypeInfo GetReturnType() const                                      { return _ReturnType; }
-        inline void                  SetReturnType(const BaseClasses::TypeInfo &crReturnType)   { _ReturnType = crReturnType; }
 
+        /** \brief  Returns the currently set return type of the function call. */
+        inline BaseClasses::TypeInfo GetReturnType() const                                      { return _ReturnType; }
+
+        /** \brief  Sets a new return type of the function call.
+         *  \param  crReturnType    A constant reference to the TypeInfo object describing the return type of the function call. Its contents will be copied. */
+        inline void                  SetReturnType(const BaseClasses::TypeInfo &crReturnType)   { _ReturnType = crReturnType; }
 
       public:
 
+        /** \name Public methods inherited from class BaseClasses::Node */
+        //@{
         virtual std::string DumpToXML(const size_t cszIntend) const final override;
+        //@}
 
+        /** \name Public methods inherited from class BaseClasses::Expression */
+        //@{
         virtual BaseClasses::TypeInfo GetResultType() const final override    { return GetReturnType(); }
 
         virtual ExpressionPtr   GetSubExpression(IndexType SubExprIndex)                                          { return GetCallParameter(SubExprIndex); }
         virtual IndexType       GetSubExpressionCount() const final override                                      { return GetCallParameterCount(); }
         virtual void            SetSubExpression(IndexType SubExprIndex, ExpressionPtr spSubExpr) final override  { SetCallParameter(SubExprIndex, spSubExpr); }
+        //@}
       };
     };
 
@@ -2205,7 +2344,6 @@ namespace Vectorization
 } // end namespace hipacc
 } // end namespace clang
 
-#undef DEFINE_NODE_TYPES
 
 #endif  // _BACKEND_VECTORIZATION_AST_H_
 
