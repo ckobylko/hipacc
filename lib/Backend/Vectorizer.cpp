@@ -2218,8 +2218,6 @@ AST::BaseClasses::VariableInfoPtr Vectorizer::_GetAssigneeInfo(AST::Expressions:
 
 AST::FunctionDeclarationPtr Vectorizer::ConvertClangFunctionDecl(::clang::FunctionDecl *pFunctionDeclaration)
 {
-//VASTBuilder().Import(pFunctionDeclaration);
-
   return VASTBuilder().BuildFunctionDecl(pFunctionDeclaration);
 }
 
